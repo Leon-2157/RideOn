@@ -1,4 +1,3 @@
-![RideOn](assets/logo.png)
+<h1 align="center">RideOn</h1>
+[RideOn](assets/logo.png)
 
-
-**halo sayanag**
