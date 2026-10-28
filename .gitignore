@@ -1,0 +1,91 @@
+# ==============================================================================
+# RideOn Monorepo - Comprehensive .gitignore (Industry Standard)
+# ==============================================================================
+
+# --- Environment & Secret Keys ---
+*.env
+*.env.*
+!.env.example
+*.local
+secrets/
+*.pem
+*.key
+*.cert
+
+# --- Firebase & Google Services Configuration ---
+# File konfigurasi yang berisi API key client & OAuth client IDs
+**/android/app/google-services.json
+**/ios/Runner/GoogleService-Info.plist
+**/macos/Runner/GoogleService-Info.plist
+**/lib/firebase_options.dart
+
+# Kecualikan file contoh / mock template agar tetap ter-track
+!**/google-services.json.example
+!**/GoogleService-Info.plist.example
+
+# --- Android Keystores & Signing Keys ---
+**/android/key.properties
+**/android/local.properties
+*.keystore
+*.jks
+*.p12
+
+# --- Flutter & Dart Build Artifacts ---
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+**/build/
+ephemeral/
+.flutter-plugins
+.flutter-plugins-dependencies
+flutter_*.png
+
+# --- Gradle & Android Specific ---
+.gradle/
+**/android/.gradle/
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/app/build/
+
+# --- iOS & macOS Specific ---
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/app.flx
+**/ios/Flutter/ephemeral/
+**/ios/DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+
+# --- OS Specific Artifacts ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- IDE & Editors ---
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+*.sublime-project
+*.sublime-workspace

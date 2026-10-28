@@ -28,6 +28,10 @@ Dokumen ini mencatat seluruh riwayat konfigurasi, perubahan struktur kode, dan i
 4. **Kredensial SHA-1 & Google Sign-In**:
    - SHA-1 debug laptop pengembang telah didaftarkan ke Firebase Console untuk ketiga aplikasi.
    - File `google-services.json` terbaru (122 baris) sudah menyertakan ketiga aplikasi + OAuth client Google Sign-In.
+5. **Keamanan & Manajemen Rahasia (.gitignore & .env)**:
+   - Root `.gitignore` telah diperbarui dengan standar industri: mengabaikan file `.env`, file fisik `google-services.json`, `local.properties`, dan file keystore Android.
+   - File template `.env.example` telah dibuat di root dan di masing-masing folder aplikasi.
+   - File template `google-services.json.example` telah disediakan di root sebagai acuan struktur.
 
 ---
 
