@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../main/presentation/pages/main_screen.dart';
+import '../../data/auth_service.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
@@ -30,8 +31,10 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _identifierController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
   bool _obscurePassword = true;
   bool _hasLoginError = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -40,12 +43,45 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _submitLogin() {
+  Future<void> _handleGoogleLogin() async {
+    setState(() {
+      _isLoading = true;
+      _hasLoginError = false;
+    });
+
+    try {
+      final credential = await _authService.signInWithGoogle();
+      if (!mounted) return;
+
+      if (credential != null && credential.user != null) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const MainScreen(),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login Google gagal: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _submitLogin() async {
     final identifier = _identifierController.text.trim();
     final password = _passwordController.text;
 
-    // If identifier or password is empty, or specifically 'salah', show error state
-    if (identifier.isEmpty || password.isEmpty || password == 'salah') {
+    if (identifier.isEmpty || password.isEmpty) {
       setState(() {
         _hasLoginError = true;
       });
@@ -53,14 +89,36 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     setState(() {
+      _isLoading = true;
       _hasLoginError = false;
     });
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => const MainScreen(),
-      ),
-    );
+    try {
+      // Jika identifier berisi format email, lakukan login Firebase email
+      if (identifier.contains('@')) {
+        await _authService.signInWithEmailPassword(
+          email: identifier,
+          password: password,
+        );
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const MainScreen(),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _hasLoginError = true;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _navigateToRegister() {
@@ -335,15 +393,24 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           padding: EdgeInsets.zero,
         ),
-        child: Text(
-          'MASUK',
-          style: GoogleFonts.roboto(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-            letterSpacing: 0.5,
-          ),
-        ),
+        child: _isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            : Text(
+                'MASUK',
+                style: GoogleFonts.roboto(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.5,
+                ),
+              ),
       ),
     );
   }
@@ -398,13 +465,7 @@ class _LoginScreenState extends State<LoginScreen> {
         child: InkWell(
           key: const Key('btn_google_login'),
           borderRadius: BorderRadius.circular(13.0),
-          onTap: () {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (context) => const MainScreen(),
-              ),
-            );
-          },
+          onTap: _isLoading ? null : _handleGoogleLogin,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
