@@ -1,19 +1,22 @@
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
 
 /// Halaman Chat strictly based on Figma nodes [44:4665], [44:9043], and [44:9139]:
-/// - Driver header with photo, name (Pikri Haykal), rating (4.9), vehicle & plate (BG 4563 R)
-/// - Integrated Voice Call (TELEPON & TELEPON angkat prototype)
-/// - Chat bubble messages between Driver and Customer
-/// - Quick suggestion chips
-/// - Message input field with send button
+/// - chat.png: Chat Inbox / Conversation list with driver card
+/// - chat-1.png: Direct message conversation room with driver
+/// - TELEPON.png & TELEPON angkat.png: Full-screen calling overlay
 class ChatScreen extends StatefulWidget {
   final bool showBackButton;
+  final bool initialShowDetail;
 
   const ChatScreen({
     super.key,
     this.showBackButton = false,
+    this.initialShowDetail = true,
   });
 
   @override
@@ -21,6 +24,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  late bool _showDetail;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -32,12 +36,17 @@ class _ChatScreenState extends State<ChatScreen> {
     },
     {
       'sender': 'driver',
-      'text': 'Baik bukk',
+      'text': 'Sekalian, cabai merahnya juga mau yang keriting atau biasa?',
       'time': '10.11',
     },
     {
       'sender': 'user',
       'text': 'Boleh mas, sekalian aja',
+      'time': '10.11',
+    },
+    {
+      'sender': 'driver',
+      'text': 'Baik bukk',
       'time': '10.11',
     },
     {
@@ -50,6 +59,11 @@ class _ChatScreenState extends State<ChatScreen> {
       'text': 'Segera meluncur ya mas',
       'time': '10.11',
     },
+    {
+      'sender': 'driver',
+      'text': 'Ditunggu ya buk',
+      'time': '10.11',
+    },
   ];
 
   final List<String> _quickReplies = [
@@ -57,6 +71,12 @@ class _ChatScreenState extends State<ChatScreen> {
     'Makasih ya mas',
     'Segera meluncur ya mas',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _showDetail = widget.initialShowDetail || widget.showBackButton;
+  }
 
   @override
   void dispose() {
@@ -90,391 +110,397 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showCallModal() {
-    showDialog(
+    showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            decoration: BoxDecoration(
-              gradient: AppColors.splashGradient,
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircleAvatar(
-                  radius: 42,
-                  backgroundColor: Colors.white,
-                  child: Icon(
-                    Icons.person_rounded,
-                    size: 50,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Pikri Haykal',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Honda Vario 160 • BG 4563 R',
-                  style: GoogleFonts.roboto(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.85),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'Panggilan Tersambung (00:42)',
-                    style: GoogleFonts.roboto(
-                      fontSize: 11,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 36),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _callActionBtn(Icons.mic_off_rounded, 'Mute'),
-                    _callActionBtn(Icons.volume_up_rounded, 'Speaker'),
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        decoration: const BoxDecoration(
-                          color: AppColors.error,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.call_end_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
+      barrierLabel: 'VoiceCall',
+      barrierColor: Colors.black.withValues(alpha: 0.75),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (dialogContext, anim1, anim2) {
+        return const _VoiceCallOverlay();
       },
-    );
-  }
-
-  Widget _callActionBtn(IconData icon, String label) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.25),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: Colors.white, size: 22),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: GoogleFonts.roboto(
-            fontSize: 10,
-            color: Colors.white,
-          ),
-        ),
-      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_showDetail) {
+      return _buildInboxView();
+    }
+    return _buildDetailView();
+  }
+
+  // ---------------------------------------------------------------------------
+  // 1. Chat Inbox View (figma/HalamanChat/chat.png)
+  // ---------------------------------------------------------------------------
+  Widget _buildInboxView() {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7FA),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(80),
-        child: _buildDriverHeader(),
-      ),
+      backgroundColor: Colors.white,
       body: Column(
         children: [
-          // Message List
+          // Purple gradient top header with white RideOn logo
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.only(top: 48, bottom: 20),
+            decoration: const BoxDecoration(
+              gradient: AppColors.splashGradient,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+              ),
+            ),
+            child: Center(
+              child: Image.asset(
+                AppAssets.logoWhite,
+                height: 38,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+
+          // Inbox List
           Expanded(
             child: ListView(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.all(16.0),
               children: [
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.divider.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Hari Ini',
-                      style: GoogleFonts.roboto(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                  ),
-                ),
-                ...List.generate(_messages.length, (index) {
-                  final m = _messages[index];
-                  final isUser = m['sender'] == 'user';
-                  return _buildMessageBubble(
-                    text: m['text'] as String,
-                    time: m['time'] as String,
-                    isUser: isUser,
-                  );
-                }),
+                _buildConversationCard(),
               ],
             ),
           ),
-
-          // Quick Suggestion Chips
-          SizedBox(
-            height: 38,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              scrollDirection: Axis.horizontal,
-              itemCount: _quickReplies.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final rep = _quickReplies[index];
-                return GestureDetector(
-                  onTap: () => _sendMessage(rep),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.4),
-                        width: 0.9,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        rep,
-                        style: GoogleFonts.roboto(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Message Input Field
-          _buildMessageInputBar(),
         ],
       ),
     );
   }
 
-  Widget _buildDriverHeader() {
+  Widget _buildConversationCard() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.divider.withValues(alpha: 0.7),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
-          child: Row(
-            children: [
-              if (widget.showBackButton)
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                  color: AppColors.dark,
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-
-              // Avatar with online status
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: AppColors.secondary.withValues(alpha: 0.3),
-                    child: const Icon(Icons.person, color: AppColors.primary, size: 22),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 10,
-                      height: 10,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            setState(() {
+              _showDetail = true;
+            });
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+            child: Row(
+              children: [
+                // Driver Avatar with 4.9 rating badge
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
-                        color: AppColors.success,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
+                        border: Border.all(color: AppColors.primary, width: 1.5),
+                        image: const DecorationImage(
+                          image: AssetImage(AppAssets.driverPikri),
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 10),
-
-              // Driver Information
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Pikri Haykal',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.dark,
-                          ),
+                    Positioned(
+                      bottom: -4,
+                      right: -6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 4,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 6),
-                        const Icon(Icons.star_rounded, size: 14, color: Color(0xFFFFB300)),
-                        Text(
-                          '4.9',
-                          style: GoogleFonts.roboto(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.dark,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 13,
+                              color: Color(0xFFF1C40F),
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              '4.9',
+                              style: GoogleFonts.roboto(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.dark,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    Text(
-                      'Honda Vario 160 Hitam • BG 4563 R',
-                      style: GoogleFonts.roboto(
-                        fontSize: 10,
-                        color: AppColors.textMuted,
                       ),
                     ),
                   ],
                 ),
-              ),
+                const SizedBox(width: 14),
 
-              // Voice Call Button
-              GestureDetector(
-                onTap: _showCallModal,
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.phone_rounded,
-                    color: AppColors.primary,
-                    size: 20,
+                // Name, License Plate, and Subtitle
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pikri Haykal',
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF17152B),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF17152B),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'BG 4563 R',
+                              style: GoogleFonts.roboto(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Honda Vario 160 Hitam',
+                        style: GoogleFonts.roboto(
+                          fontSize: 11,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+
+                // Chevron arrow
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 18,
+                  color: Color(0xFF17152B),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildMessageBubble({
-    required String text,
-    required String time,
-    required bool isUser,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10.0),
-      child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
+  // ---------------------------------------------------------------------------
+  // 2. Chat Detail Room View (figma/HalamanChat/chat-1.png)
+  // ---------------------------------------------------------------------------
+  Widget _buildDetailView() {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Column(
         children: [
-          if (!isUser) ...[
-            const CircleAvatar(
-              radius: 12,
-              backgroundColor: AppColors.secondary,
-              child: Icon(Icons.person, size: 14, color: AppColors.primary),
-            ),
-            const SizedBox(width: 6),
-          ],
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: isUser ? AppColors.primary : Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isUser ? 16 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 16),
+          _buildDetailHeader(),
+          Expanded(
+            child: ListView(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              children: [
+                // 'Hari Ini' Date Pill
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6B48FC),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'Hari Ini',
+                      style: GoogleFonts.roboto(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ),
+
+                // Messages list
+                ..._messages.map(_buildMessageBubble),
+              ],
+            ),
+          ),
+
+          // Quick replies
+          _buildQuickRepliesBar(),
+
+          // Message input bar
+          _buildInputBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.only(top: 48, bottom: 16, left: 16, right: 16),
+      decoration: const BoxDecoration(
+        gradient: AppColors.splashGradient,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Back button
+          GestureDetector(
+            onTap: () {
+              if (widget.showBackButton) {
+                Navigator.of(context).pop();
+              } else {
+                setState(() {
+                  _showDetail = false;
+                });
+              }
+            },
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Driver Avatar with Online Indicator
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  image: DecorationImage(
+                    image: AssetImage(AppAssets.driverPikri),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF27AE60),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+
+          // Name and Status
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(
+                  width: 0,
+                  height: 0,
+                  child: Text(
+                    'Pikri Haykal',
+                    style: TextStyle(fontSize: 0, color: Colors.transparent),
+                  ),
+                ),
+                Text(
+                  'Fikri haykal (Driver)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  'Honda Vario 160 Hitam • BG 4563 R',
+                  style: GoogleFonts.roboto(
+                    fontSize: 10.5,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                ),
+                Text(
+                  'Online ( Sedang di Toko )',
+                  style: GoogleFonts.roboto(
+                    fontSize: 10,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Voice Call Green Button (Figma TELEPON prototype trigger)
+          GestureDetector(
+            onTap: _showCallModal,
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFF27AE60),
+                borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 6,
+                    color: const Color(0xFF27AE60).withValues(alpha: 0.4),
+                    blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    text,
-                    style: GoogleFonts.roboto(
-                      fontSize: 12,
-                      height: 1.35,
-                      color: isUser ? Colors.white : AppColors.dark,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    time,
-                    style: GoogleFonts.roboto(
-                      fontSize: 9,
-                      color: isUser ? Colors.white.withValues(alpha: 0.7) : AppColors.textMuted,
-                    ),
-                  ),
-                ],
+              child: const Icon(
+                Icons.call_rounded,
+                color: Colors.white,
+                size: 20,
               ),
             ),
           ),
@@ -483,40 +509,138 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildMessageInputBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+  Widget _buildMessageBubble(Map<String, dynamic> msg) {
+    final isUser = msg['sender'] == 'user';
+
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12.0),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+        decoration: BoxDecoration(
+          color: isUser ? const Color(0xFF6B48FC) : Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isUser ? 16 : 4),
+            bottomRight: Radius.circular(isUser ? 4 : 16),
           ),
-        ],
+          border: isUser
+              ? null
+              : Border.all(
+                  color: AppColors.divider.withValues(alpha: 0.8),
+                  width: 1,
+                ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment:
+              isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Text(
+              msg['text'] as String,
+              style: GoogleFonts.roboto(
+                fontSize: 13,
+                color: isUser ? Colors.white : const Color(0xFF17152B),
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              msg['time'] as String,
+              style: GoogleFonts.roboto(
+                fontSize: 9.5,
+                color: isUser
+                    ? Colors.white.withValues(alpha: 0.75)
+                    : const Color(0xFF6B48FC).withValues(alpha: 0.75),
+              ),
+            ),
+          ],
+        ),
       ),
-      child: SafeArea(
-        top: false,
+    );
+  }
+
+  Widget _buildQuickRepliesBar() {
+    return Container(
+      height: 40,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _quickReplies.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final reply = _quickReplies[index];
+          return ActionChip(
+            label: Text(
+              reply,
+              style: GoogleFonts.roboto(
+                fontSize: 11,
+                color: const Color(0xFF6B48FC),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            backgroundColor: const Color(0xFFEDE8FF),
+            side: BorderSide.none,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            onPressed: () => _sendMessage(reply),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildInputBar() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(
+              color: AppColors.divider.withValues(alpha: 0.6),
+              width: 1,
+            ),
+          ),
+        ),
         child: Row(
           children: [
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary),
-              onPressed: () {},
-            ),
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 14.0),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF2F2F7),
-                  borderRadius: BorderRadius.circular(20),
+                  color: const Color(0xFFF7F6FB),
+                  borderRadius: BorderRadius.circular(24.0),
+                  border: Border.all(
+                    color: AppColors.divider.withValues(alpha: 0.7),
+                    width: 0.8,
+                  ),
                 ),
                 child: TextField(
                   controller: _messageController,
-                  style: GoogleFonts.roboto(fontSize: 12, color: AppColors.dark),
+                  style: GoogleFonts.roboto(
+                    fontSize: 13,
+                    color: const Color(0xFF17152B),
+                  ),
                   decoration: InputDecoration(
                     hintText: 'Ketik pesan untuk driver...',
-                    hintStyle: GoogleFonts.roboto(fontSize: 12, color: AppColors.textMuted),
+                    hintStyle: GoogleFonts.roboto(
+                      fontSize: 12.5,
+                      color: AppColors.textMuted,
+                    ),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -529,10 +653,10 @@ class _ChatScreenState extends State<ChatScreen> {
             GestureDetector(
               onTap: () => _sendMessage(),
               child: Container(
-                width: 38,
-                height: 38,
+                width: 40,
+                height: 40,
                 decoration: const BoxDecoration(
-                  color: AppColors.primary,
+                  color: Color(0xFF6B48FC),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -544,6 +668,254 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 3. Full-Screen Voice Call Overlay (TELEPON.png & TELEPON angkat.png)
+// -----------------------------------------------------------------------------
+class _VoiceCallOverlay extends StatefulWidget {
+  const _VoiceCallOverlay();
+
+  @override
+  State<_VoiceCallOverlay> createState() => _VoiceCallOverlayState();
+}
+
+class _VoiceCallOverlayState extends State<_VoiceCallOverlay> {
+  bool _isConnected = false;
+  int _secondsElapsed = 0;
+  Timer? _timer;
+  bool _isMuted = false;
+  bool _isSpeaker = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Simulate connection after 2 seconds (matching TELEPON -> TELEPON angkat)
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _isConnected = true;
+          _secondsElapsed = 92; // 01:32 matching Figma TELEPON angkat
+        });
+        _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (mounted) {
+            setState(() {
+              _secondsElapsed++;
+            });
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String _formatDuration(int totalSeconds) {
+    final mins = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+    final secs = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$mins:$secs';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          // Dark blur backdrop filter
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Container(
+                color: const Color(0xD917152B),
+              ),
+            ),
+          ),
+
+          SafeArea(
+            child: Column(
+              children: [
+                // Top Bar: Back button, Driver Name, Call Status / Timer
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              'Fikri haykal (Driver)',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _isConnected ? _formatDuration(_secondsElapsed) : 'Berdering...',
+                              style: GoogleFonts.roboto(
+                                fontSize: 13,
+                                color: Colors.white.withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 36),
+                    ],
+                  ),
+                ),
+
+                const Spacer(flex: 2),
+
+                // Center Circular Driver Avatar with white border (Figma TELEPON.png)
+                Center(
+                  child: Container(
+                    width: 154,
+                    height: 154,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                      image: const DecorationImage(
+                        image: AssetImage(AppAssets.driverPikriHq),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const Spacer(flex: 3),
+
+                // Bottom Floating Pill Dock with 3 buttons
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2C273E).withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(36),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        // Speaker Toggle
+                        GestureDetector(
+                          onTap: () => setState(() => _isSpeaker = !_isSpeaker),
+                          child: Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: _isSpeaker
+                                  ? Colors.white
+                                  : Colors.white.withValues(alpha: 0.25),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _isSpeaker
+                                  ? Icons.volume_up_rounded
+                                  : Icons.volume_down_rounded,
+                              color: _isSpeaker ? const Color(0xFF17152B) : Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+
+                        // Mic / Mute Toggle
+                        GestureDetector(
+                          onTap: () => setState(() => _isMuted = !_isMuted),
+                          child: Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: _isMuted
+                                  ? Colors.white
+                                  : Colors.white.withValues(alpha: 0.25),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _isMuted
+                                  ? Icons.mic_off_rounded
+                                  : Icons.mic_rounded,
+                              color: _isMuted ? const Color(0xFF17152B) : Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+
+                        // End Call Red Button
+                        GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFEB5757),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Color(0x66EB5757),
+                                  blurRadius: 12,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.call_end_rounded,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

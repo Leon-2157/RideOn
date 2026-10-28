@@ -4,17 +4,22 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../main/presentation/pages/main_screen.dart';
+import 'forgot_password_screen.dart';
+import 'register_screen.dart';
 
-/// Halaman Login strictly matching Figma node [44:1917]:
+/// Halaman Login strictly matching Figma:
+/// - figma/HalamanLogin/Login.png
+/// - figma/HalamanLogin/Login kata sandi salah.png
 /// - Gradient background (#6B48FC to #C6BCFF to #FFFFFF)
-/// - Frosted glass card (Rectangle 24) with border blur and soft shadow
+/// - Frosted glass card with border blur and soft shadow
 /// - White RideOn Logo in center
 /// - Translucent glass input fields (No. WhatsApp / Email & Kata Sandi)
-/// - "Lupa kata sandi?" right-aligned
+/// - Error banner if credentials wrong (figma: Login kata sandi salah.png)
+/// - "Lupa kata sandi?" right-aligned -> navigates to ForgotPasswordScreen
 /// - "MASUK" primary dark navy button (#17152B)
 /// - "ATAU" divider
 /// - "Lanjutkan Dengan Google" white elevated button with Google icon
-/// - "Belum punya akun? Daftar Sekarang" footer
+/// - "Belum punya akun? Daftar Sekarang" footer -> navigates to RegisterScreen
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -26,12 +31,52 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _identifierController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _hasLoginError = false;
 
   @override
   void dispose() {
     _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _submitLogin() {
+    final identifier = _identifierController.text.trim();
+    final password = _passwordController.text;
+
+    // If identifier or password is empty, or specifically 'salah', show error state
+    if (identifier.isEmpty || password.isEmpty || password == 'salah') {
+      setState(() {
+        _hasLoginError = true;
+      });
+      return;
+    }
+
+    setState(() {
+      _hasLoginError = false;
+    });
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => const MainScreen(),
+      ),
+    );
+  }
+
+  void _navigateToRegister() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const RegisterScreen(),
+      ),
+    );
+  }
+
+  void _navigateToForgotPassword() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const ForgotPasswordScreen(),
+      ),
+    );
   }
 
   @override
@@ -51,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 16.0),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: mathClamp(size.width - 20, 320, 373),
+                  maxWidth: size.width > 393 ? 373 : size.width - 20,
                 ),
                 child: _buildGlassCard(),
               ),
@@ -104,6 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 hintText: 'No. WhatsApp / Email',
                 prefixIcon: Icons.person_rounded,
                 keyboardType: TextInputType.emailAddress,
+                keyName: 'input_login_identifier',
               ),
               const SizedBox(height: 15),
 
@@ -113,6 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 hintText: 'Kata Sandi',
                 prefixIcon: Icons.lock_rounded,
                 obscureText: _obscurePassword,
+                keyName: 'input_login_password',
                 suffixIcon: GestureDetector(
                   onTap: () {
                     setState(() {
@@ -134,7 +181,8 @@ class _LoginScreenState extends State<LoginScreen> {
               Align(
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
-                  onTap: () {},
+                  key: const Key('link_lupa_kata_sandi'),
+                  onTap: _navigateToForgotPassword,
                   child: Text(
                     'Lupa kata sandi?',
                     style: GoogleFonts.roboto(
@@ -145,7 +193,37 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 13),
+              const SizedBox(height: 10),
+
+              // Error banner matching Figma Login kata sandi salah.png
+              if (_hasLoginError) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE83535), width: 1),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: Color(0xFFE83535), size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Email/WhatsApp atau kata sandi yang Anda masukkan salah.',
+                          style: GoogleFonts.roboto(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFFE83535),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
 
               // Tombol: MASUK
               _buildPrimaryButton(),
@@ -172,6 +250,7 @@ class _LoginScreenState extends State<LoginScreen> {
     required TextEditingController controller,
     required String hintText,
     required IconData prefixIcon,
+    String? keyName,
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType keyboardType = TextInputType.text,
@@ -212,6 +291,7 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
+              key: keyName != null ? Key(keyName) : null,
               controller: controller,
               obscureText: obscureText,
               keyboardType: keyboardType,
@@ -244,13 +324,8 @@ class _LoginScreenState extends State<LoginScreen> {
       height: 42,
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: () {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => const MainScreen(),
-            ),
-          );
-        },
+        key: const Key('btn_masuk_login'),
+        onPressed: _submitLogin,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.dark,
           foregroundColor: Colors.white,
@@ -321,6 +396,7 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+          key: const Key('btn_google_login'),
           borderRadius: BorderRadius.circular(13.0),
           onTap: () {
             Navigator.of(context).pushReplacement(
@@ -355,7 +431,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildFooter() {
     return GestureDetector(
-      onTap: () {},
+      key: const Key('link_daftar_sekarang'),
+      onTap: _navigateToRegister,
       child: RichText(
         text: TextSpan(
           text: 'Belum punya akun? ',
@@ -369,7 +446,7 @@ class _LoginScreenState extends State<LoginScreen> {
               text: 'Daftar Sekarang',
               style: GoogleFonts.roboto(
                 fontSize: 9,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w700,
                 color: AppColors.dark,
               ),
             ),
@@ -377,11 +454,5 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
-  }
-
-  double mathClamp(double value, double min, double max) {
-    if (value < min) return min;
-    if (value > max) return max;
-    return value;
   }
 }

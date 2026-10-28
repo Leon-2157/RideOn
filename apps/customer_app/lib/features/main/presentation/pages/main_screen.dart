@@ -91,7 +91,7 @@ class _MainScreenState extends State<MainScreen> {
           ),
           const FavoritScreen(),
           const AktivitasScreen(),
-          const ChatScreen(),
+          const ChatScreen(initialShowDetail: false),
         ],
       ),
       bottomNavigationBar: _buildBottomNavbar(),

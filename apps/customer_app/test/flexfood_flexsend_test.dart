@@ -91,7 +91,7 @@ void main() {
       expect(find.text('Cari Driver Belanja'), findsOneWidget);
 
       // 2. Open Add Item Sheet
-      await tester.tap(find.text('+ Tambah Barang di Pasar Ini'));
+      await tester.tap(find.byKey(const Key('btn_add_item_loc_1')));
       await tester.pumpAndSettle();
 
       expect(find.text('Tambah Barang Belanjaan'), findsOneWidget);
@@ -101,34 +101,56 @@ void main() {
       await tester.tap(find.byKey(const Key('close_add_item')));
       await tester.pumpAndSettle();
 
-      // 3. Search Driver Flow
-      await tester.tap(find.text('Cari Driver Belanja'));
+      // 3. Search Driver Flow (cari driver.png)
+      await tester.tap(find.byKey(const Key('btn_cari_driver_belanja')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.text('Mencari Driver...'), findsOneWidget);
       expect(find.text('BATALKAN PEMESANAN'), findsOneWidget);
 
-      // Advance to Shopping
-      await tester.tap(find.text('Simulasi: Driver Ditemukan (Lanjut Belanja) ➔'));
+      // Advance to Driver Found (dapat driver.png)
+      await tester.tap(find.text('Mencari Driver...'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Driver ditemukan!'), findsOneWidget);
+      expect(find.text('Pikri Haykal'), findsOneWidget);
+      expect(find.text('BG 4563 R'), findsOneWidget);
+      expect(find.text('Lanjut dengan driver ini?'), findsOneWidget);
+
+      // Advance to Shopping (beli brng.png)
+      await tester.tap(find.byKey(const Key('btn_lanjut_driver_ini')));
       await tester.pumpAndSettle();
 
       expect(find.text('Driver Sedang Membelanjakan Barang'), findsOneWidget);
-      expect(find.text('Pikri Haykal'), findsOneWidget);
-      expect(find.text('BG 4563 R'), findsOneWidget);
+      expect(find.text('Di Pasar Pagi Batuphat (Lokasi 1 dari 2)'), findsOneWidget);
 
-      // Advance to Delivering
-      await tester.tap(find.text('Simulasi: Belanja Selesai ➔ Antar ke Rumah'));
+      // Advance to Delivering (driver sampai.png)
+      await tester.tap(find.byKey(const Key('banner_sedang_belanja')));
       await tester.pumpAndSettle();
 
       expect(find.text('Belanja selesai, menuju rumah anda!'), findsOneWidget);
-      expect(find.text('SELESAI'), findsOneWidget);
+      expect(find.text('Estimasi tiba: 8-12 menit (Jarak 2.1 km)'), findsOneWidget);
 
-      // Finish flow
-      await tester.tap(find.text('SELESAI'));
+      // Advance to Arrived (driver sampai-1.png)
+      await tester.tap(find.byKey(const Key('banner_menuju_rumah')));
       await tester.pumpAndSettle();
 
-      expect(find.text('FlexSend'), findsOneWidget);
+      expect(find.text('Driver telah sampai'), findsOneWidget);
+      expect(find.text('Selesai dan Lihat Rincian Belanja'), findsOneWidget);
+
+      // Advance to Receipt (flrxsend-2.png)
+      await tester.tap(find.byKey(const Key('btn_selesai_lihat_rincian')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('PEMBAYARAN BERHASIL (LUNAS)'), findsOneWidget);
+      expect(find.text('KOMPONEN A'), findsOneWidget);
+      expect(find.text('Talangan Riil Driver (Wajib Diganti)'), findsOneWidget);
+      expect(find.text('KOMPONEN B'), findsOneWidget);
+      expect(find.text('Ongkos Kirim Aplikasi'), findsOneWidget);
+      expect(find.text('TOTAL PELUNASAN'), findsOneWidget);
+      expect(find.text('Rp 317.000'), findsOneWidget);
+      expect(find.text('SELESAI'), findsOneWidget);
     });
   });
 }

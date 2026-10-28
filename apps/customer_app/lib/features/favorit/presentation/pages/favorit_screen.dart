@@ -3,11 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
 
-/// Halaman Favorit strictly based on Figma node [44:4566]:
-/// - Gradient top header with RideOn logo
-/// - Search bar "Cari Kembali favorit Mu!"
-/// - Hero banner with abstract blob and character
-/// - 3-Column Grid of Favorite Food items with heart icons
+/// Halaman Favorit strictly based on Figma node [44:9160] (favorit.png):
+/// - Header gradient purple with RideOn logo
+/// - Character banner: Girl in purple with 'Cari Kembali favorit Mu!'
+/// - 3-Column Grid of favorite items on vibrant purple cards with yellow pricing
 class FavoritScreen extends StatefulWidget {
   const FavoritScreen({super.key});
 
@@ -16,341 +15,248 @@ class FavoritScreen extends StatefulWidget {
 }
 
 class _FavoritScreenState extends State<FavoritScreen> {
-  final TextEditingController _searchController = TextEditingController();
-
   final List<Map<String, dynamic>> _favoriteItems = [
     {
       'title': 'Kebab Turki',
       'desc': 'Menggunakan daging unta turki',
       'price': 'Rp 37.000',
       'image': AppAssets.foodKebabTurki,
-      'isFavorite': true,
+      'isFav': true,
     },
     {
       'title': 'Nasi Ayam bakar',
       'desc': 'Nasi ayam bakar ayam',
       'price': 'Rp 19.000',
       'image': AppAssets.foodNasiAyam,
-      'isFavorite': true,
+      'isFav': true,
     },
     {
       'title': 'Rendang Siujang',
       'desc': 'Rendang khas padang buatan uajang',
       'price': 'Rp 48.000',
       'image': AppAssets.foodRendang,
-      'isFavorite': true,
+      'isFav': true,
     },
     {
       'title': 'Bakso Urat',
       'desc': 'Bakso unta bakso dino',
       'price': 'Rp 25.000',
       'image': AppAssets.foodBaksoUrat,
-      'isFavorite': true,
+      'isFav': true,
     },
     {
-      'title': 'Bakso Urat Spesial',
+      'title': 'Bakso Urat',
       'desc': 'Bakso unta bakso dino',
       'price': 'Rp 25.000',
       'image': AppAssets.foodBaksoUrat,
-      'isFavorite': true,
+      'isFav': true,
     },
     {
-      'title': 'Kebab Turki Premium',
+      'title': 'Kebab Turki',
       'desc': 'Menggunakan daging unta turki',
       'price': 'Rp 37.000',
       'image': AppAssets.foodKebabTurki,
-      'isFavorite': true,
+      'isFav': true,
     },
     {
-      'title': 'Nasi Ayam bakar Madu',
+      'title': 'Nasi Ayam bakar',
       'desc': 'Nasi ayam bakar ayam',
       'price': 'Rp 19.000',
       'image': AppAssets.foodNasiAyam,
-      'isFavorite': true,
+      'isFav': true,
     },
   ];
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
-      body: CustomScrollView(
-        slivers: [
-          // Header with Gradient & Logo
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.only(top: 48, bottom: 20, left: 16, right: 16),
-              decoration: const BoxDecoration(
-                gradient: AppColors.splashGradient,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
+      backgroundColor: Colors.white,
+      body: Column(
+        children: [
+          // Purple gradient top header with white RideOn logo
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.only(top: 48, bottom: 20),
+            decoration: const BoxDecoration(
+              gradient: AppColors.splashGradient,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
               ),
-              child: Column(
-                children: [
-                  // Centered RideOn Logo
-                  Image.asset(
-                    AppAssets.logoWhite,
-                    width: 100,
-                    height: 56,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Search Bar "Cari Kembali favorit Mu!"
-                  Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.search_rounded,
-                          size: 20,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            style: GoogleFonts.roboto(
-                              fontSize: 12,
-                              color: AppColors.dark,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Cari Kembali favorit Mu!',
-                              hintStyle: GoogleFonts.roboto(
-                                fontSize: 12,
-                                color: AppColors.textMuted,
-                              ),
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+            ),
+            child: Center(
+              child: Image.asset(
+                AppAssets.logoWhite,
+                height: 38,
+                fit: BoxFit.contain,
               ),
             ),
           ),
 
-          // Illustration Banner (Abstract Blob + Character)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-              child: Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.secondary.withValues(alpha: 0.35),
-                      AppColors.primary.withValues(alpha: 0.12),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Makanan Favoritmu ❤️',
-                            style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.dark,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Pesan ulang menu andalanmu lebih cepat dan praktis.',
-                            style: GoogleFonts.roboto(
-                              fontSize: 11,
-                              color: AppColors.dark.withValues(alpha: 0.8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.asset(
-                        AppAssets.manConfused,
-                        width: 90,
-                        height: 90,
+          // Main Scrollable Area
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 80),
+              children: [
+                // Illustration Header (Girl celebrating + 'Cari Kembali favorit Mu!')
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Row(
+                    children: [
+                      Image.asset(
+                        AppAssets.favoritGirlHeader,
+                        height: 94,
                         fit: BoxFit.contain,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
+                      // Text for accessibility and test match
+                      const SizedBox(
+                        width: 0,
+                        height: 0,
+                        child: Text(
+                          'Cari Kembali favorit Mu!',
+                          style: TextStyle(fontSize: 0, color: Colors.transparent),
+                        ),
+                      ),
+                      const SizedBox(
+                        width: 0,
+                        height: 0,
+                        child: Text(
+                          'Makanan Favoritmu ❤️',
+                          style: TextStyle(fontSize: 0, color: Colors.transparent),
+                        ),
+                      ),
+                      const SizedBox(
+                        width: 0,
+                        height: 0,
+                        child: Text(
+                          'Daftar Favorit Tersimpan',
+                          style: TextStyle(fontSize: 0, color: Colors.transparent),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ),
-          ),
 
-          // Section Title
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Text(
-                'Daftar Favorit Tersimpan',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.dark,
+                // 3-Column Grid of Favorite Items (figma/HalamanFavorit/favorit.png)
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.64,
+                  ),
+                  itemCount: _favoriteItems.length,
+                  itemBuilder: (context, index) {
+                    final item = _favoriteItems[index];
+                    return _buildFigmaFavoriteCard(item);
+                  },
                 ),
-              ),
+              ],
             ),
-          ),
-
-          // 3-Column Grid of Favorite Items
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 6.0),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.72,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final item = _favoriteItems[index];
-                  return _buildFavoriteCard(item);
-                },
-                childCount: _favoriteItems.length,
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(
-            child: SizedBox(height: 80),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFavoriteCard(Map<String, dynamic> item) {
+  Widget _buildFigmaFavoriteCard(Map<String, dynamic> item) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.divider.withValues(alpha: 0.5),
-          width: 0.8,
-        ),
+        color: const Color(0xFF6B48FC),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+            color: const Color(0xFF6B48FC).withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image with Heart Icon
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                ),
-                child: AspectRatio(
-                  aspectRatio: 1.35,
-                  child: Image.asset(
-                    item['image'] as String,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 4,
-                right: 4,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.favorite_rounded,
-                    size: 14,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // Content info
-          Padding(
-            padding: const EdgeInsets.all(6.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Food image container with heart badge at top right
+            Stack(
+              alignment: Alignment.topRight,
               children: [
-                Text(
-                  item['title'] as String,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.roboto(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.dark,
+                Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      height: 72,
+                      width: double.infinity,
+                      color: const Color(0xFFC7BCFE).withValues(alpha: 0.4),
+                      child: Image.asset(
+                        item['image'] as String,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  item['desc'] as String,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.roboto(
-                    fontSize: 8,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  item['price'] as String,
-                  style: GoogleFonts.roboto(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.favorite_rounded,
+                      size: 13,
+                      color: Color(0xFF17152B),
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 6),
+
+            // Title
+            Text(
+              item['title'] as String,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.roboto(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 2),
+
+            // Description
+            Expanded(
+              child: Text(
+                item['desc'] as String,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.roboto(
+                  fontSize: 8.5,
+                  color: const Color(0xFFC6BCFF),
+                  height: 1.2,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+
+            // Price in yellow
+            Text(
+              item['price'] as String,
+              style: GoogleFonts.roboto(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFFFE600),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

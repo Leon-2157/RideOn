@@ -31,6 +31,13 @@ class AppAssets {
   static const String wisataRanuKumbolo = 'assets/images/home/wisata_ranukumbolo.png';
   static const String wisataBandaNeira = 'assets/images/home/wisata_bandaneira.png';
 
+  // Chat & Driver Avatars
+  static const String driverPikri = 'assets/images/driver_pikri.png';
+  static const String driverPikriHq = 'assets/images/driver_pikri_hq.png';
+  static const String driverGufran = 'assets/images/driver_gufran.png';
+  static const String favoritGirlHeader = 'assets/images/favorit/favorit_girl_header.png';
+  static const String flexrideManHeader = 'assets/images/flexride_man_header.png';
+
   // Favorit Assets
   static const String abstractBlob = 'assets/images/favorit/abstract_blob.png';
   static const String manConfused = 'assets/images/favorit/man_confused.png';
