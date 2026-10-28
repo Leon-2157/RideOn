@@ -131,6 +131,38 @@ Dokumen ini mencatat seluruh riwayat konfigurasi, perubahan struktur kode, dan i
 
 ---
 
+## 🚀 SOP Setup Rekan Tim Setelah Git Pull (Wajib Dibaca)
+
+Karena file rahasia (`google-services.json` dan `.env`) sengaja dikecualikan dari Git demi keamanan, rekan tim yang baru saja melakukan `git pull` wajib mengikuti 3 langkah ini agar aplikasi tidak error saat di-build:
+
+### 1. Meminta & Meletakkan File `google-services.json`
+Minta file `google-services.json` resmi ke **Leon** (Project Admin), lalu letakkan sesuai aplikasi yang Anda kerjakan:
+- **Tim Driver**: Letakkan di `apps/driver_app/android/app/google-services.json`
+- **Tim Toko**: Letakkan di `apps/page_toko/android/app/google-services.json`
+- **Customer**: Letakkan di `apps/customer_app/android/app/google-services.json`
+
+### 2. Membuat File `.env` Lokal
+Salin template environment yang sudah disediakan:
+```bash
+# Jika Anda mengerjakan Driver App:
+cp apps/driver_app/.env.example apps/driver_app/.env
+
+# Jika Anda mengerjakan Page Toko:
+cp apps/page_toko/.env.example apps/page_toko/.env
+```
+
+### 3. Mendaftarkan SHA-1 Laptop Sendiri (Khusus Google Sign-In)
+Agar tombol Google Login tidak error di laptop/HP Anda:
+1. Jalankan perintah ini di terminal:
+   ```bash
+   # Masuk ke folder android aplikasi Anda, contoh:
+   cd apps/driver_app/android && ./gradlew signingReport
+   ```
+2. Salin nilai `SHA1: ...` dari output terminal tersebut.
+3. Kirimkan nilai SHA-1 tersebut ke **Leon** agar didaftarkan ke Firebase Console Project Settings.
+
+---
+
 ## 🗄️ Dokumen Referensi Desain & Database
 
 Seluruh detail teknis yang telah dirancang dapat dibaca oleh rekan tim di folder `docs/`:
@@ -138,3 +170,4 @@ Seluruh detail teknis yang telah dirancang dapat dibaca oleh rekan tim di folder
 - **[02-database-design.md](file:///home/leon/Documents/Project/RideOn/docs/02-database-design.md)**: Skema 20 koleksi Firestore, Realtime Database, struktur folder Cloud Storage, Security Rules, dan Cloud Functions.
 - **[03-firebase-library-checklist.md](file:///home/leon/Documents/Project/RideOn/docs/03-firebase-library-checklist.md)**: Checklist pengerjaan library dan pengujian.
 - **[04-authentication-guide.md](file:///home/leon/Documents/Project/RideOn/docs/04-authentication-guide.md)**: Panduan detail mekanisme login Google, Email, dan sinkronisasi profil user.
+- **[05-project-worklog-and-handover.md](file:///home/leon/Documents/Project/RideOn/docs/05-project-worklog-and-handover.md)**: Panduan serah terima tim dan SOP setup local environment setelah git pull.
