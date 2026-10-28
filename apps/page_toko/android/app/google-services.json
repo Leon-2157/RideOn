@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "770832884584",
+    "project_id": "rideon-9eb77",
+    "storage_bucket": "rideon-9eb77.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:770832884584:android:1fabc96acdc59005ceacdd",
+        "android_client_info": {
+          "package_name": "com.rideon.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAE8LCFsVFgjzOYCP9dszyYr_69CaSKgu8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:770832884584:android:6f3bc9ecb7252b20ceacdd",
+        "android_client_info": {
+          "package_name": "com.rideon.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAE8LCFsVFgjzOYCP9dszyYr_69CaSKgu8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:770832884584:android:7e57e0b4491a69c4ceacdd",
+        "android_client_info": {
+          "package_name": "com.rideon.page_toko"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAE8LCFsVFgjzOYCP9dszyYr_69CaSKgu8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
