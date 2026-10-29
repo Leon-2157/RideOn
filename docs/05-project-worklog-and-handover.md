@@ -151,21 +151,41 @@ cp apps/driver_app/.env.example apps/driver_app/.env
 cp apps/page_toko/.env.example apps/page_toko/.env
 ```
 
-### 3. Mendaftarkan SHA-1 Laptop Sendiri (Khusus Google Sign-In)
-Agar tombol Google Login tidak error di laptop/HP Anda:
-1. Jalankan perintah ini di terminal:
+### 3. Mendaftarkan SHA-1 & SHA-256 Laptop Sendiri (Khusus Google Sign-In)
+Agar tombol Google Login tidak error (code 10) saat dijalankan di laptop atau HP masing-masing developer:
+
+1. **Jalankan `flutter pub get` terlebih dahulu** (Wajib agar file `local.properties` terbentuk):
+   - Masuk ke folder aplikasi yang Anda kerjakan, contoh:
+     ```powershell
+     cd apps/page_toko      # atau cd apps/driver_app
+     flutter pub get
+     ```
+
+2. **Jalankan signingReport**:
    - **Untuk Windows (PowerShell)**:
      ```powershell
-     cd apps/driver_app/android
-     .\gradlew signingReport
+     cd android
+     .\gradlew.bat signingReport
      ```
-     *(Atau jika pakai Command Prompt / CMD: `gradlew signingReport`)*
-   - **Untuk Linux / macOS (Bash/Zsh)**:
+   - **Untuk Windows (CMD)**:
+     ```cmd
+     cd android
+     gradlew signingReport
+     ```
+   - **Untuk Linux / macOS**:
      ```bash
-     cd apps/driver_app/android && ./gradlew signingReport
+     cd android && ./gradlew signingReport
      ```
-2. Salin nilai `SHA1: ...` dari output terminal tersebut.
-3. Kirimkan nilai SHA-1 tersebut ke **Leon** agar didaftarkan ke Firebase Console Project Settings.
+
+3. **Nilai yang Wajib Disalin**:
+   Cari blok `Variant: debug` dan salin dua baris ini:
+   - **SHA1**: contoh `2C:A9:51:4F:B0:FE:41:57:94:B1:68:F9:5B:85:E6:ED:A2:81:71:7A`
+   - **SHA-256**: contoh `ED:52:D5:B9:C3:EB:19:B2:0A:4B:A8:67:38:A0:44:31:81:20:97:51:FF:C9:84:5A:87:AA:7A:2F:96:34:54:0C`
+
+4. **Kirimkan ke Leon (Project Admin)**:
+   Kirimkan nilai SHA1 & SHA-256 di atas bersama nama aplikasinya (Driver / Toko).
+   Leon akan mendaftarkannya di **Firebase Console > Project Settings > Your Apps > Add Fingerprint**.
+   Setelah didaftarkan oleh Leon, minta file `google-services.json` yang baru lalu ganti di folder `android/app/`.
 
 ---
 
