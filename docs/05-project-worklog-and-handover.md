@@ -154,10 +154,16 @@ cp apps/page_toko/.env.example apps/page_toko/.env
 ### 3. Mendaftarkan SHA-1 Laptop Sendiri (Khusus Google Sign-In)
 Agar tombol Google Login tidak error di laptop/HP Anda:
 1. Jalankan perintah ini di terminal:
-   ```bash
-   # Masuk ke folder android aplikasi Anda, contoh:
-   cd apps/driver_app/android && ./gradlew signingReport
-   ```
+   - **Untuk Windows (PowerShell)**:
+     ```powershell
+     cd apps/driver_app/android
+     .\gradlew signingReport
+     ```
+     *(Atau jika pakai Command Prompt / CMD: `gradlew signingReport`)*
+   - **Untuk Linux / macOS (Bash/Zsh)**:
+     ```bash
+     cd apps/driver_app/android && ./gradlew signingReport
+     ```
 2. Salin nilai `SHA1: ...` dari output terminal tersebut.
 3. Kirimkan nilai SHA-1 tersebut ke **Leon** agar didaftarkan ke Firebase Console Project Settings.
 
