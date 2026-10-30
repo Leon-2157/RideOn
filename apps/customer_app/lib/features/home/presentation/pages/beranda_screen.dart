@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/user_avatar.dart';
 
 /// Halaman Beranda strictly based on Figma node [44:7923] (page utama):
 /// - Header with search bar and login button
@@ -14,6 +16,8 @@ class BerandaScreen extends StatelessWidget {
   final VoidCallback? onProfileTap;
   final Function(int)? onServiceTap;
   final bool isLoggedIn;
+  final String? userName;
+  final String? photoUrl;
 
   const BerandaScreen({
     super.key,
@@ -21,7 +25,27 @@ class BerandaScreen extends StatelessWidget {
     this.onProfileTap,
     this.onServiceTap,
     this.isLoggedIn = true,
+    this.userName,
+    this.photoUrl,
   });
+
+  String? get _resolvedPhotoUrl {
+    if (photoUrl != null) return photoUrl;
+    try {
+      return FirebaseAuth.instance.currentUser?.photoURL;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? get _resolvedUserName {
+    if (userName != null) return userName;
+    try {
+      return FirebaseAuth.instance.currentUser?.displayName;
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -146,28 +170,23 @@ class BerandaScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
 
-                // Profile Avatar (if logged in, page utama pp.png) or Login Button
+                // Profile Avatar (if logged in) or Login Button
                 if (isLoggedIn)
                   GestureDetector(
                     onTap: onProfileTap,
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            blurRadius: 6.0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                        image: const DecorationImage(
-                          image: AssetImage(AppAssets.userAvatar),
-                          fit: BoxFit.cover,
+                    child: UserAvatar(
+                      photoUrl: _resolvedPhotoUrl,
+                      name: _resolvedUserName,
+                      size: 38,
+                      borderWidth: 2,
+                      borderColor: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 6.0,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
+                      ],
                     ),
                   )
                 else

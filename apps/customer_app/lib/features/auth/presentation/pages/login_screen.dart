@@ -22,19 +22,28 @@ import 'register_screen.dart';
 /// - "Lanjutkan Dengan Google" white elevated button with Google icon
 /// - "Belum punya akun? Daftar Sekarang" footer -> navigates to RegisterScreen
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String? initialIdentifier;
+
+  const LoginScreen({super.key, this.initialIdentifier});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _identifierController = TextEditingController();
+  late final TextEditingController _identifierController;
   final TextEditingController _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
   bool _obscurePassword = true;
   bool _hasLoginError = false;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _identifierController =
+        TextEditingController(text: widget.initialIdentifier ?? '');
+  }
 
   @override
   void dispose() {
@@ -94,13 +103,12 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Jika identifier berisi format email, lakukan login Firebase email
-      if (identifier.contains('@')) {
-        await _authService.signInWithEmailPassword(
-          email: identifier,
-          password: password,
-        );
-      }
+      // Menggunakan Smart Detector: bisa Email ATAU No. WhatsApp
+      await _authService.signInWithIdentifier(
+        identifier: identifier,
+        password: password,
+      );
+
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -108,6 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } catch (e) {
+      debugPrint('[LOGIN ERROR]: $e');
       if (!mounted) return;
       setState(() {
         _hasLoginError = true;
