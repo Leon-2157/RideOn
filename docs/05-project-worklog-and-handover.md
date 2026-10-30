@@ -52,8 +52,13 @@ Dokumen ini mencatat seluruh riwayat konfigurasi, perubahan struktur kode, dan i
   - `firebase_messaging: ^15.2.4`
 - [x] **Inisialisasi `main.dart`**: Menambahkan `WidgetsFlutterBinding.ensureInitialized()` dan `await Firebase.initializeApp()`.
 - [x] **AuthService**: Dibuatkan file `lib/features/auth/data/auth_service.dart` (Google Sign-In, Email/Password, dan auto-create profil Firestore di `/users/{uid}`).
-- [x] **UI Login**: Halaman `login_screen.dart` sudah terhubung langsung ke `AuthService`, tombol *Lanjutkan Dengan Google* aktif, tombol *MASUK* aktif dengan loading state.
-- [x] **Pengujian**: Berhasil running lancar di perangkat fisik Android tanpa error.
+- [x] **UI Login & Register**: Halaman `login_screen.dart`, `register_screen.dart`, dan `forgot_password_screen.dart` terhubung ke WhatsApp Gateway OTP (Baileys), SMS Firebase Fallback, dan modal Syarat & Ketentuan.
+- [x] **Clean Architecture Pengaturan Akun**: Berhasil memecah file monolitik 4.419 baris menjadi 8 sub-layar mandiri di `features/pengaturan/presentation/pages/` dan 7 widget modular di `widgets/`.
+- [x] **Peta & GPS Lokasi Anda**: Peta interaktif OpenStreetMap (zero-cost `flutter_map`), integrasi sensor GPS perangkat (`geolocator`), dan auto reverse-geocoding (`geocoding`).
+- [x] **Auto-Polling Email Verification**: Dialog modal pemantau verifikasi email otomatis setiap 3 detik tanpa perlu login ulang.
+- [x] **Sentralisasi `core/`**: Model `CountryCode` dan `PhoneNumberFormatter` disatukan agar tidak ada duplikasi kode.
+- [x] **Dokumentasi Lengkap (SSOT)**: Tersedia di [docs/12-customer-app-master-guide-auth-settings-and-services.md](12-customer-app-master-guide-auth-settings-and-services.md).
+- [x] **Pengujian & Verifikasi**: 44/44 Widget & Unit Tests lolos 100%, `flutter analyze` 0 issues.
 
 ---
 
