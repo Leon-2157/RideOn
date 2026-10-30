@@ -1,0 +1,834 @@
+/**
+ * Rentify Self-Hosted WhatsApp Gateway
+ * Built with @whiskeysockets/baileys
+ * Provides lightweight REST API for Laravel & handles incoming message webhooks
+ */
+
+const express = require('express');
+const qrcode = require('qrcode');
+const pino = require('pino');
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Load .env from project root or current folder
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config(); // fallback to local
+
+// Global handlers to prevent Baileys/Signal crypto crashes (Bad MAC, Timed Out, SessionError, etc.) from taking down Node
+process.on('uncaughtException', (err) => {
+    const msg = err?.message || String(err);
+    if (msg.includes('Bad MAC') || msg.includes('No session record') || msg.includes('Connection Closed') || msg.includes('Timed Out') || msg.includes('decrypt message') || msg.includes('SessionError') || msg.includes('into the future') || msg.includes('No matching sessions')) {
+        console.warn('[WHATSAPP PROTOCOL WARNING] Caught transient protocol error safely:', msg);
+        return;
+    }
+    console.error('[CRITICAL UNCAUGHT EXCEPTION]:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    const msg = reason?.message || String(reason);
+    if (msg.includes('Bad MAC') || msg.includes('No session record') || msg.includes('Connection Closed') || msg.includes('Timed Out') || msg.includes('decrypt message') || msg.includes('SessionError') || msg.includes('into the future') || msg.includes('No matching sessions')) {
+        console.warn('[WHATSAPP PROTOCOL WARNING] Caught unhandled protocol rejection safely:', msg);
+        return;
+    }
+    console.error('[UNHANDLED REJECTION AT]:', promise, 'reason:', reason);
+});
+
+const {
+    default: makeWASocket,
+    DisconnectReason,
+    fetchLatestBaileysVersion,
+    makeCacheableSignalKeyStore,
+    proto
+} = require('@whiskeysockets/baileys');
+
+const { createAuthState } = require('./db-auth');
+
+let NodeCache;
+try {
+    NodeCache = require('@cacheable/node-cache').default || require('@cacheable/node-cache').NodeCache || require('@cacheable/node-cache');
+} catch (e) {
+    NodeCache = class {
+        constructor() { this.map = new Map(); }
+        get(k) { return this.map.get(k); }
+        set(k, v) { this.map.set(k, v); }
+        del(k) { this.map.delete(k); }
+        flushAll() { this.map.clear(); }
+    };
+}
+const msgRetryCounterCache = new NodeCache({ stdTTL: 300 });
+const msgStore = new Map(); // Cache recent messages for Baileys getMessage / decryption retry
+
+const fs = require('fs');
+
+// Firebase Admin SDK Initialization (Optional, for Reset Password via Admin API)
+let firebaseAdmin = null;
+const serviceAccountPath = path.resolve(__dirname, 'serviceAccountKey.json');
+if (fs.existsSync(serviceAccountPath)) {
+    try {
+        const admin = require('firebase-admin');
+        const serviceAccount = require(serviceAccountPath);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        firebaseAdmin = admin;
+        console.log('[FIREBASE ADMIN] Initialized successfully with serviceAccountKey.json');
+    } catch (err) {
+        console.error('[FIREBASE ADMIN] Initialization failed:', err.message);
+    }
+}
+
+const PORT = parseInt(process.env.WHATSAPP_GATEWAY_PORT || '3000', 10);
+const GATEWAY_SECRET = process.env.WHATSAPP_GATEWAY_SECRET || 'rentify-wa-secret-2026';
+const getInitialWebhookUrl = () => {
+    if (process.env.WHATSAPP_WEBHOOK_URL) return process.env.WHATSAPP_WEBHOOK_URL;
+    if (process.env.APP_URL) {
+        return `${process.env.APP_URL.replace(/\/+$/, '')}/webhook/whatsapp`;
+    }
+    return 'http://127.0.0.1:8000/webhook/whatsapp';
+};
+const WEBHOOK_URL = getInitialWebhookUrl();
+const CANDIDATE_WEBHOOK_URLS = Array.from(new Set([
+    WEBHOOK_URL,
+    'http://127.0.0.1:8000/webhook/whatsapp',
+    'http://127.0.0.1/rentify/public/webhook/whatsapp',
+    'http://localhost/rentify/public/webhook/whatsapp',
+]));
+const isSandbox = process.env.GATEWAY_SANDBOX_MODE === 'true';
+
+let sock = null;
+let currentQrDataUrl = null;
+let currentQrRaw = null;
+let connectionState = 'disconnected'; // 'disconnected' | 'connecting' | 'qr_ready' | 'connected'
+let connectedUser = null;
+let authAdapter = null;
+let reconnectTimer = null;
+
+// Debounce buffer for rapid sequential incoming messages from the same sender
+const incomingDebounceBuffers = new Map(); // senderKey -> { messages: [], name: '', timer: Timeout, targetJid: string }
+const DEBOUNCE_DELAY_MS = 2500;
+
+// Helper: Normalize Indonesian phone numbers or pass through valid JIDs
+function formatJid(target) {
+    if (!target) return null;
+    const str = String(target).trim();
+    // Check if target matches Bos Joni's known LID (resolve directly to his phone number)
+    if (str.includes('44925643173935')) {
+        return '6283183494835@s.whatsapp.net';
+    }
+    if (str.endsWith('@s.whatsapp.net') || str.endsWith('@lid') || str.endsWith('@g.us')) {
+        return str;
+    }
+    let clean = str.replace(/[^0-9]/g, '');
+    if (clean.length >= 14 && !clean.startsWith('62')) {
+        return `${clean}@lid`;
+    }
+    if (clean.startsWith('0')) {
+        clean = '62' + clean.slice(1);
+    } else if (clean.startsWith('+62')) {
+        clean = clean.slice(1);
+    } else if (!clean.startsWith('62')) {
+        clean = '62' + clean;
+    }
+    return `${clean}@s.whatsapp.net`;
+}
+
+// Forward incoming message to Laravel Webhook with smart local fallback
+async function forwardToWebhook(senderPhone, senderName, textMessage) {
+    console.log(`[GATEWAY -> WEBHOOK] Forwarding message from ${senderPhone} (${senderName}): "${textMessage.slice(0, 50)}..."`);
+    
+    const payload = {
+        sender: senderPhone,
+        name: senderName || 'Pengguna WhatsApp',
+        message: textMessage,
+        gateway_secret: GATEWAY_SECRET
+    };
+
+    let delivered = false;
+    for (const targetUrl of CANDIDATE_WEBHOOK_URLS) {
+        try {
+            const res = await fetch(targetUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Gateway-Secret': GATEWAY_SECRET
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                console.log(`[WEBHOOK] Webhook delivered successfully to ${targetUrl} (HTTP ${res.status})`);
+                delivered = true;
+                break;
+            } else if (res.status === 404) {
+                // Try next candidate URL
+                continue;
+            } else {
+                const errText = await res.text();
+                console.warn(`[WEBHOOK] Warning: Webhook at ${targetUrl} returned HTTP ${res.status}: ${errText.slice(0, 100)}`);
+                delivered = true;
+                break;
+            }
+        } catch (err) {
+            // If connection refused, try next candidate
+            continue;
+        }
+    }
+
+    if (!delivered) {
+        console.error('[WEBHOOK] Failed to post to any candidate Laravel webhook endpoints.');
+    }
+}
+
+// Start Baileys WhatsApp Connection
+async function startWhatsApp() {
+    if (isSandbox) {
+        connectionState = 'unpaired';
+        console.log('[WHATSAPP SANDBOX] Gateway running in sandbox mode (bypassing live Baileys socket)');
+        try {
+            currentQrDataUrl = await qrcode.toDataURL('https://rentify21.my.id/sandbox-qr-mock');
+        } catch (e) {
+            currentQrDataUrl = 'data:image/png;base64,mockqr';
+        }
+        return;
+    }
+
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+
+    if (sock) {
+        try {
+            sock.ev.removeAllListeners();
+            sock.end(undefined);
+        } catch (e) {
+            // ignore
+        }
+        sock = null;
+    }
+
+    connectionState = 'connecting';
+    console.log('[WHATSAPP] Initializing WhatsApp multi-device connection...');
+
+    if (!authAdapter) {
+        authAdapter = await createAuthState();
+    }
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    console.log(`[WHATSAPP] Using Baileys version ${version.join('.')} (latest: ${isLatest})`);
+
+    const logger = pino({ level: 'warn' });
+    const keyStore = makeCacheableSignalKeyStore(authAdapter.state.keys, logger);
+
+    sock = makeWASocket({
+        version,
+        logger,
+        printQRInTerminal: false,
+        auth: {
+            creds: authAdapter.state.creds,
+            keys: keyStore,
+        },
+        msgRetryCounterCache,
+        getMessage: async (key) => {
+            if (key?.id && msgStore.has(key.id)) {
+                return msgStore.get(key.id);
+            }
+            return proto.Message.fromObject({});
+        },
+        browser: ['RideOn Indonesia', 'Chrome', '124.0.0.0'],
+        syncFullHistory: false,
+        markOnlineOnConnect: true,
+        generateHighQualityLinkPreview: false,
+    });
+
+    // Handle connection events
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
+            currentQrRaw = qr;
+            try {
+                currentQrDataUrl = await qrcode.toDataURL(qr, { margin: 2, scale: 7 });
+                connectionState = 'qr_ready';
+                console.log('[WHATSAPP] New QR Code generated, ready to scan via admin panel.');
+                
+                // Also display terminal QR for CLI convenience
+                qrcode.toString(qr, { type: 'terminal', small: true }, (err, str) => {
+                    if (!err) console.log(str);
+                });
+            } catch (err) {
+                console.error('[WHATSAPP] Failed to render QR code:', err.message);
+            }
+        }
+
+        if (connection === 'close') {
+            currentQrDataUrl = null;
+            currentQrRaw = null;
+            connectedUser = null;
+            connectionState = 'disconnected';
+
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            console.log(`[WHATSAPP] Connection closed (code: ${statusCode}). Reconnect? ${shouldReconnect}`);
+
+            if (statusCode === DisconnectReason.loggedOut) {
+                console.log('[WHATSAPP] Session logged out by user. Clearing auth...');
+                if (authAdapter) {
+                    await authAdapter.clearAuth();
+                    authAdapter = null;
+                }
+                reconnectTimer = setTimeout(startWhatsApp, 3000);
+            } else if (statusCode === 440) {
+                console.log('[WHATSAPP] Conflict (code: 440): Session was replaced by another active connection. Backing off 15s...');
+                reconnectTimer = setTimeout(startWhatsApp, 15000);
+            } else if (shouldReconnect) {
+                console.log('[WHATSAPP] Reconnecting in 5 seconds...');
+                reconnectTimer = setTimeout(startWhatsApp, 5000);
+            }
+        } else if (connection === 'open') {
+            currentQrDataUrl = null;
+            currentQrRaw = null;
+            connectionState = 'connected';
+
+            const rawId = sock.user?.id || '';
+            const phone = rawId.split(':')[0] || rawId.split('@')[0];
+            connectedUser = {
+                id: sock.user?.id,
+                phone: phone,
+                name: sock.user?.name || 'RideOn Official'
+            };
+
+            console.log(`[WHATSAPP] Connection opened successfully! Logged in as: ${phone} (${connectedUser.name})`);
+        }
+    });
+
+    // Save auth credentials whenever updated
+    sock.ev.on('creds.update', authAdapter.saveCreds);
+
+    // Handle incoming messages
+    sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        if (type !== 'notify' && type !== 'append') return;
+
+        for (const msg of messages) {
+            if (msg.key?.id && msg.message) {
+                msgStore.set(msg.key.id, msg.message);
+                if (msgStore.size > 2000) {
+                    const firstKey = msgStore.keys().next().value;
+                    msgStore.delete(firstKey);
+                }
+            }
+
+            // Ignore if message is sent by ourselves or from the bot's own account (phone or LID)
+            if (msg.key.fromMe) continue;
+
+            const remoteJid = msg.key.remoteJid || '';
+
+            // Ignore status broadcasts, groups, and bot's own internal JIDs
+            const selfPhone = connectedUser?.phone || (sock?.user?.id ? sock.user.id.split(':')[0] : null);
+            if (remoteJid.endsWith('@broadcast') || remoteJid.endsWith('@g.us') || remoteJid.includes('249070069219550') || (selfPhone && remoteJid.startsWith(selfPhone))) {
+                continue;
+            }
+
+            // Recursively unwrap nested wrappers (ephemeral, viewOnce, edited, etc.)
+            let m = msg.message;
+            while (m?.ephemeralMessage || m?.viewOnceMessage || m?.viewOnceMessageV2 || m?.documentWithCaptionMessage || m?.editedMessage) {
+                m = m.ephemeralMessage?.message 
+                    || m.viewOnceMessage?.message 
+                    || m.viewOnceMessageV2?.message 
+                    || m.documentWithCaptionMessage?.message
+                    || m.editedMessage?.message?.protocolMessage?.editedMessage
+                    || m.editedMessage?.message;
+            }
+
+            // Extract message body text
+            const text = m?.conversation
+                || m?.extendedTextMessage?.text
+                || m?.imageMessage?.caption
+                || m?.videoMessage?.caption
+                || m?.buttonsResponseMessage?.selectedDisplayText
+                || m?.templateButtonReplyMessage?.selectedId
+                || m?.listResponseMessage?.title
+                || '';
+
+            const trimmed = text.trim();
+            if (!trimmed) continue;
+
+            // Extract real sender phone number (resolving LID if needed)
+            let senderPhone = null;
+
+            const phoneJid = msg.key.remoteJidAlt || msg.key.senderPn || msg.key.participantPn || msg.key.participantAlt;
+            if (phoneJid && phoneJid.endsWith('@s.whatsapp.net')) {
+                senderPhone = phoneJid.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '');
+            }
+
+            if (!senderPhone && remoteJid.endsWith('@s.whatsapp.net')) {
+                senderPhone = remoteJid.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '');
+            }
+
+            if (!senderPhone) {
+                // If it's Bos Joni's known WhatsApp LID, map directly to his phone number
+                if (remoteJid.includes('44925643173935')) {
+                    senderPhone = '083183494835';
+                } else if (remoteJid.endsWith('@lid')) {
+                    senderPhone = remoteJid; // Keep full @lid JID so formatJid preserves it
+                } else {
+                    senderPhone = remoteJid.replace('@s.whatsapp.net', '');
+                }
+            }
+
+            const senderName = msg.pushName || '';
+            const senderKey = String(senderPhone);
+            const targetJid = remoteJid;
+
+            console.log(`[WHATSAPP INCOMING] Message from ${senderPhone} (${senderName}): "${trimmed}"`);
+
+            // Send presence update ("composing") so user sees "mengetik..."
+            try {
+                if (sock && targetJid) {
+                    await sock.sendPresenceUpdate('composing', targetJid);
+                }
+            } catch (presErr) {
+                // Ignore presence update error
+            }
+
+            // Debounce rapid sequential messages from the same sender
+            const existingBuffer = incomingDebounceBuffers.get(senderKey);
+            if (existingBuffer) {
+                clearTimeout(existingBuffer.timer);
+                existingBuffer.messages.push(trimmed);
+                if (senderName && (!existingBuffer.name || existingBuffer.name === 'Pengguna WhatsApp')) {
+                    existingBuffer.name = senderName;
+                }
+                existingBuffer.timer = setTimeout(async () => {
+                    const combinedText = existingBuffer.messages.join("\n");
+                    const finalName = existingBuffer.name;
+                    incomingDebounceBuffers.delete(senderKey);
+                    await forwardToWebhook(senderKey, finalName, combinedText);
+                }, DEBOUNCE_DELAY_MS);
+            } else {
+                const entry = {
+                    messages: [trimmed],
+                    name: senderName,
+                    targetJid: targetJid,
+                    timer: setTimeout(async () => {
+                        const combinedText = entry.messages.join("\n");
+                        const finalName = entry.name;
+                        incomingDebounceBuffers.delete(senderKey);
+                        await forwardToWebhook(senderKey, finalName, combinedText);
+                    }, DEBOUNCE_DELAY_MS)
+                };
+                incomingDebounceBuffers.set(senderKey, entry);
+            }
+        }
+    });
+}
+
+// Setup Express API Server
+const app = express();
+app.use(express.json());
+
+// Enable CORS for mobile and web clients
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-gateway-secret');
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
+
+// OTP In-Memory Store: cleanPhone -> { code, expiresAt, attempts }
+const otpStore = new Map();
+
+// Helper: Normalize phone to Indonesian standard format
+function cleanPhoneNumber(phone) {
+    if (!phone) return '';
+    let p = String(phone).replace(/\D/g, '');
+    if (p.startsWith('0')) {
+        p = '62' + p.substring(1);
+    } else if (p.startsWith('62')) {
+        // ok
+    }
+    return p;
+}
+
+// Auth middleware for internal API requests
+function checkAuth(req, res, next) {
+    const secret = req.headers['x-gateway-secret'] || req.body?.secret || req.query?.secret;
+    if (GATEWAY_SECRET && secret !== GATEWAY_SECRET) {
+        return res.status(401).json({ status: false, error: 'Unauthorized: Invalid gateway secret' });
+    }
+    next();
+}
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        service: 'RideOn WhatsApp Gateway',
+        uptime: process.uptime(),
+        connection: connectionState
+    });
+});
+
+// Gateway status endpoint
+app.get('/status', (req, res) => {
+    res.json({
+        service: 'RideOn WhatsApp Gateway',
+        status: connectionState,
+        paired: connectionState === 'connected',
+        qr: currentQrDataUrl,
+        user: connectedUser,
+        uptime: process.uptime(),
+        sandbox: isSandbox,
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Render visual QR Code HTML page (Terbuka untuk scan di browser)
+app.get('/qr', (req, res) => {
+    if (connectionState === 'connected') {
+        return res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head><title>RideOn WA Gateway - Connected</title></head>
+            <body style="font-family: sans-serif; text-align: center; padding: 50px; background: #f8fafc;">
+                <div style="background: white; max-width: 420px; margin: auto; padding: 30px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <div style="font-size: 40px; margin-bottom: 12px;">✅</div>
+                    <h2 style="color: #16a34a; margin: 0 0 10px 0;">WhatsApp Terhubung</h2>
+                    <p style="color: #475569; font-size: 14px;">Nomor aktif: <strong>${connectedUser?.name || connectedUser?.id || 'Connected'}</strong></p>
+                    <p style="color: #94a3b8; font-size: 12px;">Layanan WhatsApp Gateway RideOn siap melayani pengiriman OTP.</p>
+                </div>
+            </body>
+            </html>
+        `);
+    }
+
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>RideOn WA Gateway - Scan QR</title>
+            <meta http-equiv="refresh" content="20">
+            <style>
+                body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 90vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; }
+                .card { background: #1e293b; padding: 32px; border-radius: 20px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); text-align: center; max-width: 400px; width: 90%; border: 1px solid #334155; }
+                h2 { margin: 0 0 8px 0; font-size: 20px; color: #38bdf8; }
+                img { max-width: 260px; width: 100%; height: auto; border: 4px solid #38bdf8; border-radius: 12px; margin: 20px 0; background: white; }
+                .status { display: inline-block; padding: 4px 14px; border-radius: 9999px; font-size: 12px; font-weight: 600; background: #fef3c7; color: #92400e; margin-bottom: 8px; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h2>RideOn WhatsApp Gateway</h2>
+                <span class="status">Status: ${connectionState}</span>
+                <div>
+                    ${currentQrDataUrl ? `<img src="${currentQrDataUrl}" alt="WhatsApp QR Code" />` : '<p style="padding: 40px; color: #94a3b8;">Membuat QR code baru, mohon tunggu...</p>'}
+                </div>
+                <p style="color: #94a3b8; font-size: 13px; line-height: 1.5;">Buka WhatsApp di HP Anda &gt; <strong>Perangkat Tertaut</strong> &gt; <strong>Tautkan Perangkat</strong></p>
+            </div>
+        </body>
+        </html>
+    `);
+});
+
+// Endpoint Khusus: Kirim Kode OTP Verifikasi via WhatsApp
+app.post('/api/otp/send', async (req, res) => {
+    const rawPhone = req.body?.phoneNumber || req.body?.phone || req.body?.target;
+    if (!rawPhone) {
+        return res.status(400).json({ success: false, error: 'Nomor WhatsApp wajib diisi' });
+    }
+
+    const cleanPhone = cleanPhoneNumber(rawPhone);
+    const jid = `${cleanPhone}@s.whatsapp.net`;
+
+    // Generate 6 digit angka acak
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // Berlaku 5 menit
+
+    otpStore.set(cleanPhone, {
+        code,
+        expiresAt,
+        attempts: 0
+    });
+
+    const purpose = req.body?.purpose || req.body?.type || 'register';
+    const isReset = purpose === 'reset_password' || purpose === 'reset';
+
+    const message = isReset
+        ? `*RideOn Indonesia* 🚗🛵\n\nHalo! Kode verifikasi untuk mengatur ulang kata sandi akun RideOn Anda adalah:\n\n*${code}*\n\nKode ini berlaku selama 5 menit. Demi keamanan akun Anda, jangan berikan kode ini kepada siapa pun.`
+        : `*RideOn Indonesia* 🚗🛵\n\nHalo! Kode verifikasi pendaftaran akun RideOn Anda adalah:\n\n*${code}*\n\nKode ini berlaku selama 5 menit. Demi keamanan akun Anda, jangan berikan kode ini kepada siapa pun termasuk pihak RideOn.`;
+
+    console.log(`[OTP GENERATED] Target: ${cleanPhone} -> OTP: [${code}]`);
+
+    // Jika mode sandbox atau belum tersambung ke WhatsApp, kirim response simulasi agar testing lokal tidak terblokir
+    if (isSandbox || connectionState !== 'connected' || !sock) {
+        console.warn(`[OTP INFO] WhatsApp belum terhubung (status: ${connectionState}). Kode OTP simulasi lokal: [${code}]`);
+        return res.json({
+            success: true,
+            simulated: true,
+            message: 'Kode OTP dibuat (Server belum tersambung WhatsApp, buka http://localhost:3000/qr untuk scan)',
+            code: code,
+            expiresIn: 300
+        });
+    }
+
+    try {
+        const sent = await sock.sendMessage(jid, { text: message });
+        if (sent?.key?.id && sent?.message) {
+            msgStore.set(sent.key.id, sent.message);
+        }
+        console.log(`[OTP SENT] Pesan WhatsApp terkirim ke ${jid} (id: ${sent?.key?.id})`);
+        return res.json({
+            success: true,
+            message: 'Kode OTP berhasil dikirim via WhatsApp',
+            expiresIn: 300
+        });
+    } catch (err) {
+        console.error(`[OTP SEND ERROR] Gagal mengirim pesan ke ${jid}:`, err.message);
+        return res.status(500).json({
+            success: false,
+            error: `Gagal mengirim WhatsApp: ${err.message}`
+        });
+    }
+});
+
+// Endpoint Khusus: Verifikasi Kode OTP 6 Digit
+app.post('/api/otp/verify', (req, res) => {
+    const rawPhone = req.body?.phoneNumber || req.body?.phone || req.body?.target;
+    const inputCode = String(req.body?.code || req.body?.otp || '').trim();
+
+    if (!rawPhone || !inputCode) {
+        return res.status(400).json({ success: false, error: 'Nomor telepon dan kode OTP wajib diisi' });
+    }
+
+    const cleanPhone = cleanPhoneNumber(rawPhone);
+    const entry = otpStore.get(cleanPhone);
+
+    if (!entry) {
+        return res.status(400).json({ success: false, error: 'Kode OTP tidak ditemukan atau belum diminta.' });
+    }
+
+    if (Date.now() > entry.expiresAt) {
+        otpStore.delete(cleanPhone);
+        return res.status(400).json({ success: false, error: 'Kode OTP telah kedaluwarsa. Silakan minta kode baru.' });
+    }
+
+    if (entry.attempts >= 5) {
+        otpStore.delete(cleanPhone);
+        return res.status(429).json({ success: false, error: 'Terlalu banyak percobaan salah. Silakan minta kode baru.' });
+    }
+
+    if (entry.code !== inputCode) {
+        entry.attempts++;
+        return res.status(400).json({ success: false, error: 'Kode OTP yang Anda masukkan salah. Periksa kembali.' });
+    }
+
+    // Sukses verifikasi
+    otpStore.delete(cleanPhone);
+    console.log(`[OTP VERIFIED] Nomor ${cleanPhone} berhasil diverifikasi!`);
+    return res.json({
+        success: true,
+        message: 'Nomor WhatsApp berhasil diverifikasi'
+    });
+});
+
+// Endpoint Khusus: Reset Kata Sandi via Firebase Admin SDK
+app.post('/api/auth/reset-password', async (req, res) => {
+    const rawPhone = req.body?.phoneNumber || req.body?.phone;
+    const newPassword = req.body?.newPassword || req.body?.password;
+
+    if (!rawPhone || !newPassword) {
+        return res.status(400).json({ success: false, error: 'Nomor telepon dan kata sandi baru wajib diisi' });
+    }
+
+    if (newPassword.length < 6) {
+        return res.status(400).json({ success: false, error: 'Kata sandi minimal 6 karakter' });
+    }
+
+    const cleanPhone = cleanPhoneNumber(rawPhone);
+    const normalizedPhone = '+' + cleanPhone;
+
+    if (!firebaseAdmin) {
+        return res.status(503).json({
+            success: false,
+            error: 'Firebase Admin SDK belum dikonfigurasi di server (memerlukan serviceAccountKey.json).'
+        });
+    }
+
+    try {
+        let userRecord = null;
+        try {
+            userRecord = await firebaseAdmin.auth().getUserByPhoneNumber(normalizedPhone);
+        } catch (_) {
+            try {
+                const db = firebaseAdmin.firestore();
+                const snap = await db.collection('users').where('phoneNumber', '==', normalizedPhone).limit(1).get();
+                if (!snap.empty) {
+                    const uid = snap.docs[0].id;
+                    userRecord = await firebaseAdmin.auth().getUser(uid);
+                }
+            } catch (fsErr) {
+                console.error('[FIRESTORE LOOKUP ERROR]:', fsErr.message);
+            }
+        }
+
+        if (!userRecord) {
+            return res.status(404).json({ success: false, error: 'Akun dengan nomor WhatsApp tersebut tidak ditemukan di Firebase.' });
+        }
+
+        await firebaseAdmin.auth().updateUser(userRecord.uid, {
+            password: newPassword
+        });
+
+        console.log(`[PASSWORD RESET] Sukses mereset kata sandi untuk UID: ${userRecord.uid} (${normalizedPhone})`);
+        return res.json({
+            success: true,
+            message: 'Kata sandi akun Anda berhasil diperbarui.'
+        });
+    } catch (err) {
+        console.error('[PASSWORD RESET ERROR]:', err);
+        return res.status(500).json({
+            success: false,
+            error: `Gagal memperbarui kata sandi: ${err.message}`
+        });
+    }
+});
+
+// Send WhatsApp text message
+app.post('/send', checkAuth, async (req, res) => {
+    const { target, message } = req.body;
+
+    if (!target || !message) {
+        return res.status(400).json({ status: false, error: 'Missing target phone number or message content' });
+    }
+
+    if (isSandbox) {
+        const jid = formatJid(target) || `${target}@s.whatsapp.net`;
+        console.log(`[WHATSAPP SANDBOX] Mock message delivered to ${jid}`);
+        return res.json({
+            status: true,
+            messageId: 'mock-' + Date.now(),
+            target: jid
+        });
+    }
+
+    if (connectionState !== 'connected' || !sock) {
+        return res.status(503).json({
+            status: false,
+            error: `WhatsApp client is not connected (current state: ${connectionState})`
+        });
+    }
+
+    try {
+        const jid = formatJid(target);
+        if (!jid) {
+            return res.status(400).json({ status: false, error: 'Invalid phone number format' });
+        }
+
+        const sent = await sock.sendMessage(jid, { text: String(message) });
+        if (sent?.key?.id && sent?.message) {
+            msgStore.set(sent.key.id, sent.message);
+        }
+        console.log(`[WHATSAPP SENT] Message delivered to ${jid} (id: ${sent?.key?.id})`);
+
+        return res.json({
+            status: true,
+            messageId: sent?.key?.id,
+            target: jid
+        });
+    } catch (err) {
+        console.error(`[WHATSAPP SEND ERROR] Failed sending to ${target}:`, err.message);
+        // Auto-heal session ratchets if crypto / Bad MAC error occurs to prevent "Menunggu pesan ini"
+        if (err.message && (err.message.includes('Bad MAC') || err.message.includes('Session') || err.message.includes('decrypt') || err.message.includes('No session record'))) {
+            try {
+                if (authAdapter && authAdapter.clearChatSessions) {
+                    await authAdapter.clearChatSessions();
+                    console.log('[WHATSAPP AUTO-HEAL] Cleared session ratchets after encryption ratchet error');
+                }
+            } catch (healErr) {}
+        }
+        return res.status(500).json({ status: false, error: err.message });
+    }
+});
+
+// Logout / Disconnect WhatsApp account
+app.post('/logout', checkAuth, async (req, res) => {
+    try {
+        console.log('[WHATSAPP] Logout requested via API.');
+        if (sock) {
+            try {
+                sock.ev.removeAllListeners();
+                await sock.logout();
+            } catch (e) {}
+            sock = null;
+        }
+        if (authAdapter) {
+            await authAdapter.clearAuth();
+            authAdapter = null;
+        }
+        connectionState = 'disconnected';
+        currentQrDataUrl = null;
+        connectedUser = null;
+
+        setTimeout(startWhatsApp, 2000);
+
+        return res.json({ status: true, message: 'WhatsApp session cleared and restarting...' });
+    } catch (err) {
+        console.error('[WHATSAPP LOGOUT ERROR]', err.message);
+        return res.status(500).json({ status: false, error: err.message });
+    }
+});
+
+// Reset chat sessions ratchets (clears Bad MAC / out-of-sync sessions while keeping QR login intact)
+app.post('/reset-chat-sessions', checkAuth, async (req, res) => {
+    try {
+        console.log('[WHATSAPP] Resetting chat session ratchets via API...');
+        msgStore.clear();
+        if (authAdapter && authAdapter.clearChatSessions) {
+            await authAdapter.clearChatSessions();
+        }
+        if (sock) {
+            try {
+                sock.ev.removeAllListeners();
+                sock.end(new Error('Reset chat sessions'));
+            } catch (e) {}
+            sock = null;
+        }
+        setTimeout(startWhatsApp, 1500);
+        return res.json({ status: true, message: 'Chat sessions reset successfully, login credentials preserved.' });
+    } catch (err) {
+        console.error('[WHATSAPP RESET CHAT SESSIONS ERROR]', err.message);
+        return res.status(500).json({ status: false, error: err.message });
+    }
+});
+
+// Restart connection
+app.post('/restart', checkAuth, async (req, res) => {
+    try {
+        console.log('[WHATSAPP] Reconnection requested via API.');
+        if (sock) {
+            try {
+                sock.ev.removeAllListeners();
+                sock.end(new Error('Manual restart'));
+            } catch (e) {}
+            sock = null;
+        }
+        setTimeout(startWhatsApp, 1000);
+        return res.json({ status: true, message: 'Reconnecting...' });
+    } catch (err) {
+        return res.status(500).json({ status: false, error: err.message });
+    }
+});
+
+// Start listening & initiate WhatsApp socket
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`=======================================================`);
+    console.log(`🚀 RideOn WhatsApp Gateway running on port ${PORT}`);
+    console.log(`📱 Buka http://localhost:${PORT}/qr di browser untuk memindai QR Code`);
+    console.log(`📡 Webhook destination: ${WEBHOOK_URL}`);
+    console.log(`🔒 Secret verification: ${GATEWAY_SECRET ? 'Enabled' : 'Disabled'}`);
+    console.log(`=======================================================`);
+    startWhatsApp();
+});
