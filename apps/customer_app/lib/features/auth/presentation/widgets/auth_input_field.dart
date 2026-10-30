@@ -96,7 +96,7 @@ class AuthInputField extends StatelessWidget {
                 ),
               ),
             ),
-            if (suffixIcon != null) suffixIcon!,
+            ?suffixIcon,
           ],
         ),
       ),
