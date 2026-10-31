@@ -2,7 +2,7 @@ name: rideon
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -67,18 +67,28 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
 
   assets:
-    - assets/images/
-    - assets/images/home/
-    - assets/images/favorit/
-    - assets/images/pengaturan/
-    - assets/images/flexfood/
+    - assets/icons/navbar/
+    - assets/icons/home/
+    - assets/icons/auth/
+    - assets/icons/settings/
+    - assets/icons/theme/dark/
+    - assets/icons/theme/light/
+    - assets/icons/places/
+    - assets/icons/actions/
+    - assets/images/services/
+    - assets/images/food/
+    - assets/images/banners/
+    - assets/images/illustrations/
+    - assets/images/avatars/
+    - assets/images/logo/
+    - assets/images/wisata/
+    - assets/images/drivers/
     - assets/images/flexsend/
 
   # An image asset can refer to one or more resolution-specific "variants", see
