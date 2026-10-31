@@ -64,56 +64,8 @@ class _VirtualNavigationBarWrapperState extends State<VirtualNavigationBarWrappe
 
     return Stack(
       children: [
-        // Main App Content + Bottom Navigation Bar ditaruh dalam Column vertikal
-        // sehingga konten aplikasi TIDAK AKAN PERNAH tertutup oleh navigation bar
-        Positioned.fill(
-          child: Column(
-            children: [
-              Expanded(
-                child: widget.child,
-              ),
-
-              // Bottom Android Virtual Navigation Bar (Back, Home, Recent)
-              Container(
-                height: 44,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0D0C15), // Solid dark phone bezel
-                  border: Border(
-                    top: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.12),
-                      width: 0.5,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    // 1. Back Button (Segitiga menghadap kiri)
-                    _NavButton(
-                      icon: Icons.arrow_back_ios_new_rounded,
-                      iconSize: 18,
-                      onTap: _handleBack,
-                    ),
-
-                    // 2. Home Button (Lingkaran)
-                    _NavButton(
-                      icon: Icons.circle_outlined,
-                      iconSize: 19,
-                      onTap: _handleHome,
-                    ),
-
-                    // 3. Recent / Overview Button (Kotak rounded)
-                    _NavButton(
-                      icon: Icons.crop_square_rounded,
-                      iconSize: 21,
-                      onTap: _handleRecent,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        // Main App Content
+        widget.child,
 
         // Recent Task Switcher Overlay (Mock Android Overview)
         if (_showRecentOverlay)
@@ -215,6 +167,50 @@ class _VirtualNavigationBarWrapperState extends State<VirtualNavigationBarWrappe
               ),
             ),
           ),
+
+        // Bottom Android Virtual Navigation Bar (Back, Home, Recent)
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: const Color(0xEB0D0C15), // Dark sleek translucent
+              border: Border(
+                top: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // 1. Back Button (Segitiga menghadap kiri)
+                _NavButton(
+                  icon: Icons.arrow_back_ios_new_rounded,
+                  iconSize: 18,
+                  onTap: _handleBack,
+                ),
+
+                // 2. Home Button (Lingkaran)
+                _NavButton(
+                  icon: Icons.circle_outlined,
+                  iconSize: 19,
+                  onTap: _handleHome,
+                ),
+
+                // 3. Recent / Overview Button (Kotak rounded)
+                _NavButton(
+                  icon: Icons.crop_square_rounded,
+                  iconSize: 21,
+                  onTap: _handleRecent,
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
