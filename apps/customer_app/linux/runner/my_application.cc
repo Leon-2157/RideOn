@@ -54,12 +54,17 @@ static void my_application_activate(GApplication* application) {
 
   // iPhone 16 Pro Max specifications:
   // Screen: 6.9 inch, Physical resolution: 1320 x 2868, 460 ppi (@3x Retina -> 440 x 956 dp)
-  // Window size set to 440 x 956 portrait for accurate mobile ratio on desktop
+  // Window size set to fixed 440 x 956 portrait (non-resizable) to prevent OpenGL frame timeout during resize
   gtk_window_set_default_size(window, 440, 956);
+  gtk_window_set_resizable(window, FALSE);
   GdkGeometry geometry;
   geometry.min_width = 440;
   geometry.min_height = 956;
-  gtk_window_set_geometry_hints(window, nullptr, &geometry, GDK_HINT_MIN_SIZE);
+  geometry.max_width = 440;
+  geometry.max_height = 956;
+  gtk_window_set_geometry_hints(
+      window, nullptr, &geometry,
+      static_cast<GdkWindowHints>(GDK_HINT_MIN_SIZE | GDK_HINT_MAX_SIZE));
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
