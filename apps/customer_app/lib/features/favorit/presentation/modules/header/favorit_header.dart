@@ -18,40 +18,59 @@ class FavoritHeader extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Ilustrasi Karakter Perempuan
+              // Ilustrasi Karakter Perempuan (Tinggi 107 px agar glyph aktif 87 px presisi Figma)
               Image.asset(
                 AppAssets.favoritGirlHeader,
-                height: 85,
+                height: 107,
                 fit: BoxFit.contain,
               ),
               const SizedBox(width: 8),
 
-              // Balon Percakapan Ungu Presisi Figma (y=125..148, x=115..261)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF937BFD),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF937BFD).withValues(alpha: 0.28),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
+              // Balon Percakapan Pastel Lavender (#B5A5FE) Presisi Figma dengan Pointer Tail
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 14.0),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFB5A5FE),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFB5A5FE).withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Cari Kembali favorit Mu!',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.roboto(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Positioned(
+                        left: -5,
+                        top: 9,
+                        child: CustomPaint(
+                          size: Size(6, 8),
+                          painter: _SpeechTailPainter(color: Color(0xFFB5A5FE)),
+                        ),
                       ),
                     ],
-                  ),
-                  child: Text(
-                    'Cari Kembali favorit Mu!',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: 0.1,
-                    ),
                   ),
                 ),
               ),
@@ -80,3 +99,30 @@ class FavoritHeader extends StatelessWidget {
     );
   }
 }
+
+/// CustomPainter untuk ekor segitiga balon percakapan mengarah ke karakter perempuan
+class _SpeechTailPainter extends CustomPainter {
+  final Color color;
+
+  const _SpeechTailPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final path = Path()
+      ..moveTo(size.width, 0)
+      ..lineTo(0, size.height * 0.5)
+      ..lineTo(size.width, size.height)
+      ..close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpeechTailPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+

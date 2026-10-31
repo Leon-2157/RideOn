@@ -12,8 +12,13 @@ export '../modules/header/favorit_header.dart';
 /// - 3-Column Grid kartu makanan favorit dengan Rectangle 55 frosted glass dan harga emas
 class FavoritScreen extends StatefulWidget {
   final Function(Map<String, dynamic> item)? onSelectFood;
+  final VoidCallback? onBack;
 
-  const FavoritScreen({super.key, this.onSelectFood});
+  const FavoritScreen({
+    super.key,
+    this.onSelectFood,
+    this.onBack,
+  });
 
   @override
   State<FavoritScreen> createState() => _FavoritScreenState();
@@ -87,7 +92,6 @@ class _FavoritScreenState extends State<FavoritScreen> {
           // Header: Gradasi horizontal lavender #9F88FD ke putih presisi Figma node [44:9160]
           Container(
             width: double.infinity,
-            height: 107,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.centerLeft,
@@ -104,13 +108,43 @@ class _FavoritScreenState extends State<FavoritScreen> {
             ),
             child: SafeArea(
               bottom: false,
-              child: Align(
-                alignment: const Alignment(0.0, 0.25),
-                child: Image.asset(
-                  AppAssets.logoWhite,
-                  width: 60,
-                  height: 28,
-                  fit: BoxFit.contain,
+              child: SizedBox(
+                height: 63,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Tombol Back Figma Squircle 34x34
+                    Positioned(
+                      left: 16,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: widget.onBack ?? () => Navigator.of(context).maybePop(),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // RideOn Logo White presisi Figma (active glyph 60x29 px)
+                    Center(
+                      child: Image.asset(
+                        AppAssets.logoWhite,
+                        width: 95,
+                        height: 63,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -123,15 +157,15 @@ class _FavoritScreenState extends State<FavoritScreen> {
               children: [
                 const FavoritHeader(),
 
-                // 3-Column Grid of Favorite Items (Dimensi 119x156 px presisi Figma)
+                // 3-Column Grid of Favorite Items (Dimensi 119x152 px presisi Figma)
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     crossAxisSpacing: 9,
-                    mainAxisSpacing: 11,
-                    childAspectRatio: 119 / 156,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 119 / 152,
                   ),
                   itemCount: _favoriteItems.length,
                   itemBuilder: (context, index) {

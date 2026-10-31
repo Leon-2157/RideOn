@@ -45,136 +45,156 @@ class FavoriteCardWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Kotak gambar makanan Rectangle 55 (109x98 px, radius 10)
+            // 1. Kotak gambar makanan Rectangle 55 (109x97 proporsional, radius 10)
             Padding(
               padding: const EdgeInsets.fromLTRB(5.0, 5.0, 5.0, 0.0),
-              child: Container(
-                height: 98,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.50),
-                    width: 0.5,
+              child: AspectRatio(
+                aspectRatio: 109 / 97,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.50),
+                      width: 0.5,
+                    ),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topRight,
+                      end: Alignment.bottomLeft,
+                      colors: [
+                        Colors.white,
+                        Color(0x00FFFFFF), // 0% opacity transparan
+                      ],
+                      stops: [0.0, 1.0],
+                    ),
                   ),
-                  gradient: const LinearGradient(
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                    colors: [
-                      Colors.white,
-                      Color(0x00FFFFFF), // 0% opacity transparan
-                    ],
-                    stops: [0.0, 1.0],
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    // Bayangan oval kontak 3D di bawah makanan
-                    Positioned(
-                      bottom: 8,
-                      left: 15,
-                      right: 15,
-                      height: 10,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: const BorderRadius.all(
-                            Radius.elliptical(35, 5),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.20),
-                              blurRadius: 6,
-                              spreadRadius: 1,
+                  child: Stack(
+                    children: [
+                      // Bayangan oval kontak 3D di bawah makanan
+                      Positioned(
+                        bottom: 8,
+                        left: 15,
+                        right: 15,
+                        height: 10,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: const BorderRadius.all(
+                              Radius.elliptical(35, 5),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4.0,
-                          vertical: 2.0,
-                        ),
-                        child: Image.asset(
-                          item['image'] as String,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: onFavoriteTap,
-                        child: Padding(
-                          padding: const EdgeInsets.all(3.0),
-                          child: Icon(
-                            isFav
-                                ? Icons.favorite_rounded
-                                : Icons.favorite_border_rounded,
-                            size: 13,
-                            color: const Color(0xFF17152B), // Hitam solid Figma
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.20),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4.0,
+                            vertical: 2.0,
+                          ),
+                          child: Image.asset(
+                            item['image'] as String,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: onFavoriteTap,
+                          child: Padding(
+                            padding: const EdgeInsets.all(3.0),
+                            child: Icon(
+                              isFav
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              size: 13,
+                              color: const Color(0xFF17152B), // Hitam solid Figma
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
 
-            // 2. Area Teks: Terisi padat proporsional
+            // 2. Area Teks: Terisi padat proporsional & aman dari overflow
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(6.0, 3.0, 7.0, 5.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          item['title'] as String,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            height: 1.15,
+                padding: const EdgeInsets.fromLTRB(6.0, 2.0, 6.0, 2.0),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SizedBox(
+                      width: constraints.maxWidth,
+                      height: constraints.maxHeight,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.topLeft,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: constraints.maxWidth,
+                            maxWidth: constraints.maxWidth,
                           ),
-                        ),
-                        const SizedBox(height: 1.0),
-                        Text(
-                          item['desc'] as String,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
-                            fontSize: 8.0,
-                            fontWeight: FontWeight.w400,
-                            color: Colors.white.withValues(alpha: 0.90),
-                            height: 1.15,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    item['title'] as String,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.roboto(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 1.0),
+                                  Text(
+                                    item['desc'] as String,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.roboto(
+                                      fontSize: 8.0,
+                                      fontWeight: FontWeight.w400,
+                                      color: Colors.white.withValues(alpha: 0.90),
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Align(
+                                alignment: Alignment.bottomRight,
+                                child: Text(
+                                  item['price'] as String,
+                                  style: GoogleFonts.roboto(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFFFFD700),
+                                    height: 1.10,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                    Align(
-                      alignment: Alignment.bottomRight,
-                      child: Text(
-                        item['price'] as String,
-                        style: GoogleFonts.roboto(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFFFFD700),
-                          height: 1.10,
                         ),
                       ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
             ),
