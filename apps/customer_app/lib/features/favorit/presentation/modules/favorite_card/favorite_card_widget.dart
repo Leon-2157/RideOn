@@ -116,7 +116,9 @@ class FavoriteCardWidget extends StatelessWidget {
                                   ? Icons.favorite_rounded
                                   : Icons.favorite_border_rounded,
                               size: 13,
-                              color: const Color(0xFF17152B), // Hitam solid Figma
+                              color: const Color(
+                                0xFF17152B,
+                              ), // Hitam solid Figma
                             ),
                           ),
                         ),
@@ -171,7 +173,9 @@ class FavoriteCardWidget extends StatelessWidget {
                                     style: GoogleFonts.roboto(
                                       fontSize: 8.0,
                                       fontWeight: FontWeight.w400,
-                                      color: Colors.white.withValues(alpha: 0.90),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.90,
+                                      ),
                                       height: 1.15,
                                     ),
                                   ),

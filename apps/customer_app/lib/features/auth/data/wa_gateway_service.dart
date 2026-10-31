@@ -25,10 +25,12 @@ class WaGatewayService {
 
   static const List<String> defaultCandidateUrls = [
     String.fromEnvironment('WA_GATEWAY_URL'),
-    'http://192.168.100.14:3000',
-    'http://localhost:3000',
+    'http://10.45.209.43:3000',      // Active Wi-Fi LAN IP
+    'http://localhost:3000',         // ADB Reverse port forwarding
+    'http://127.0.0.1:3000',
+    'http://192.168.100.14:3000',    // Secondary Wi-Fi LAN IP
     'http://192.168.100.225:3000',
-    'http://10.0.2.2:3000',
+    'http://10.0.2.2:3000',          // Android Emulator
   ];
 
   String? _resolvedBaseUrl;

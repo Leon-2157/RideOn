@@ -192,7 +192,6 @@ class _VirtualNavigationBarWrapperState extends State<VirtualNavigationBarWrappe
                   icon: Icons.arrow_back_ios_new_rounded,
                   iconSize: 18,
                   onTap: _handleBack,
-                  tooltip: 'Kembali (Back)',
                 ),
 
                 // 2. Home Button (Lingkaran)
@@ -200,7 +199,6 @@ class _VirtualNavigationBarWrapperState extends State<VirtualNavigationBarWrappe
                   icon: Icons.circle_outlined,
                   iconSize: 19,
                   onTap: _handleHome,
-                  tooltip: 'Beranda (Home)',
                 ),
 
                 // 3. Recent / Overview Button (Kotak rounded)
@@ -208,7 +206,6 @@ class _VirtualNavigationBarWrapperState extends State<VirtualNavigationBarWrappe
                   icon: Icons.crop_square_rounded,
                   iconSize: 21,
                   onTap: _handleRecent,
-                  tooltip: 'Aplikasi Terbuka (Recent)',
                 ),
               ],
             ),
@@ -223,32 +220,27 @@ class _NavButton extends StatelessWidget {
   final IconData icon;
   final double iconSize;
   final VoidCallback onTap;
-  final String tooltip;
 
   const _NavButton({
     required this.icon,
     required this.iconSize,
     required this.onTap,
-    required this.tooltip,
   });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Tooltip(
-        message: tooltip,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            child: SizedBox(
-              height: 44,
-              child: Center(
-                child: Icon(
-                  icon,
-                  color: Colors.white.withValues(alpha: 0.85),
-                  size: iconSize,
-                ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 44,
+            child: Center(
+              child: Icon(
+                icon,
+                color: Colors.white.withValues(alpha: 0.85),
+                size: iconSize,
               ),
             ),
           ),
@@ -257,3 +249,4 @@ class _NavButton extends StatelessWidget {
     );
   }
 }
+

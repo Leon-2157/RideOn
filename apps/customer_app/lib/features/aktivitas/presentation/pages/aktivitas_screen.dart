@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:rideon/core/constants/app_assets.dart';
+
 import '../modules/activity_card/activity_card_widget.dart';
 import 'rangkuman_aktivitas_screen.dart';
 
@@ -56,9 +57,7 @@ class AktivitasScreen extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
-              borderRadius: BorderRadius.vertical(
-                bottom: Radius.circular(28),
-              ),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
             ),
             child: SafeArea(
               bottom: false,
@@ -79,8 +78,10 @@ class AktivitasScreen extends StatelessWidget {
                       height: 0,
                       child: Text(
                         'Riwayat Aktivitas',
-                        style:
-                            TextStyle(fontSize: 0, color: Colors.transparent),
+                        style: TextStyle(
+                          fontSize: 0,
+                          color: Colors.transparent,
+                        ),
                       ),
                     ),
                   ],
@@ -92,8 +93,10 @@ class AktivitasScreen extends StatelessWidget {
           // Activities List
           Expanded(
             child: ListView.separated(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 16.0,
+              ),
               itemCount: activities.length,
               separatorBuilder: (_, _) => const SizedBox(height: 14),
               itemBuilder: (context, index) {

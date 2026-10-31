@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
+
 import '../../../../chat/presentation/modules/call/voice_call_overlay.dart';
 import '../../../../chat/presentation/pages/chat_screen.dart';
 
@@ -8,11 +9,7 @@ class DriverCardWidget extends StatelessWidget {
   final VoidCallback? onChat;
   final VoidCallback? onCall;
 
-  const DriverCardWidget({
-    super.key,
-    this.onChat,
-    this.onCall,
-  });
+  const DriverCardWidget({super.key, this.onChat, this.onCall});
 
   @override
   Widget build(BuildContext context) {
@@ -80,8 +77,10 @@ class DriverCardWidget extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF17152B),
                         borderRadius: BorderRadius.circular(4),
@@ -114,9 +113,12 @@ class DriverCardWidget extends StatelessWidget {
 
           // Chat & Call Actions
           IconButton(
-            icon: const Icon(Icons.chat_bubble_outline_rounded,
-                color: Color(0xFF6B48FC)),
-            onPressed: onChat ??
+            icon: const Icon(
+              Icons.chat_bubble_outline_rounded,
+              color: Color(0xFF6B48FC),
+            ),
+            onPressed:
+                onChat ??
                 () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
@@ -129,7 +131,8 @@ class DriverCardWidget extends StatelessWidget {
                 },
           ),
           GestureDetector(
-            onTap: onCall ??
+            onTap:
+                onCall ??
                 () {
                   showGeneralDialog(
                     context: context,
@@ -149,8 +152,11 @@ class DriverCardWidget extends StatelessWidget {
                 color: const Color(0xFFE8F7ED),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.call_rounded,
-                  size: 18, color: Color(0xFF28A745)),
+              child: const Icon(
+                Icons.call_rounded,
+                size: 18,
+                color: Color(0xFF28A745),
+              ),
             ),
           ),
         ],

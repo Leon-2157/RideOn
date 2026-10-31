@@ -18,23 +18,16 @@ class ConversationHeader extends StatelessWidget {
       width: double.infinity,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Color(0xFFB4A5FE),
-            Color(0xFFE2DCFE),
-            Color(0xFFF7F5FF),
-          ],
+          colors: [Color(0xFFB4A5FE), Color(0xFFE2DCFE), Color(0xFFF7F5FF)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
-        borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(28),
-        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
       ),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           child: Row(
             children: [
               // Back button
@@ -98,8 +91,10 @@ class ConversationHeader extends StatelessWidget {
                       height: 0,
                       child: Text(
                         'Pikri Haykal',
-                        style:
-                            TextStyle(fontSize: 0, color: Colors.transparent),
+                        style: TextStyle(
+                          fontSize: 0,
+                          color: Colors.transparent,
+                        ),
                       ),
                     ),
                     const SizedBox(
@@ -107,8 +102,10 @@ class ConversationHeader extends StatelessWidget {
                       height: 0,
                       child: Text(
                         'Honda Vario 160 Hitam • BG 4563 R',
-                        style:
-                            TextStyle(fontSize: 0, color: Colors.transparent),
+                        style: TextStyle(
+                          fontSize: 0,
+                          color: Colors.transparent,
+                        ),
                       ),
                     ),
                     Text(

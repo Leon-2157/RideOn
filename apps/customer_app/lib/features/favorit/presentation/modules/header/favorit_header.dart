@@ -12,38 +12,42 @@ class FavoritHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 6, 12, 14),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Stack(
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Ilustrasi Karakter Perempuan (Tinggi 107 px agar glyph aktif 87 px presisi Figma)
+              // Ilustrasi Karakter Perempuan (Tinggi 162 px agar glyph aktif 132 px presisi Figma)
               Image.asset(
                 AppAssets.favoritGirlHeader,
-                height: 107,
+                height: 180,
                 fit: BoxFit.contain,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
 
-              // Balon Percakapan Pastel Lavender (#B5A5FE) Presisi Figma dengan Pointer Tail
+              // Balon Percakapan Pastel Lavender (#B5A5FE) Presisi Proporsional Figma dengan Pointer Tail
               Flexible(
                 child: Padding(
-                  padding: const EdgeInsets.only(top: 14.0),
+                  padding: const EdgeInsets.only(top: 24.0),
                   child: Stack(
                     clipBehavior: Clip.none,
                     alignment: Alignment.centerLeft,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8.5,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFB5A5FE),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFB5A5FE).withValues(alpha: 0.35),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
+                              color: const Color(0xFFB5A5FE)
+                                  .withValues(alpha: 0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
@@ -54,19 +58,19 @@ class FavoritHeader extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.roboto(
-                              fontSize: 10.5,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
-                              letterSpacing: 0.1,
+                              letterSpacing: 0.2,
                             ),
                           ),
                         ),
                       ),
                       const Positioned(
-                        left: -5,
-                        top: 9,
+                        left: -6,
+                        top: 11,
                         child: CustomPaint(
-                          size: Size(6, 8),
+                          size: Size(7, 10),
                           painter: _SpeechTailPainter(color: Color(0xFFB5A5FE)),
                         ),
                       ),
@@ -125,4 +129,3 @@ class _SpeechTailPainter extends CustomPainter {
   bool shouldRepaint(covariant _SpeechTailPainter oldDelegate) =>
       oldDelegate.color != color;
 }
-
