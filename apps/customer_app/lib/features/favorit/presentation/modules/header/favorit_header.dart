@@ -12,36 +12,71 @@ class FavoritHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 6, 12, 14),
+      padding: const EdgeInsets.fromLTRB(8, 4, 12, 0),
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Ilustrasi Karakter Perempuan (Tinggi 107 px agar glyph aktif 87 px presisi Figma)
-              Image.asset(
-                AppAssets.favoritGirlHeader,
-                height: 107,
-                fit: BoxFit.contain,
+              // Ilustrasi Karakter Perempuan dengan Abstrak Blob di belakangnya
+              SizedBox(
+                width: 140,
+                height: 155,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    // 1. Abstrak Blob lavender di belakang perempuan presisi Figma
+                    Positioned(
+                      top: 4,
+                      left: -8,
+                      right: -8,
+                      bottom: 8,
+                      child: Image.asset(
+                        AppAssets.abstractBlob,
+                        fit: BoxFit.contain,
+                        color: const Color(0xFFC6BCFF).withValues(alpha: 0.70),
+                      ),
+                    ),
+
+                    // 2. Ilustrasi Perempuan (Tinggi 155 px, pinggang menyentuh batas bawah)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 155,
+                      child: Image.asset(
+                        AppAssets.favoritGirlHeader,
+                        fit: BoxFit.contain,
+                        alignment: Alignment.bottomCenter,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: 8),
 
               // Balon Percakapan Pastel Lavender (#B5A5FE) Presisi Figma dengan Pointer Tail
               Flexible(
                 child: Padding(
-                  padding: const EdgeInsets.only(top: 14.0),
+                  padding: const EdgeInsets.only(top: 20.0),
                   child: Stack(
                     clipBehavior: Clip.none,
                     alignment: Alignment.centerLeft,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7.5,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFB5A5FE),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFB5A5FE).withValues(alpha: 0.35),
+                              color: const Color(0xFFB5A5FE)
+                                  .withValues(alpha: 0.35),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -54,7 +89,7 @@ class FavoritHeader extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.roboto(
-                              fontSize: 10.5,
+                              fontSize: 11.0,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                               letterSpacing: 0.1,
@@ -125,4 +160,3 @@ class _SpeechTailPainter extends CustomPainter {
   bool shouldRepaint(covariant _SpeechTailPainter oldDelegate) =>
       oldDelegate.color != color;
 }
-

@@ -153,29 +153,35 @@ class _FavoritScreenState extends State<FavoritScreen> {
           // Main Scrollable Area
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 80),
+              padding: const EdgeInsets.fromLTRB(10, 4, 10, 80),
               children: [
                 const FavoritHeader(),
 
                 // 3-Column Grid of Favorite Items (Dimensi 119x152 px presisi Figma)
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 9,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 119 / 152,
+                // Digeser sedikit ke atas (-16px) agar kartu pertama berada di atas (overlap)
+                // bagian bawah pinggang karakter perempuan persis seperti desain Figma
+                Transform.translate(
+                  offset: const Offset(0, -16),
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 9,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 119 / 152,
+                    ),
+                    itemCount: _favoriteItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _favoriteItems[index];
+                      return FavoriteCardWidget(
+                        item: item,
+                        onFavoriteTap: () => _toggleFavorite(index),
+                        onTap: () => widget.onSelectFood?.call(item),
+                      );
+                    },
                   ),
-                  itemCount: _favoriteItems.length,
-                  itemBuilder: (context, index) {
-                    final item = _favoriteItems[index];
-                    return FavoriteCardWidget(
-                      item: item,
-                      onFavoriteTap: () => _toggleFavorite(index),
-                      onTap: () => widget.onSelectFood?.call(item),
-                    );
-                  },
                 ),
               ],
             ),
