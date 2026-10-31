@@ -99,7 +99,7 @@ Berikut adalah rangkuman seluruh teknologi eksternal yang kita pasang di `custom
 | :--- | :--- | :--- | :--- | :--- |
 | **WhatsApp Gateway** (`Baileys` Node.js) | Mengirimkan kode 6-digit OTP langsung ke chat WhatsApp pengguna. | **100% Gratis & Tanpa Biaya SMS**. Pengguna di Indonesia 99% aktif di WA, verifikasi instan tanpa pulsa. | Server: [`services/wa-gateway/`](file:///home/leon/Documents/Project/RideOn/services/wa-gateway/)<br>Klien: [`wa_gateway_service.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/auth/data/wa_gateway_service.dart) | Layar Register (Langkah 2: Verif OTP), Layar Lupa Sandi, & Layar Ubah No WA di Pengaturan. |
 | **Firebase SMS Phone Auth** (`firebase_auth`) | Mengirimkan SMS kode verifikasi resmi dari Google. | Sebagai **Fail-Safe / Fallback** jika WA Gateway sedang offline atau pengguna meminta kirim lewat SMS biasa. | [`auth_service.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/auth/data/auth_service.dart) & [`fallback_sms_dialog.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/auth/presentation/widgets/fallback_sms_dialog.dart) | Muncul lewat pop-up tombol *"Kirim lewat SMS"* jika hitung mundur OTP WA habis. |
-| **Email OTP Gateway** (`Nodemailer` + SMTP) | Mengirimkan kode 6-digit OTP verifikasi ke email pengguna (`p1k.1v107@gmail.com`). | Menghilangkan masalah *token revocation* pada link browser lama, verifikasi 100% instan di dalam aplikasi tanpa pindah layar. | Server: [`services/wa-gateway/server.js`](file:///home/leon/Documents/Project/RideOn/services/wa-gateway/server.js)<br>Klien: [`email_otp_service.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/auth/data/email_otp_service.dart) | Menu Pengaturan -> Alamat Email -> Form Input -> Verifikasi 6-Digit OTP -> Modal Sukses Figma. |
+| **Firebase Email Verification** (`firebase_auth`) | Mengirimkan link aktivasi email resmi dari Firebase ke inbox pengguna (`p1k.1v107@gmail.com`). | Memastikan alamat email pengguna valid sebelum ditandai status **Aktif** di profil. | [`alamat_email_screen.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/pengaturan/presentation/pages/alamat_email_screen.dart) & [`email_verification_dialog.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/pengaturan/presentation/widgets/email_verification_dialog.dart) | Menu Pengaturan -> Alamat Email -> Tombol Simpan -> Muncul Modal Polling Verifikasi. |
 | **OpenStreetMap** (`flutter_map` + `latlong2`) | Menampilkan peta interaktif yang dapat digeser dan di-zoom secara mulus. | **Zero-Cost (Gratis)**. Tidak memerlukan kartu kredit atau tagihan Google Maps API untuk tahap pengembangan. | [`lokasi_anda_screen.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/pengaturan/presentation/pages/lokasi_anda_screen.dart) | Menu Pengaturan -> Lokasi Anda (Peta di separuh atas layar dengan pin ungu di tengah). |
 | **GPS Sensor & Geocoding** (`geolocator` + `geocoding`) | Membaca koordinat lintang/bujur sensor HP & menerjemahkan titik ke nama jalan/kota (Reverse Geocoding). | Mengisi form alamat pengguna secara otomatis hanya dengan menekan 1 tombol GPS tanpa ketik manual. | [`lokasi_anda_screen.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/pengaturan/presentation/pages/lokasi_anda_screen.dart#L120-L200) | Tombol *"Gunakan Titik GPS Saat Ini"* pada halaman Lokasi Anda. |
 | **Cloud Firestore** (`cloud_firestore`) | Database NoSQL dokumen real-time untuk data pengguna dan alamat. | Sinkronisasi instan multi-perangkat, terintegrasi erat dengan Firebase Auth & Security Rules. | [`auth_service.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/auth/data/auth_service.dart) & seluruh screen pengaturan. | Seluruh data nama, no WA, email, status verified, dan saved address yang tampil di UI. |
@@ -179,24 +179,12 @@ Menggabungkan seluruh komponen menjadi satu tampilan bersih:
   3. Gateway WA mengirimkan kode OTP 6 digit ke nomor baru tersebut.
   4. Pengguna memverifikasi kode OTP -> jika valid, nomor pada dokumen Firestore diperbarui dan pengguna dikembalikan ke halaman pengaturan dengan snackbar sukses.
 
-### 4. Alamat Email (Sistem 6-Digit OTP Sesuai Figma `assets/emailFigmaFix/`)
-- **File Halaman:** [`alamat_email_screen.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/pengaturan/presentation/pages/alamat_email_screen.dart)
-- **File Service:** [`email_otp_service.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/auth/data/email_otp_service.dart)
-- **Modal Sukses:** [`email_success_dialog.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/pengaturan/presentation/widgets/email_success_dialog.dart)
-- **Alur Kerja Modern (In-App Verification):**
-  1. **Fase 1 (Formulir Adaptif):**
-     - **Mode 2 Kolom:** Jika akun belum memiliki email, pengguna mengisi Kata Sandi Akun & Email Aktif.
-     - **Mode 3 Kolom:** Jika sudah ada email lama, pengguna mengisi Kata Sandi Akun, Email Lama, dan Email Baru.
-     - Verifikasi sandi akun divalidasi ke Firebase Auth (`reauthenticateWithCredential`).
-  2. **Fase 2 (Verifikasi 6 Kotak OTP):**
-     - Endpoint backend `POST /api/email/otp/send` mengirimkan kode 6 digit ke email baru.
-     - Tampil 6 kotak putih squircle ber-border ungu (atau border merah jika salah memasukkan kode, sesuai `verif salah.jpg`).
-     - Auto-focus maju/mundur otomatis saat mengetik angka.
-     - Hitung mundur 60 detik untuk kirim ulang kode.
-  3. **Fase 3 (Pop-up Dialog Sukses):**
-     - Begitu kode terverifikasi via `POST /api/email/otp/verify`, Firestore `users/{uid}` diperbarui (`email: targetEmail`, `emailVerified: true`).
-     - Muncul modal dialog frosted glass bertema RideOn (`email success ditambahkan.jpg`) dengan ikon amplop centang dan tombol *"SELESAI"*.
-     - Pengguna kembali ke Pengaturan Akun dengan status email berstatus **Aktif**.
+### 4. Alamat Email & Auto-Polling Verifikasi
+- **File:** [`alamat_email_screen.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/pengaturan/presentation/pages/alamat_email_screen.dart) & [`email_verification_dialog.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/pengaturan/presentation/widgets/email_verification_dialog.dart)
+- **Fitur Cerdas (Adaptif):**
+  - **Mode 2 Kolom (Tambah Baru):** Jika akun belum memiliki email, pengguna hanya mengisi email baru & kata sandi konfirmasi.
+  - **Mode 3 Kolom (Ubah Email):** Jika sudah ada email aktif, pengguna mengisi email lama, email baru, dan kata sandi.
+  - **Auto-Polling Verifikasi:** Setelah email terkirim, aplikasi membuka dialog pemantau. Pengguna cukup membuka Gmail di tab/HP lain dan mengklik link verifikasi. Begitu link diklik, aplikasi Flutter mendeteksi `user.reload()` secara otomatis setiap 3 detik, menutup pop-up, dan langsung memperbarui status profil menjadi terverifikasi tanpa perlu login ulang!
 
 ### 5. Keamanan Akun
 - **File:** [`keamanan_akun_screen.dart`](file:///home/leon/Documents/Project/RideOn/apps/customer_app/lib/features/pengaturan/presentation/pages/keamanan_akun_screen.dart)

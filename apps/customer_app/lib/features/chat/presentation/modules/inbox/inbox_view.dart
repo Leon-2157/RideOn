@@ -6,7 +6,10 @@ import 'package:rideon/core/constants/app_colors.dart';
 class ChatInboxView extends StatelessWidget {
   final VoidCallback onOpenConversation;
 
-  const ChatInboxView({super.key, required this.onOpenConversation});
+  const ChatInboxView({
+    super.key,
+    required this.onOpenConversation,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +30,9 @@ class ChatInboxView extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+              borderRadius: BorderRadius.vertical(
+                bottom: Radius.circular(28),
+              ),
             ),
             child: SafeArea(
               bottom: false,
@@ -48,7 +53,9 @@ class ChatInboxView extends StatelessWidget {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(16.0),
-              children: [_buildConversationCard()],
+              children: [
+                _buildConversationCard(),
+              ],
             ),
           ),
         ],
@@ -79,10 +86,8 @@ class ChatInboxView extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           onTap: onOpenConversation,
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 14.0,
-            ),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
             child: Row(
               children: [
                 // Driver Avatar with 4.9 rating badge
@@ -94,10 +99,8 @@ class ChatInboxView extends StatelessWidget {
                       height: 52,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.primary,
-                          width: 1.5,
-                        ),
+                        border:
+                            Border.all(color: AppColors.primary, width: 1.5),
                         image: const DecorationImage(
                           image: AssetImage(AppAssets.driverPikri),
                           fit: BoxFit.cover,
@@ -109,9 +112,7 @@ class ChatInboxView extends StatelessWidget {
                       right: -6,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 1,
-                        ),
+                            horizontal: 5, vertical: 1),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(10),
@@ -165,9 +166,7 @@ class ChatInboxView extends StatelessWidget {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1.5,
-                            ),
+                                horizontal: 6, vertical: 1.5),
                             decoration: BoxDecoration(
                               color: const Color(0xFF17152B),
                               borderRadius: BorderRadius.circular(4),

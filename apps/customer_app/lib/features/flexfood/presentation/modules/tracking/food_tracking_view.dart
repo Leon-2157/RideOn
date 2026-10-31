@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
 import 'package:rideon/features/chat/presentation/modules/call/voice_call_overlay.dart';
 import 'package:rideon/features/chat/presentation/pages/chat_screen.dart';
-
 import '../header/flexfood_header.dart';
 
 class FoodTrackingView extends StatelessWidget {
@@ -44,7 +43,10 @@ class FoodTrackingView extends StatelessWidget {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          FlexFoodHeader(title: '', onBack: onBack),
+          FlexFoodHeader(
+            title: '',
+            onBack: onBack,
+          ),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
@@ -117,8 +119,7 @@ class FoodTrackingView extends StatelessWidget {
                             value: progressValues[trackingStep],
                             backgroundColor: const Color(0xFFE2DCFE),
                             valueColor: const AlwaysStoppedAnimation<Color>(
-                              Color(0xFF6B48FC),
-                            ),
+                                Color(0xFF6B48FC)),
                             minHeight: 8,
                           ),
                         ),
@@ -128,9 +129,7 @@ class FoodTrackingView extends StatelessWidget {
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
+                              horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(14),
@@ -165,15 +164,13 @@ class FoodTrackingView extends StatelessWidget {
                   // Driver Card
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
+                        horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(
-                        color: const Color(0xFF6B48FC).withValues(alpha: 0.5),
-                      ),
+                          color:
+                              const Color(0xFF6B48FC).withValues(alpha: 0.5)),
                     ),
                     child: Row(
                       children: [
@@ -186,9 +183,7 @@ class FoodTrackingView extends StatelessWidget {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: const Color(0xFF6B48FC),
-                                  width: 2,
-                                ),
+                                    color: const Color(0xFF6B48FC), width: 2),
                                 image: const DecorationImage(
                                   image: AssetImage(AppAssets.driverLuthfi),
                                   fit: BoxFit.cover,
@@ -200,11 +195,8 @@ class FoodTrackingView extends StatelessWidget {
                               right: 0,
                               child: Row(
                                 children: [
-                                  const Icon(
-                                    Icons.star_rounded,
-                                    size: 12,
-                                    color: Color(0xFFFFB300),
-                                  ),
+                                  const Icon(Icons.star_rounded,
+                                      size: 12, color: Color(0xFFFFB300)),
                                   Text(
                                     '4.9',
                                     style: GoogleFonts.roboto(
@@ -238,9 +230,7 @@ class FoodTrackingView extends StatelessWidget {
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
+                                        horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFF1B1832),
                                       borderRadius: BorderRadius.circular(4),
@@ -274,15 +264,12 @@ class FoodTrackingView extends StatelessWidget {
 
                         // Chat button
                         IconButton(
-                          icon: const Icon(
-                            Icons.chat_bubble_outline_rounded,
-                            color: Color(0xFF6B48FC),
-                          ),
+                          icon: const Icon(Icons.chat_bubble_outline_rounded,
+                              color: Color(0xFF6B48FC)),
                           onPressed: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (context) => const ChatScreen(),
-                              ),
+                                  builder: (context) => const ChatScreen()),
                             );
                           },
                         ),
@@ -295,23 +282,18 @@ class FoodTrackingView extends StatelessWidget {
                               color: const Color(0xFFD4F7DF),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(
-                              Icons.phone_rounded,
-                              color: Color(0xFF28A745),
-                              size: 16,
-                            ),
+                            child: const Icon(Icons.phone_rounded,
+                                color: Color(0xFF28A745), size: 16),
                           ),
                           onPressed: () {
                             showGeneralDialog(
                               context: context,
                               barrierDismissible: true,
                               barrierLabel: 'VoiceCall',
-                              barrierColor: Colors.black.withValues(
-                                alpha: 0.35,
-                              ),
-                              transitionDuration: const Duration(
-                                milliseconds: 300,
-                              ),
+                              barrierColor:
+                                  Colors.black.withValues(alpha: 0.35),
+                              transitionDuration:
+                                  const Duration(milliseconds: 300),
                               pageBuilder: (dialogContext, anim1, anim2) {
                                 return const VoiceCallOverlay();
                               },
@@ -328,7 +310,8 @@ class FoodTrackingView extends StatelessWidget {
                     Center(
                       child: TextButton.icon(
                         onPressed: onAdvanceStep,
-                        icon: const Icon(Icons.fast_forward_rounded, size: 16),
+                        icon:
+                            const Icon(Icons.fast_forward_rounded, size: 16),
                         label: Text(
                           'Simulasi Langkah (${trackingStep + 1}/4)',
                           style: GoogleFonts.roboto(fontSize: 11),
@@ -344,9 +327,7 @@ class FoodTrackingView extends StatelessWidget {
                       onPressed: onFinish,
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(
-                          color: Color(0xFF28A745),
-                          width: 1.5,
-                        ),
+                            color: Color(0xFF28A745), width: 1.5),
                         foregroundColor: const Color(0xFF28A745),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(

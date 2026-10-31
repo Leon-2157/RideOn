@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:rideon/core/constants/app_assets.dart';
-
 import '../modules/favorite_card/favorite_card_widget.dart';
 import '../modules/header/favorit_header.dart';
 
@@ -15,7 +14,11 @@ class FavoritScreen extends StatefulWidget {
   final Function(Map<String, dynamic> item)? onSelectFood;
   final VoidCallback? onBack;
 
-  const FavoritScreen({super.key, this.onSelectFood, this.onBack});
+  const FavoritScreen({
+    super.key,
+    this.onSelectFood,
+    this.onBack,
+  });
 
   @override
   State<FavoritScreen> createState() => _FavoritScreenState();
@@ -76,8 +79,7 @@ class _FavoritScreenState extends State<FavoritScreen> {
 
   void _toggleFavorite(int index) {
     setState(() {
-      _favoriteItems[index]['isFav'] =
-          !(_favoriteItems[index]['isFav'] == true);
+      _favoriteItems[index]['isFav'] = !(_favoriteItems[index]['isFav'] == true);
     });
   }
 
@@ -94,10 +96,15 @@ class _FavoritScreenState extends State<FavoritScreen> {
               gradient: LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-                colors: [Color(0xFF9F88FD), Colors.white],
+                colors: [
+                  Color(0xFF9F88FD),
+                  Colors.white,
+                ],
                 stops: [0.0, 1.0],
               ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+              borderRadius: BorderRadius.vertical(
+                bottom: Radius.circular(24),
+              ),
             ),
             child: SafeArea(
               bottom: false,
@@ -111,9 +118,7 @@ class _FavoritScreenState extends State<FavoritScreen> {
                       left: 16,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap:
-                            widget.onBack ??
-                            () => Navigator.of(context).maybePop(),
+                        onTap: widget.onBack ?? () => Navigator.of(context).maybePop(),
                         child: Container(
                           width: 34,
                           height: 34,

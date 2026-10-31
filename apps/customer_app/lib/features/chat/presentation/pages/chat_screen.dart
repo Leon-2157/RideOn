@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import '../modules/call/voice_call_overlay.dart';
 import '../modules/conversation/chat_input_bar.dart';
 import '../modules/conversation/conversation_header.dart';
@@ -34,7 +33,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Map<String, dynamic>> _messages = [
     {
       'sender': 'driver',
-      'text': 'Halo bu, saya sudah sampai di Pasar Sukaramai ya. Mulai carikan daging sapi.',
+      'text':
+          'Halo bu, saya sudah sampai di Pasar Sukaramai ya. Mulai carikan daging sapi.',
       'time': '10.11',
     },
     {
@@ -42,11 +42,31 @@ class _ChatScreenState extends State<ChatScreen> {
       'text': 'Sekalian, cabai merahnya juga mau yang keriting atau biasa?',
       'time': '10.11',
     },
-    {'sender': 'user', 'text': 'Boleh mas, sekalian aja', 'time': '10.11'},
-    {'sender': 'driver', 'text': 'Baik bukk', 'time': '10.11'},
-    {'sender': 'user', 'text': 'Terima kasih banyak', 'time': '10.11'},
-    {'sender': 'driver', 'text': 'Segera meluncur ya mas', 'time': '10.11'},
-    {'sender': 'driver', 'text': 'Ditunggu ya buk', 'time': '10.11'},
+    {
+      'sender': 'user',
+      'text': 'Boleh mas, sekalian aja',
+      'time': '10.11',
+    },
+    {
+      'sender': 'driver',
+      'text': 'Baik bukk',
+      'time': '10.11',
+    },
+    {
+      'sender': 'user',
+      'text': 'Terima kasih banyak',
+      'time': '10.11',
+    },
+    {
+      'sender': 'driver',
+      'text': 'Segera meluncur ya mas',
+      'time': '10.11',
+    },
+    {
+      'sender': 'driver',
+      'text': 'Ditunggu ya buk',
+      'time': '10.11',
+    },
   ];
 
   final List<String> _quickReplies = [
@@ -73,7 +93,11 @@ class _ChatScreenState extends State<ChatScreen> {
     if (text.isEmpty) return;
 
     setState(() {
-      _messages.add({'sender': 'user', 'text': text, 'time': '10.12'});
+      _messages.add({
+        'sender': 'user',
+        'text': text,
+        'time': '10.12',
+      });
       _messageController.clear();
     });
 
@@ -137,18 +161,14 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: ListView(
               controller: _scrollController,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 12.0,
-              ),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               children: [
                 // 'Hari Ini' Date Pill
                 Center(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 4,
-                    ),
+                        horizontal: 14, vertical: 4),
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                       color: const Color(0xFF6B48FC),
@@ -178,7 +198,10 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
 
           // Message input bar
-          ChatInputBar(controller: _messageController, onSend: _sendMessage),
+          ChatInputBar(
+            controller: _messageController,
+            onSend: _sendMessage,
+          ),
         ],
       ),
     );

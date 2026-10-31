@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
-
 import '../header/flexfood_header.dart';
 
 class RestaurantView extends StatelessWidget {
@@ -26,7 +25,10 @@ class RestaurantView extends StatelessWidget {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          FlexFoodHeader(title: '', onBack: onBack),
+          FlexFoodHeader(
+            title: '',
+            onBack: onBack,
+          ),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -51,8 +53,8 @@ class RestaurantView extends StatelessWidget {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFF6B48FC).withValues(alpha: 0.5),
-                      ),
+                          color:
+                              const Color(0xFF6B48FC).withValues(alpha: 0.5)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -73,15 +75,12 @@ class RestaurantView extends StatelessWidget {
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
+                                  horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFD4F7DF),
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: const Color(0xFF28A745),
-                                ),
+                                border:
+                                    Border.all(color: const Color(0xFF28A745)),
                               ),
                               child: Text(
                                 'Mitra Resmi Terverifikasi',
@@ -97,11 +96,8 @@ class RestaurantView extends StatelessWidget {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Icon(
-                              Icons.star_rounded,
-                              size: 16,
-                              color: Color(0xFFFFB300),
-                            ),
+                            const Icon(Icons.star_rounded,
+                                size: 16, color: Color(0xFFFFB300)),
                             const SizedBox(width: 4),
                             Text(
                               '4.8',
@@ -115,9 +111,8 @@ class RestaurantView extends StatelessWidget {
                             Text(
                               '(250+ ulasan)',
                               style: GoogleFonts.roboto(
-                                fontSize: 11,
-                                color: const Color(0xFF6B6680),
-                              ),
+                                  fontSize: 11,
+                                  color: const Color(0xFF6B6680)),
                             ),
                           ],
                         ),
@@ -142,8 +137,8 @@ class RestaurantView extends StatelessWidget {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFF6B48FC).withValues(alpha: 0.5),
-                      ),
+                          color:
+                              const Color(0xFF6B48FC).withValues(alpha: 0.5)),
                     ),
                     child: Row(
                       children: [
@@ -192,22 +187,19 @@ class RestaurantView extends StatelessWidget {
                         OutlinedButton(
                           onPressed: onOpenCustomization,
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF6B48FC)),
+                            side:
+                                const BorderSide(color: Color(0xFF6B48FC)),
                             foregroundColor: const Color(0xFF6B48FC),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 6,
-                            ),
+                                horizontal: 14, vertical: 6),
                           ),
                           child: Text(
                             '+Tambah',
                             style: GoogleFonts.roboto(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
+                                fontSize: 12, fontWeight: FontWeight.w700),
                           ),
                         ),
                       ],
@@ -249,9 +241,7 @@ class RestaurantView extends StatelessWidget {
                               const SizedBox(height: 2),
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
+                                    horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFFFD4D4),
                                   borderRadius: BorderRadius.circular(4),
@@ -281,21 +271,18 @@ class RestaurantView extends StatelessWidget {
                           onPressed: null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF817E91),
-                            disabledBackgroundColor: const Color(0xFF817E91),
+                            disabledBackgroundColor:
+                                const Color(0xFF817E91),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 6,
-                            ),
+                                horizontal: 16, vertical: 6),
                           ),
                           child: Text(
                             'Habis',
                             style: GoogleFonts.roboto(
-                              fontSize: 12,
-                              color: Colors.white,
-                            ),
+                                fontSize: 12, color: Colors.white),
                           ),
                         ),
                       ],
@@ -310,7 +297,8 @@ class RestaurantView extends StatelessWidget {
           // Floating Island Cart Bar
           Container(
             margin: const EdgeInsets.only(left: 16, right: 16, bottom: 24),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: const Color(0xFF17152B),
               borderRadius: BorderRadius.circular(16),
@@ -324,11 +312,8 @@ class RestaurantView extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.shopping_cart_outlined,
-                  color: Colors.white,
-                  size: 22,
-                ),
+                const Icon(Icons.shopping_cart_outlined,
+                    color: Colors.white, size: 22),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -346,9 +331,7 @@ class RestaurantView extends StatelessWidget {
                     backgroundColor: const Color(0xFF6B48FC),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 10,
-                    ),
+                        horizontal: 18, vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

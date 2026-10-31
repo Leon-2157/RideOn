@@ -11,13 +11,10 @@ import 'keamanan_akun_screen.dart';
 import 'lokasi_anda_screen.dart';
 import 'kebijakan_privasi_screen.dart';
 
-// Modules Import
-import '../modules/pengaturan_akun/pengaturan_top_header.dart';
-import '../modules/pengaturan_akun/profil_header_card.dart';
-import '../modules/pengaturan_akun/menu_item_tile.dart';
-import '../modules/pengaturan_akun/privacy_policy_card.dart';
-import '../modules/pengaturan_akun/theme_bottom_sheet.dart';
-import '../modules/pengaturan_akun/tombol_keluar_akun.dart';
+// Widgets Import
+import '../widgets/profil_header_card.dart';
+import '../widgets/menu_item_tile.dart';
+import '../widgets/tombol_keluar_akun.dart';
 
 // Exports untuk menjaga kompatibilitas seluruh import eksternal & test suite
 export 'ubah_profil_screen.dart';
@@ -34,9 +31,6 @@ export '../widgets/email_verification_dialog.dart';
 export '../widgets/country_code_selector.dart';
 export '../widgets/crop_frame_painter.dart';
 export '../widgets/sub_header_widget.dart';
-export '../modules/pengaturan_akun/pengaturan_top_header.dart';
-export '../modules/pengaturan_akun/privacy_policy_card.dart';
-export '../modules/pengaturan_akun/theme_bottom_sheet.dart';
 
 /// Halaman Utama Pengaturan Akun (Clean Architecture Orchestrator)
 /// Menyusun Header, Card 1 (Profil Info), Card 2 (Menu Items), dan Tombol Keluar Akun
@@ -98,10 +92,7 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
               }
               final email = (data['email'] as String?)?.trim();
               final isVerif = data['emailVerified'] == true;
-              if (email != null &&
-                  email.isNotEmpty &&
-                  !email.endsWith('@rideon.id') &&
-                  isVerif) {
+              if (email != null && email.isNotEmpty && !email.endsWith('@rideon.id') && isVerif) {
                 _email = email;
                 _isEmailAdded = true;
                 _isEmailVerified = true;
@@ -118,14 +109,270 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
   }
 
   void _showThemeBottomSheet() {
-    ThemeBottomSheet.show(
-      context,
-      currentTheme: _selectedTheme,
-      onThemeSelected: (theme) {
-        setState(() {
-          _selectedTheme = theme;
-        });
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        String tempTheme = _selectedTheme;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header: Icon + Title + Close Button
+                  Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1B1832),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.palette_outlined,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Pilih Tema',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1B1832),
+                        ),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF1B1832),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            size: 16,
+                            color: Color(0xFF1B1832),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1, color: Color(0xFFE2DCFE)),
+                  const SizedBox(height: 18),
+
+                  // Option 1: Mode Terang
+                  _buildThemeOptionCard(
+                    title: 'Mode Terang',
+                    subtitle: 'Tampilan cerah',
+                    icon: Icons.wb_sunny_outlined,
+                    isSelected: tempTheme == 'Mode Terang',
+                    onTap: () => setModalState(() => tempTheme = 'Mode Terang'),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Option 2: Mode Gelap
+                  _buildThemeOptionCard(
+                    title: 'Mode Gelap',
+                    subtitle: 'Tampilan Gelap',
+                    icon: Icons.nightlight_round,
+                    isSelected: tempTheme == 'Mode Gelap',
+                    onTap: () => setModalState(() => tempTheme = 'Mode Gelap'),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Option 3: Ikuti Sistem
+                  _buildThemeOptionCard(
+                    title: 'Ikuti Sistem',
+                    subtitle: 'Sesuai Perangkat Anda',
+                    icon: Icons.sync_rounded,
+                    isSelected: tempTheme == 'Ikuti Sistem',
+                    onTap: () => setModalState(() => tempTheme = 'Ikuti Sistem'),
+                  ),
+                  const SizedBox(height: 22),
+
+                  // Bottom Selesai Button
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedTheme = tempTheme;
+                        });
+                        Navigator.of(context).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1B1832),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'SELESAI',
+                        style: GoogleFonts.roboto(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
       },
+    );
+  }
+
+  Widget _buildThemeOptionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1EEFF),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 22, color: const Color(0xFF1B1832)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF1B1832),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.roboto(
+                      fontSize: 11,
+                      color: const Color(0xFF6B6680),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFF1B1832),
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? Center(
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF1B1832),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopHeader(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFB4A5FE),
+            Color(0xFFE2DCFE),
+            Color(0xFFF7F5FF),
+          ],
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE6E0FF),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_rounded,
+                    size: 20,
+                    color: Color(0xFF17152B),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    'Pengaturan Akun',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF17152B),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 34), // Balancing back button
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -156,16 +403,12 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
       body: Column(
         children: [
           // Custom Gradient Header matching Figma
-          PengaturanTopHeader(
-            title: 'Pengaturan Akun',
-            onBack: () => Navigator.of(context).pop(),
-          ),
+          _buildTopHeader(context),
 
           // Scrollable Settings Content
           Expanded(
             child: SingleChildScrollView(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -199,8 +442,7 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                       title: 'Ubah Profil',
                       subtitle: 'Nama dan foto akun',
                       onTap: () async {
-                        final result = await Navigator.of(context)
-                            .push<Map<String, dynamic>>(
+                        final result = await Navigator.of(context).push<Map<String, dynamic>>(
                           MaterialPageRoute(
                             builder: (context) => UbahProfilScreen(
                               currentName: _userName,
@@ -210,8 +452,7 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                         );
                         if (result != null) {
                           setState(() {
-                            if (result['name'] != null &&
-                                (result['name'] as String).isNotEmpty) {
+                            if (result['name'] != null && (result['name'] as String).isNotEmpty) {
                               _userName = result['name'];
                             }
                             if (result['photoUrl'] != null) {
@@ -235,8 +476,7 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                       onTap: () async {
                         final result = await Navigator.of(context).push<String>(
                           MaterialPageRoute(
-                            builder: (context) =>
-                                NomorWaScreen(currentPhone: _phoneNumber),
+                            builder: (context) => NomorWaScreen(currentPhone: _phoneNumber),
                           ),
                         );
                         if (result != null) {
@@ -249,9 +489,7 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                     MenuItemTile(
                       icon: Icons.mail_outline_rounded,
                       title: 'Alamat Email',
-                      subtitle: (_isEmailAdded && _isEmailVerified)
-                          ? _email
-                          : '• Belum ditambahkan',
+                      subtitle: (_isEmailAdded && _isEmailVerified) ? _email : '• Belum ditambahkan',
                       badgeText: (_isEmailAdded && _isEmailVerified)
                           ? 'Aktif'
                           : '+Tambahkan',
@@ -261,10 +499,7 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                         final result = await Navigator.of(context).push<String>(
                           MaterialPageRoute(
                             builder: (context) => AlamatEmailScreen(
-                              currentEmail:
-                                  (_isEmailAdded && _isEmailVerified)
-                                      ? _email
-                                      : '',
+                              currentEmail: (_isEmailAdded && _isEmailVerified) ? _email : '',
                               userPhone: _phoneNumber,
                               isEmailVerified: _isEmailVerified,
                             ),
@@ -316,7 +551,7 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                   const SizedBox(height: 16),
 
                   // Kebijakan Privasi & syarat Card
-                  PrivacyPolicyCard(
+                  GestureDetector(
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -324,6 +559,66 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                         ),
                       );
                     },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFC7BCFE),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF6B48FC).withValues(alpha: 0.12),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD6CEFF),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.shield_outlined,
+                              size: 20,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Kebijakan Privasi & syarat',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF17152B),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Ketentuan Penggunaan Platfrom',
+                                  style: GoogleFonts.roboto(
+                                    fontSize: 10.5,
+                                    color: const Color(0xFF4C4566),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 20,
+                            color: Color(0xFF17152B),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 24),
 

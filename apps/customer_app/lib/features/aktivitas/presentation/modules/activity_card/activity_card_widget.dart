@@ -17,7 +17,10 @@ class ActivityCardWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFC6BCFF), width: 1.2),
+        border: Border.all(
+          color: const Color(0xFFC6BCFF),
+          width: 1.2,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -25,10 +28,7 @@ class ActivityCardWidget extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 14.0,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -82,8 +82,7 @@ class ActivityCardWidget extends StatelessWidget {
                               height: 1.3,
                             ),
                           ),
-                          if ((activity['items'] as String?)?.isNotEmpty ==
-                              true) ...[
+                          if ((activity['items'] as String?)?.isNotEmpty == true) ...[
                             const SizedBox(height: 2),
                             Text(
                               activity['items'] as String,
@@ -133,3 +132,4 @@ class ActivityCardWidget extends StatelessWidget {
     );
   }
 }
+

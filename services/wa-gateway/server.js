@@ -441,31 +441,6 @@ app.use((req, res, next) => {
 // OTP In-Memory Store: cleanPhone -> { code, expiresAt, attempts }
 const otpStore = new Map();
 
-// Email OTP Store: cleanEmail -> { code, expiresAt, attempts }
-const emailOtpStore = new Map();
-
-// Nodemailer SMTP Transporter
-let mailTransporter = null;
-try {
-    const nodemailer = require('nodemailer');
-    if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-        mailTransporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: parseInt(process.env.SMTP_PORT || '587', 10),
-            secure: process.env.SMTP_SECURE === 'true',
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS || process.env.SMTP_PASSWORD
-            }
-        });
-        console.log(`[EMAIL SMTP] Configured with host: ${process.env.SMTP_HOST}`);
-    } else {
-        console.log('[EMAIL SMTP] No SMTP credentials provided. Running in sandbox/simulation mode.');
-    }
-} catch (e) {
-    console.warn('[EMAIL SMTP] Nodemailer init warning:', e.message);
-}
-
 // Helper: Normalize phone to Indonesian standard format
 function cleanPhoneNumber(phone) {
     if (!phone) return '';
@@ -486,31 +461,6 @@ function checkAuth(req, res, next) {
     }
     next();
 }
-
-// Root dashboard redirect to QR page
-app.get('/', (req, res) => {
-    res.redirect('/qr');
-});
-
-// Debug endpoint untuk melihat OTP aktif
-app.get('/api/debug/last-otp', (req, res) => {
-    const list = Array.from(otpStore.entries()).map(([k, v]) => ({
-        phone: k,
-        code: v.code,
-        expiresAt: new Date(v.expiresAt).toISOString()
-    }));
-    const emailList = Array.from(emailOtpStore.entries()).map(([k, v]) => ({
-        email: k,
-        code: v.code,
-        expiresAt: new Date(v.expiresAt).toISOString()
-    }));
-    res.json({
-        connection: connectionState,
-        sender: connectedUser,
-        activeOtps: list,
-        activeEmailOtps: emailList
-    });
-});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -681,134 +631,6 @@ app.post('/api/otp/verify', (req, res) => {
     return res.json({
         success: true,
         message: 'Nomor WhatsApp berhasil diverifikasi'
-    });
-});
-
-// Endpoint Khusus: Kirim Kode OTP Verifikasi via Email
-app.post('/api/email/otp/send', async (req, res) => {
-    const rawEmail = req.body?.email || req.body?.target;
-    const purpose = req.body?.purpose || 'verifikasi_email';
-
-    if (!rawEmail || typeof rawEmail !== 'string') {
-        return res.status(400).json({ success: false, error: 'Alamat email wajib diisi' });
-    }
-
-    const cleanEmail = rawEmail.trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(cleanEmail)) {
-        return res.status(400).json({ success: false, error: 'Format email tidak valid' });
-    }
-
-    // Rate limiting: minimal jeda 30 detik antar pengiriman ke email yang sama
-    const existing = emailOtpStore.get(cleanEmail);
-    if (existing && Date.now() - (existing.requestedAt || 0) < 30000) {
-        const remainingSeconds = Math.ceil((30000 - (Date.now() - existing.requestedAt)) / 1000);
-        return res.status(429).json({
-            success: false,
-            error: `Harap tunggu ${remainingSeconds} detik sebelum meminta kode OTP kembali.`
-        });
-    }
-
-    // Generate 6 digit OTP acak
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 Menit
-
-    emailOtpStore.set(cleanEmail, {
-        code: otpCode,
-        expiresAt,
-        attempts: 0,
-        requestedAt: Date.now()
-    });
-
-    console.log(`[EMAIL OTP GENERATED] Email: ${cleanEmail} | Kode: ${otpCode} | Exp: 5m | Purpose: ${purpose}`);
-
-    // Jika SMTP Transporter tersedia, kirim via email nyata
-    if (mailTransporter) {
-        try {
-            const mailOptions = {
-                from: process.env.SMTP_FROM || `"RideOn Security" <${process.env.SMTP_USER || 'no-reply@rideon.id'}>`,
-                to: cleanEmail,
-                subject: `Kode Verifikasi RideOn: ${otpCode}`,
-                html: `
-                    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
-                      <div style="text-align: center; margin-bottom: 24px;">
-                        <h2 style="color: #17152B; margin: 0;">RideOn Verification</h2>
-                        <p style="color: #666; font-size: 14px; margin-top: 4px;">Keamanan & Verifikasi Akun</p>
-                      </div>
-                      <div style="background-color: #F8F9FA; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 20px;">
-                        <p style="margin: 0 0 10px 0; color: #555; font-size: 14px;">Gunakan kode OTP berikut untuk menghubungkan alamat email Anda:</p>
-                        <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #17152B; margin: 12px 0;">${otpCode}</div>
-                        <p style="margin: 0; color: #888; font-size: 12px;">Kode ini berlaku selama 5 menit. Jangan berikan kode ini kepada siapapun.</p>
-                      </div>
-                      <p style="color: #999; font-size: 11px; text-align: center; margin: 0;">Jika Anda tidak merasa meminta kode ini, abaikan email ini.</p>
-                    </div>
-                `,
-                text: `Kode verifikasi RideOn Anda adalah: ${otpCode}. Kode ini berlaku selama 5 menit.`
-            };
-
-            await mailTransporter.sendMail(mailOptions);
-            console.log(`[EMAIL OTP SENT] Berhasil dikirim via SMTP ke: ${cleanEmail}`);
-            return res.json({
-                success: true,
-                message: `Kode verifikasi telah dikirimkan ke email ${cleanEmail}.`
-            });
-        } catch (mailErr) {
-            console.error(`[EMAIL OTP SEND ERROR] Gagal mengirim via SMTP ke ${cleanEmail}:`, mailErr.message);
-            // Tetap berikan respons dengan kode di log jika dalam environment dev/local
-            return res.json({
-                success: true,
-                message: `Kode verifikasi telah dibuat. Periksa email atau hubungi admin (Simulasi).`,
-                devOtp: otpCode
-            });
-        }
-    } else {
-        // Mode Simulasi / Dev (Tanpa SMTP Config)
-        console.log(`[EMAIL OTP SIMULATION] SMTP tidak aktif. OTP untuk ${cleanEmail} adalah: ${otpCode}`);
-        return res.json({
-            success: true,
-            message: `[Simulasi] Kode verifikasi dikirimkan ke ${cleanEmail}.`,
-            devOtp: otpCode
-        });
-    }
-});
-
-// Endpoint Khusus: Verifikasi Kode OTP Email 6 Digit
-app.post('/api/email/otp/verify', (req, res) => {
-    const rawEmail = req.body?.email || req.body?.target;
-    const inputCode = String(req.body?.code || req.body?.otp || '').trim();
-
-    if (!rawEmail || !inputCode) {
-        return res.status(400).json({ success: false, error: 'Email dan kode OTP wajib diisi' });
-    }
-
-    const cleanEmail = String(rawEmail).trim().toLowerCase();
-    const entry = emailOtpStore.get(cleanEmail);
-
-    if (!entry) {
-        return res.status(400).json({ success: false, error: 'Kode OTP tidak ditemukan atau belum diminta.' });
-    }
-
-    if (Date.now() > entry.expiresAt) {
-        emailOtpStore.delete(cleanEmail);
-        return res.status(400).json({ success: false, error: 'Kode OTP telah kedaluwarsa. Silakan minta kode baru.' });
-    }
-
-    if (entry.attempts >= 5) {
-        emailOtpStore.delete(cleanEmail);
-        return res.status(429).json({ success: false, error: 'Terlalu banyak percobaan salah. Silakan minta kode baru.' });
-    }
-
-    if (entry.code !== inputCode) {
-        entry.attempts++;
-        return res.status(400).json({ success: false, error: 'Kode verifikasi yang Anda masukkan salah. Periksa kembali.' });
-    }
-
-    // Sukses verifikasi
-    emailOtpStore.delete(cleanEmail);
-    console.log(`[EMAIL OTP VERIFIED] Email ${cleanEmail} berhasil diverifikasi!`);
-    return res.json({
-        success: true,
-        message: 'Alamat email berhasil diverifikasi'
     });
 });
 
