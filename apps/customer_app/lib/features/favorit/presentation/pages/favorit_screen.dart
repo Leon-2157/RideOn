@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import '../../../../core/constants/app_assets.dart';
-import '../../../../core/constants/app_colors.dart';
+import 'package:rideon/core/constants/app_assets.dart';
+import '../modules/favorite_card/favorite_card_widget.dart';
+import '../modules/header/favorit_header.dart';
+
+export '../modules/favorite_card/favorite_card_widget.dart';
+export '../modules/header/favorit_header.dart';
 
 /// Halaman Favorit strictly based on Figma node [44:9160] (favorit.png):
-/// - Header gradient purple with RideOn logo
-/// - Character banner: Girl in purple with 'Cari Kembali favorit Mu!'
-/// - 3-Column Grid of favorite items on vibrant purple cards with yellow pricing
+/// - Header gradient horizontal lavender (#9F88FD) ke putih (#FFFFFF) dengan logo putih RideOn
+/// - Character banner: Perempuan dengan speech bubble 'Cari Kembali favorit Mu!'
+/// - 3-Column Grid kartu makanan favorit dengan Rectangle 55 frosted glass dan harga emas
 class FavoritScreen extends StatefulWidget {
-  const FavoritScreen({super.key});
+  final Function(Map<String, dynamic> item)? onSelectFood;
+
+  const FavoritScreen({super.key, this.onSelectFood});
 
   @override
   State<FavoritScreen> createState() => _FavoritScreenState();
@@ -67,28 +72,46 @@ class _FavoritScreenState extends State<FavoritScreen> {
     },
   ];
 
+  void _toggleFavorite(int index) {
+    setState(() {
+      _favoriteItems[index]['isFav'] = !(_favoriteItems[index]['isFav'] == true);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          // Purple gradient top header with white RideOn logo
+          // Header: Gradasi horizontal lavender #9F88FD ke putih presisi Figma node [44:9160]
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.only(top: 48, bottom: 20),
+            height: 107,
             decoration: const BoxDecoration(
-              gradient: AppColors.splashGradient,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0xFF9F88FD),
+                  Colors.white,
+                ],
+                stops: [0.0, 1.0],
+              ),
+              borderRadius: BorderRadius.vertical(
+                bottom: Radius.circular(24),
               ),
             ),
-            child: Center(
-              child: Image.asset(
-                AppAssets.logoWhite,
-                height: 38,
-                fit: BoxFit.contain,
+            child: SafeArea(
+              bottom: false,
+              child: Align(
+                alignment: const Alignment(0.0, 0.25),
+                child: Image.asset(
+                  AppAssets.logoWhite,
+                  width: 60,
+                  height: 28,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),
@@ -96,167 +119,34 @@ class _FavoritScreenState extends State<FavoritScreen> {
           // Main Scrollable Area
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 80),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 80),
               children: [
-                // Illustration Header (Girl celebrating + 'Cari Kembali favorit Mu!')
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: Row(
-                    children: [
-                      Image.asset(
-                        AppAssets.favoritGirlHeader,
-                        height: 94,
-                        fit: BoxFit.contain,
-                      ),
-                      // Text for accessibility and test match
-                      const SizedBox(
-                        width: 0,
-                        height: 0,
-                        child: Text(
-                          'Cari Kembali favorit Mu!',
-                          style: TextStyle(fontSize: 0, color: Colors.transparent),
-                        ),
-                      ),
-                      const SizedBox(
-                        width: 0,
-                        height: 0,
-                        child: Text(
-                          'Makanan Favoritmu ❤️',
-                          style: TextStyle(fontSize: 0, color: Colors.transparent),
-                        ),
-                      ),
-                      const SizedBox(
-                        width: 0,
-                        height: 0,
-                        child: Text(
-                          'Daftar Favorit Tersimpan',
-                          style: TextStyle(fontSize: 0, color: Colors.transparent),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                const FavoritHeader(),
 
-                // 3-Column Grid of Favorite Items (figma/HalamanFavorit/favorit.png)
+                // 3-Column Grid of Favorite Items (Dimensi 119x156 px presisi Figma)
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.64,
+                    crossAxisSpacing: 9,
+                    mainAxisSpacing: 11,
+                    childAspectRatio: 119 / 156,
                   ),
                   itemCount: _favoriteItems.length,
                   itemBuilder: (context, index) {
                     final item = _favoriteItems[index];
-                    return _buildFigmaFavoriteCard(item);
+                    return FavoriteCardWidget(
+                      item: item,
+                      onFavoriteTap: () => _toggleFavorite(index),
+                      onTap: () => widget.onSelectFood?.call(item),
+                    );
                   },
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFigmaFavoriteCard(Map<String, dynamic> item) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF6B48FC),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF6B48FC).withValues(alpha: 0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Food image container with heart badge at top right
-            Stack(
-              alignment: Alignment.topRight,
-              children: [
-                Center(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      height: 72,
-                      width: double.infinity,
-                      color: const Color(0xFFC7BCFE).withValues(alpha: 0.4),
-                      child: Image.asset(
-                        item['image'] as String,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 2,
-                  right: 2,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.favorite_rounded,
-                      size: 13,
-                      color: Color(0xFF17152B),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-
-            // Title
-            Text(
-              item['title'] as String,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 2),
-
-            // Description
-            Expanded(
-              child: Text(
-                item['desc'] as String,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.roboto(
-                  fontSize: 8.5,
-                  color: const Color(0xFFC6BCFF),
-                  height: 1.2,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-
-            // Price in yellow
-            Text(
-              item['price'] as String,
-              style: GoogleFonts.roboto(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFFFFE600),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
