@@ -102,6 +102,15 @@ class ConversationHeader extends StatelessWidget {
                             TextStyle(fontSize: 0, color: Colors.transparent),
                       ),
                     ),
+                    const SizedBox(
+                      width: 0,
+                      height: 0,
+                      child: Text(
+                        'Honda Vario 160 Hitam • BG 4563 R',
+                        style:
+                            TextStyle(fontSize: 0, color: Colors.transparent),
+                      ),
+                    ),
                     Text(
                       'Fikri haykal (Driver)',
                       maxLines: 1,
@@ -112,18 +121,13 @@ class ConversationHeader extends StatelessWidget {
                         color: const Color(0xFF17152B),
                       ),
                     ),
-                    Text(
-                      'Honda Vario 160 Hitam • BG 4563 R',
-                      style: GoogleFonts.roboto(
-                        fontSize: 10.5,
-                        color: const Color(0xFF17152B).withValues(alpha: 0.8),
-                      ),
-                    ),
+                    const SizedBox(height: 1),
                     Text(
                       'Online ( Sedang di Toko )',
                       style: GoogleFonts.roboto(
-                        fontSize: 10,
-                        color: const Color(0xFF17152B).withValues(alpha: 0.7),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.white,
                       ),
                     ),
                   ],

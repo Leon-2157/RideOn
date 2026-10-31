@@ -40,9 +40,13 @@ class ActivityCardWidget extends StatelessWidget {
                     Container(
                       width: 56,
                       height: 56,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFC6BCFF),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFC6BCFF),
                         shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF6B48FC),
+                          width: 1.5,
+                        ),
                       ),
                       child: Center(
                         child: Icon(
@@ -57,25 +61,40 @@ class ActivityCardWidget extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (activity['semanticTitle'] != null)
+                            SizedBox(
+                              width: 0,
+                              height: 0,
+                              child: Text(
+                                activity['semanticTitle'] as String,
+                                style: const TextStyle(
+                                  fontSize: 0,
+                                  color: Colors.transparent,
+                                ),
+                              ),
+                            ),
                           Text(
                             activity['title'] as String,
                             style: GoogleFonts.poppins(
-                              fontSize: 14,
+                              fontSize: 13.5,
                               fontWeight: FontWeight.w700,
                               color: const Color(0xFF17152B),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            activity['items'] as String,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.roboto(
-                              fontSize: 11.5,
-                              color: const Color(0xFF6B6680),
                               height: 1.3,
                             ),
                           ),
+                          if ((activity['items'] as String?)?.isNotEmpty == true) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              activity['items'] as String,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.roboto(
+                                fontSize: 11.5,
+                                color: const Color(0xFF17152B),
+                                height: 1.25,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

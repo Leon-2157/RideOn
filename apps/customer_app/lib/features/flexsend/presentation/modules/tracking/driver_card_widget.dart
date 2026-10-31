@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
+import '../../../../chat/presentation/modules/call/voice_call_overlay.dart';
+import '../../../../chat/presentation/pages/chat_screen.dart';
 
 class DriverCardWidget extends StatelessWidget {
   final VoidCallback? onChat;
@@ -114,17 +116,42 @@ class DriverCardWidget extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.chat_bubble_outline_rounded,
                 color: Color(0xFF6B48FC)),
-            onPressed: onChat ?? () {},
+            onPressed: onChat ??
+                () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const ChatScreen(
+                        showBackButton: true,
+                        initialShowDetail: true,
+                      ),
+                    ),
+                  );
+                },
           ),
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F7ED),
-              borderRadius: BorderRadius.circular(10),
+          GestureDetector(
+            onTap: onCall ??
+                () {
+                  showGeneralDialog(
+                    context: context,
+                    barrierDismissible: true,
+                    barrierLabel: 'VoiceCall',
+                    barrierColor: Colors.black.withValues(alpha: 0.35),
+                    transitionDuration: const Duration(milliseconds: 300),
+                    pageBuilder: (dialogContext, anim1, anim2) {
+                      return const VoiceCallOverlay();
+                    },
+                  );
+                },
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F7ED),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.call_rounded,
+                  size: 18, color: Color(0xFF28A745)),
             ),
-            child: const Icon(Icons.call_rounded,
-                size: 18, color: Color(0xFF28A745)),
           ),
         ],
       ),
