@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
+import 'login_screen.dart';
 
 /// [SplashScreenNavbar]
 /// Implementasi SplashScreen flow menuju Navbar / Dashboard (Figma Node: 3:4919 -> 3:4923)
@@ -34,6 +35,7 @@ class _SplashScreenNavbarState extends State<SplashScreenNavbar>
   late Animation<double> _fadeAnimation;
   Timer? _initialTimer;
   Timer? _completeTimer;
+  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -59,12 +61,27 @@ class _SplashScreenNavbarState extends State<SplashScreenNavbar>
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         _completeTimer = Timer(widget.endDuration, () {
-          if (mounted && widget.onCompleted != null) {
-            widget.onCompleted!();
-          }
+          _navigateToNext();
         });
       }
     });
+  }
+
+  void _navigateToNext() {
+    if (_hasNavigated || !mounted) return;
+    _hasNavigated = true;
+    _initialTimer?.cancel();
+    _completeTimer?.cancel();
+
+    if (widget.onCompleted != null) {
+      widget.onCompleted!();
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const LoginScreen(),
+        ),
+      );
+    }
   }
 
   @override
@@ -85,24 +102,28 @@ class _SplashScreenNavbarState extends State<SplashScreenNavbar>
       ),
       child: Scaffold(
         backgroundColor: AppColors.white,
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Layer 1: Splash Screen Awal (Putih)
-            Image.asset(
-              'assets/images/splash_navbar_white.png',
-              fit: BoxFit.cover,
-            ),
-
-            // Layer 2: Splash Screen Akhir (Gradien Ungu) - Fade In
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: Image.asset(
-                'assets/images/splash_navbar_purple.png',
+        body: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _navigateToNext,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Layer 1: Splash Screen Awal (Putih)
+              Image.asset(
+                'assets/images/splash_navbar_white.png',
                 fit: BoxFit.cover,
               ),
-            ),
-          ],
+
+              // Layer 2: Splash Screen Akhir (Gradien Ungu) - Fade In
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: Image.asset(
+                  'assets/images/splash_navbar_purple.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

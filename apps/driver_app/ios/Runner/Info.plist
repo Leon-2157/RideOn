@@ -26,6 +26,20 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>RideOn Driver membutuhkan akses lokasi Anda untuk menampilkan pesanan terdekat dan navigasi ke titik penjemputan dan pengantaran.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>RideOn Driver membutuhkan akses lokasi latar belakang agar tetap dapat memperbarui status pesanan saat aplikasi berjalan di latar belakang.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>RideOn Driver membutuhkan akses kamera untuk mengambil foto bukti nota, belanjaan, atau dokumen verifikasi.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>RideOn Driver membutuhkan akses galeri untuk memilih foto bukti nota, belanjaan, atau dokumen verifikasi.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

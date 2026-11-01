@@ -19,6 +19,13 @@ class AppColors {
   /// Background / Surface default
   static const Color background = Color(0xFFFFFFFF);
 
+  /// Harmonized Emerald / Mint Green for Online status & positive indicators
+  /// Balanced cool tone (hue ~163°) that complements brand purple without chromatic clash
+  static const Color onlineGreen = Color(0xFF00C48C);
+
+  /// Deep Emerald Green for high-contrast, legible text on purple & light surfaces
+  static const Color onlineGreenDark = Color(0xFF065F46);
+
   /// RideOn Splash & Brand Linear Gradient
   /// Replicated directly from Figma Ellipse 16 gradient properties
   static const LinearGradient splashGradient = LinearGradient(
