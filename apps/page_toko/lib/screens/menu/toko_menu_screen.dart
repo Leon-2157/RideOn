@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/app_image.dart';
 
 class TokoMenuScreen extends StatefulWidget {
   const TokoMenuScreen({super.key});
@@ -26,6 +27,7 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
       'desc': 'Nasi goreng bumbu rempah dengan telur mata sapi dan ayam suwir.',
       'price': 25000,
       'isAvailable': true,
+      'image': 'assets/images/food_nasgor.png',
     },
     {
       'id': '2',
@@ -34,6 +36,7 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
       'desc': 'Ayam bakar manis gurih lengkap sambal dan lalapan segar.',
       'price': 30000,
       'isAvailable': true,
+      'image': 'assets/images/food_nasgor.png',
     },
     {
       'id': '3',
@@ -50,6 +53,7 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
       'desc': 'Ayam krispi digeprek dengan cabai rawit pedas nikmat.',
       'price': 22000,
       'isAvailable': true,
+      'image': 'assets/images/food_nasgor.png',
     },
     {
       'id': '5',
@@ -116,14 +120,18 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Daftar Menu',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                  const Expanded(
+                    child: Text(
+                      'Daftar Menu',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   ElevatedButton.icon(
                     onPressed: () => _openAddEditMenuModal(),
                     icon: const Icon(Icons.add, size: 18),
@@ -251,14 +259,23 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
                                 decoration: BoxDecoration(
                                   color: AppColors.primarySoft,
                                   borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: AppColors.borderLight),
                                 ),
-                                child: Icon(
-                                  item['category'] == 'Minuman'
-                                      ? Icons.local_drink_rounded
-                                      : Icons.lunch_dining_rounded,
-                                  color: AppColors.primary,
-                                  size: 36,
-                                ),
+                                child: item['image'] != null
+                                    ? AppImage(
+                                        assetPath: item['image'] as String,
+                                        width: 72,
+                                        height: 72,
+                                        borderRadius: BorderRadius.circular(14),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Icon(
+                                        item['category'] == 'Minuman'
+                                            ? Icons.local_drink_rounded
+                                            : Icons.lunch_dining_rounded,
+                                        color: AppColors.primary,
+                                        size: 36,
+                                      ),
                               ),
                               const SizedBox(width: 14),
                               Expanded(

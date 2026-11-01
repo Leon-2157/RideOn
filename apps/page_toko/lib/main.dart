@@ -24,6 +24,10 @@ class _TokoAppState extends State<TokoApp> {
     return MaterialApp(
       title: 'Mitra Toko',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        overscroll: false,
+        physics: const ClampingScrollPhysics(),
+      ),
       theme: ThemeData(
         useMaterial3: true,
         primaryColor: AppColors.primary,

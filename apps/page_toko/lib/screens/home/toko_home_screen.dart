@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/app_image.dart';
 
 class TokoHomeScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateTab;
@@ -81,12 +82,15 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
             children: [
               Row(
                 children: [
-                  const Text(
-                    'Warung Taufiq',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                  Flexible(
+                    child: const Text(
+                      'Warung Taufiq',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -317,27 +321,31 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: const [
-                        Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 18),
-                        SizedBox(width: 4),
-                        Text(
-                          '4.8',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        children: const [
+                          Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 18),
+                          SizedBox(width: 4),
+                          Text(
+                            '4.8',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          '(128)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textMuted,
+                          SizedBox(width: 4),
+                          Text(
+                            '(128)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textMuted,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -355,14 +363,18 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Pesanan Perlu Diproses (${hasActiveOrder ? "1" : "0"})',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+            Expanded(
+              child: Text(
+                'Pesanan Perlu Diproses (${hasActiveOrder ? "1" : "0"})',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             GestureDetector(
               onTap: () => widget.onNavigateTab?.call(1),
               child: const Text(
@@ -398,14 +410,18 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      '#FD-8822',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                    const Expanded(
+                      child: Text(
+                        '#FD-8822',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
@@ -611,6 +627,7 @@ class _NotificationSheet extends StatelessWidget {
                   icon: Icons.receipt_long_rounded,
                   iconBg: AppColors.primarySoft,
                   iconColor: AppColors.primary,
+                  imageAsset: 'assets/images/food_nasgor.png',
                 ),
                 const SizedBox(height: 14),
                 _buildNotifItem(
@@ -624,6 +641,7 @@ class _NotificationSheet extends StatelessWidget {
                   iconBg: AppColors.successLight,
                   iconColor: AppColors.success,
                   extraInfo: 'Otomatis dicairkan ke saldo merchant',
+                  imageAsset: 'assets/images/avatar_customer.png',
                 ),
                 const SizedBox(height: 14),
                 _buildNotifItem(
@@ -636,6 +654,7 @@ class _NotificationSheet extends StatelessWidget {
                   icon: Icons.warning_amber_rounded,
                   iconBg: const Color(0xFFFFEDD5),
                   iconColor: const Color(0xFFC2410C),
+                  imageAsset: 'assets/images/food_nasgor.png',
                 ),
                 const SizedBox(height: 14),
                 _buildNotifItem(
@@ -672,6 +691,7 @@ class _NotificationSheet extends StatelessWidget {
     String? buttonText,
     VoidCallback? onTapButton,
     String? extraInfo,
+    String? imageAsset,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -685,14 +705,29 @@ class _NotificationSheet extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(10),
+              if (imageAsset != null)
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: AppImage(
+                    assetPath: imageAsset,
+                    borderRadius: BorderRadius.circular(12),
+                    fit: BoxFit.cover,
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 20),
                 ),
-                child: Icon(icon, color: iconColor, size: 20),
-              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

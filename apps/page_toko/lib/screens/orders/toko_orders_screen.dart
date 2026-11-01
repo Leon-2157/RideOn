@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/app_image.dart';
 
 class TokoOrdersScreen extends StatefulWidget {
   const TokoOrdersScreen({super.key});
@@ -87,7 +88,9 @@ class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               showCheckmark: false,
             ),
           );
@@ -203,26 +206,34 @@ class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'ID Pesanan ${order['id']}',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+              Expanded(
+                child: Text(
+                  'ID Pesanan ${order['id']}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: order['statusBg'] as Color,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  order['status'] as String,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: order['statusColor'] as Color,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: order['statusBg'] as Color,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    order['status'] as String,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: order['statusColor'] as Color,
+                    ),
                   ),
                 ),
               ),
@@ -235,6 +246,8 @@ class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
               Expanded(
                 child: Text(
                   order['items'] as String,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -242,6 +255,7 @@ class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 order['price'] as String,
                 style: const TextStyle(
@@ -256,13 +270,17 @@ class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                order['driverStatus'] as String,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
+              Expanded(
+                child: Text(
+                  order['driverStatus'] as String,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               GestureDetector(
                 onTap: () => _openOrderDetail(order),
                 child: const Text(
@@ -615,6 +633,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           price: 'Rp 50.000',
           basePrice: 'Rp 25.000',
           tags: ['Level: Sedang', 'Telur Dadar'],
+          imageAsset: 'assets/images/food_nasgor.png',
         ),
         const SizedBox(height: 14),
         _menuRow(
@@ -632,6 +651,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     required String price,
     required String basePrice,
     required List<String> tags,
+    String? imageAsset,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -643,7 +663,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             color: AppColors.primarySoft,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(Icons.fastfood_rounded, color: AppColors.primary, size: 28),
+          child: imageAsset != null
+              ? AppImage(
+                  assetPath: imageAsset,
+                  width: 56,
+                  height: 56,
+                  borderRadius: BorderRadius.circular(12),
+                  fit: BoxFit.cover,
+                )
+              : const Icon(Icons.fastfood_rounded, color: AppColors.primary, size: 28),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -763,11 +791,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Container(
             width: 44,
             height: 44,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.primarySoft,
               shape: BoxShape.circle,
+              border: Border.all(color: AppColors.borderLight),
             ),
-            child: const Icon(Icons.two_wheeler_rounded, color: AppColors.primary, size: 24),
+            child: const AppImage(
+              assetPath: 'assets/images/avatar_driver.png',
+              width: 44,
+              height: 44,
+              borderRadius: BorderRadius.all(Radius.circular(22)),
+              fit: BoxFit.cover,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -905,12 +940,13 @@ class _DriverCallOverlay extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 3),
-                color: AppColors.primary,
               ),
-              child: const Icon(
-                Icons.person_rounded,
-                size: 64,
-                color: Colors.white,
+              child: const AppImage(
+                assetPath: 'assets/images/avatar_driver.png',
+                width: 110,
+                height: 110,
+                borderRadius: BorderRadius.all(Radius.circular(55)),
+                fit: BoxFit.cover,
               ),
             ),
             const SizedBox(height: 36),

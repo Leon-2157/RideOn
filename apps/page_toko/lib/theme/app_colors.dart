@@ -26,4 +26,16 @@ class AppColors {
   static const Color warningLight = Color(0xFFFEF3C7);
   static const Color info = Color(0xFF3B82F6);
   static const Color infoLight = Color(0xFFDBEAFE);
+
+  // Gradient from Auth
+  static const LinearGradient splashGradient = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      Color(0xFF6B48FC),
+      Color(0xFFC6BCFF),
+      Color(0xFFFFFFFF),
+    ],
+    stops: [0.0, 0.45, 1.0],
+  );
 }

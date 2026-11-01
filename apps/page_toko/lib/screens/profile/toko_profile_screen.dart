@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/app_image.dart';
+import 'edit_profile_screen.dart';
 
 class TokoProfileScreen extends StatefulWidget {
   final VoidCallback? onLogout;
@@ -12,27 +14,27 @@ class TokoProfileScreen extends StatefulWidget {
 
 class _TokoProfileScreenState extends State<TokoProfileScreen> {
   bool _isStoreOpen = true;
+  String _ownerName = 'Muhammad Taufiq';
   String _storeName = 'Warung Taufiq Gateng';
-  String _storeCategory = 'Katering & Masakan Nusantara';
+  final String _storeCategory = 'Katering & Masakan Nusantara';
   String _operationalDays = 'Senin - Jumat';
   String _openHour = '07.00';
   String _closeHour = '20.00';
   String _address = 'Meunasah Pinto, Kec. Muara Batu, Kabupaten Aceh Utara, Aceh';
 
   void _openEditProfileSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _EditProfileSheet(
-        name: _storeName,
-        category: _storeCategory,
-        onSave: (newName, newCat) {
-          setState(() {
-            _storeName = newName;
-            _storeCategory = newCat;
-          });
-        },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditProfileScreen(
+          initialName: _ownerName,
+          onSave: (newName) {
+            setState(() {
+              _ownerName = newName;
+              _storeName = 'Warung $newName';
+            });
+          },
+        ),
       ),
     );
   }
@@ -84,14 +86,18 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Profil Toko',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                  const Expanded(
+                    child: Text(
+                      'Profil Toko',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -140,24 +146,37 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
       ),
       child: Column(
         children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [Color(0xFFE27C3E), Color(0xFF8B5CF6)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          GestureDetector(
+            onTap: _openEditProfileSheet,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primaryLight, width: 2),
               ),
-            ),
-            alignment: Alignment.center,
-            child: const Text(
-              'WT',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
+              child: const AppImage(
+                assetPath: 'assets/images/avatar_owner.png',
+                width: 80,
+                height: 80,
+                borderRadius: BorderRadius.all(Radius.circular(40)),
+                fit: BoxFit.cover,
+                placeholder: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primary,
+                  ),
+                  child: Center(
+                    child: Text(
+                      'WT',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -642,30 +661,37 @@ class _LocationSheetState extends State<_LocationSheet> {
                     height: 200,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2E382E),
                       borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.borderLight),
                     ),
-                    alignment: Alignment.center,
+                    clipBehavior: Clip.antiAlias,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
+                        const AppImage(
+                          assetPath: 'assets/images/map_satellite.png',
+                          height: 200,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
                         Container(
                           width: 80,
                           height: 80,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5), width: 2),
+                            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.7), width: 2),
                           ),
                         ),
                         Container(
-                          width: 50,
-                          height: 50,
+                          width: 44,
+                          height: 44,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.primary, width: 2),
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            border: Border.all(color: Colors.white, width: 2),
                           ),
+                          child: const Icon(Icons.store_mall_directory_rounded, color: Colors.white, size: 24),
                         ),
-                        const Icon(Icons.store_mall_directory_rounded, color: Colors.white, size: 28),
                       ],
                     ),
                   ),
