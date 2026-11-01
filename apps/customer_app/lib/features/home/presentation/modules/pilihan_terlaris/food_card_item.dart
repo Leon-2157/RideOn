@@ -29,7 +29,6 @@ class FoodCardItem extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: 133,
-        height: 172,
         decoration: BoxDecoration(
           color: const Color(0xFF7254F0),
           borderRadius: BorderRadius.circular(15),
@@ -44,132 +43,162 @@ class FoodCardItem extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Kotak gambar makanan presisi Figma Rectangle 55 (121x112 px, radius 10)
+            // 1. Kotak gambar makanan presisi Figma Rectangle 55 (radius 10)
             Padding(
               padding: const EdgeInsets.fromLTRB(6.0, 6.0, 6.0, 0.0),
-              child: Container(
-                height: 112,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.50),
-                    width: 0.5,
-                  ),
-                  gradient: LinearGradient(
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                    colors: [
-                      Colors.white,
-                      Colors.white.withValues(alpha: 0.0), // 0% opacity, gradasi memudar bersih ke ungu
-                    ],
-                    stops: const [0.0, 1.0],
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    // Bayangan oval realistis di bawah makanan
-                    Positioned(
-                      bottom: 10,
-                      left: 20,
-                      right: 20,
-                      height: 12,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: const BorderRadius.all(Radius.elliptical(40, 6)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.20),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                      ),
+              child: AspectRatio(
+                aspectRatio: 121 / 105,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.50),
+                      width: 0.5,
                     ),
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-                        child: Image.asset(
-                          item.imageAsset,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
+                    gradient: LinearGradient(
+                      begin: Alignment.topRight,
+                      end: Alignment.bottomLeft,
+                      colors: [
+                        Colors.white,
+                        Colors.white.withValues(alpha: 0.0), // 0% opacity, gradasi memudar bersih ke ungu
+                      ],
+                      stops: const [0.0, 1.0],
                     ),
-                    Positioned(
-                      top: 7,
-                      right: 7,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: onFavoriteTap,
-                        child: Padding(
-                          padding: const EdgeInsets.all(4.0),
-                          child: Icon(
-                            item.isFavorite
-                                ? Icons.favorite_rounded
-                                : Icons.favorite_border_rounded,
-                            size: 13,
-                            color: const Color(0xFF17152B),
+                  ),
+                  child: Stack(
+                    children: [
+                      // Bayangan oval realistis di bawah makanan
+                      Positioned(
+                        bottom: 8,
+                        left: 20,
+                        right: 20,
+                        height: 10,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: const BorderRadius.all(Radius.elliptical(40, 6)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.20),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                          child: Image.asset(
+                            item.imageAsset,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 2,
+                        right: 2,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: onFavoriteTap,
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Icon(
+                              item.isFavorite
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              size: 15,
+                              color: const Color(0xFF17152B),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
 
             // 2. Detail Teks: Mengisi ruang secara proporsional dan padat tanpa ruang kosong menganga
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8.0, 4.0, 10.0, 7.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          item.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
-                            fontSize: 12.0,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            height: 1.15,
-                          ),
-                        ),
-                        const SizedBox(height: 1.5),
-                        Text(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(7.0, 3.0, 8.0, 6.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.roboto(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 1.5),
+                  // Nama Toko dengan Icon Toko
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.storefront_rounded,
+                        size: 11,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 3),
+                      Expanded(
+                        child: Text(
                           item.description,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.roboto(
-                            fontSize: 9.5,
+                            fontSize: 9.0,
                             fontWeight: FontWeight.w400,
                             color: Colors.white.withValues(alpha: 0.90),
                             height: 1.15,
                           ),
                         ),
-                      ],
-                    ),
-                    Align(
-                      alignment: Alignment.bottomRight,
-                      child: Text(
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2.5),
+                  // Baris Bawah: Rating di kiri & Harga di kanan
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 12.5,
+                            color: Color(0xFFFFD700),
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            item.rating,
+                            style: GoogleFonts.roboto(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
                         item.price,
                         style: GoogleFonts.roboto(
-                          fontSize: 13.0,
+                          fontSize: 12.0,
                           fontWeight: FontWeight.w700,
                           color: const Color(0xFFFFD700),
                           height: 1.10,
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],

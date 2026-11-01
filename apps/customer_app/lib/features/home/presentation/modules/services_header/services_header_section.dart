@@ -48,6 +48,12 @@ class _ServicesHeaderSectionState extends State<ServicesHeaderSection> {
   void _onTap(int index) {
     setState(() => _selectedIndex = index);
     widget.onServiceTap?.call(index);
+    // Kembalikan ke warna default setelah animasi tap selesai (tidak menetap ungu)
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        setState(() => _selectedIndex = null);
+      }
+    });
   }
 
   @override

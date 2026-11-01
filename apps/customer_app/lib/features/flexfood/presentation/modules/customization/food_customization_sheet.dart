@@ -6,10 +6,14 @@ import 'package:rideon/core/constants/app_colors.dart';
 void showFoodCustomizationSheet({
   required BuildContext context,
   required int initialCartQuantity,
-  required int initialSpicyLevel,
+  int? initialSpicyLevel,
   required bool initialExtraEgg,
   required bool initialExtraCrackers,
   required TextEditingController kitchenNotesController,
+  String foodTitle = 'Nasi Goreng Spesial',
+  String foodDesc = 'Nasi goreng + telur mata sapi',
+  String foodImage = AppAssets.foodNasiGoreng,
+  int foodPrice = 10000,
   required Function({
     required int quantity,
     required int spicyLevel,
@@ -18,10 +22,10 @@ void showFoodCustomizationSheet({
   }) onConfirmOrder,
 }) {
   int cartQuantity = initialCartQuantity;
-  int spicyLevel = initialSpicyLevel;
+  int? spicyLevel = initialSpicyLevel;
   bool extraEgg = initialExtraEgg;
   bool extraCrackers = initialExtraCrackers;
-  const int itemPrice = 10000;
+  final int itemPrice = foodPrice;
 
   showModalBottomSheet(
     context: context,
@@ -33,6 +37,7 @@ void showFoodCustomizationSheet({
           final int addonsPrice =
               (extraEgg ? 4000 : 0) + (extraCrackers ? 2000 : 0);
           final int calculatedTotal = (itemPrice * cartQuantity) + addonsPrice;
+          final bool isFormValid = spicyLevel != null;
 
           return Container(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -63,7 +68,7 @@ void showFoodCustomizationSheet({
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.asset(
-                        AppAssets.foodNasiGoreng,
+                        foodImage,
                         width: 60,
                         height: 60,
                         fit: BoxFit.cover,
@@ -75,7 +80,7 @@ void showFoodCustomizationSheet({
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Nasi Goreng Spesial',
+                            foodTitle,
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -84,7 +89,7 @@ void showFoodCustomizationSheet({
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Nasi goreng + telur mata sapi',
+                            foodDesc,
                             style: GoogleFonts.roboto(
                               fontSize: 11,
                               color: const Color(0xFF6B6680),
@@ -92,7 +97,7 @@ void showFoodCustomizationSheet({
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Rp 10.000',
+                            'Rp ${itemPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
@@ -209,8 +214,14 @@ void showFoodCustomizationSheet({
                     controller: kitchenNotesController,
                     style: GoogleFonts.roboto(
                         fontSize: 12, color: const Color(0xFF17152B)),
-                    decoration:
-                        const InputDecoration(border: InputBorder.none),
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Contoh: Jangan pakai seledri ya mas',
+                      hintStyle: GoogleFonts.roboto(
+                        fontSize: 12,
+                        color: const Color(0xFFA6A3B3),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -257,25 +268,32 @@ void showFoodCustomizationSheet({
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          onConfirmOrder(
-                            quantity: cartQuantity,
-                            spicyLevel: spicyLevel,
-                            extraEgg: extraEgg,
-                            extraCrackers: extraCrackers,
-                          );
-                        },
+                        onPressed: isFormValid
+                            ? () {
+                                Navigator.of(context).pop();
+                                onConfirmOrder(
+                                  quantity: cartQuantity,
+                                  spicyLevel: spicyLevel!,
+                                  extraEgg: extraEgg,
+                                  extraCrackers: extraCrackers,
+                                );
+                              }
+                            : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1B1832),
+                          disabledBackgroundColor: const Color(0xFFE2E0EA),
                           foregroundColor: Colors.white,
+                          disabledForegroundColor: const Color(0xFF8E8A9E),
+                          elevation: isFormValid ? 2 : 0,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                         child: Text(
-                          'Konfirmasi Pesanan Rp $calculatedTotal',
+                          isFormValid
+                              ? 'Konfirmasi Pesanan Rp $calculatedTotal'
+                              : 'Pilih Tingkat Kepedasan',
                           style: GoogleFonts.roboto(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,

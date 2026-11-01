@@ -8,9 +8,20 @@ void showAddItemSheet({
   required Function(FlexSendItem item) onSaveItem,
 }) {
   final nameController = TextEditingController();
-  final priceController = TextEditingController();
   final notesController = TextEditingController();
   int qty = 1;
+  String selectedUnit = 'kg';
+
+  final List<String> availableUnits = [
+    'kg',
+    'gram',
+    'bks',
+    'ikat',
+    'botol',
+    'buah',
+    'butir',
+    'pcs',
+  ];
 
   showModalBottomSheet(
     context: context,
@@ -19,188 +30,365 @@ void showAddItemSheet({
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setSheetState) {
+          final isNameFilled = nameController.text.trim().isNotEmpty;
+
           return Container(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-              top: 16,
+              top: 12,
               left: 20,
               right: 20,
             ),
             decoration: const BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 20,
+                  offset: Offset(0, -5),
+                ),
+              ],
             ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Handle bar
                   Center(
                     child: Container(
-                      width: 40,
-                      height: 4,
+                      width: 44,
+                      height: 4.5,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD6D6D6),
-                        borderRadius: BorderRadius.circular(2),
+                        color: const Color(0xFFE2DCFE),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
+
+                  // Header with badge
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF2EFFF),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.shopping_bag_outlined,
+                          color: Color(0xFF6B48FC),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          'Tambah Barang Belanjaan',
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF17152B),
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Tambah Barang Belanjaan',
+                              style: GoogleFonts.poppins(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF17152B),
+                              ),
+                            ),
+                            Text(
+                              'Lokasi $locationIndex • Titip belanja ke driver',
+                              style: GoogleFonts.roboto(
+                                fontSize: 11,
+                                color: const Color(0xFF6B6680),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       IconButton(
                         key: const Key('close_add_item'),
-                        icon: const Icon(Icons.close_rounded),
+                        icon: const Icon(Icons.close_rounded,
+                            color: Color(0xFF8C86A8)),
+                        splashRadius: 20,
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Text('Nama Barang',
-                      style: GoogleFonts.roboto(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    key: const Key('input_item_name'),
-                    controller: nameController,
-                    decoration: InputDecoration(
-                      hintText: 'Contoh: Daging Sapi Segar',
-                      filled: true,
-                      fillColor: const Color(0xFFF7F5FF),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFC6BCFF)),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text('Jumlah',
-                      style: GoogleFonts.roboto(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 16),
+
+                  // Row: [ Nama Barang (flex 6) ] | [ Jumlah & Satuan (flex 4) ]
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF7F5FF),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFC6BCFF)),
-                        ),
-                        child: Row(
+                      // Kolom Nama Barang
+                      Expanded(
+                        flex: 6,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove, size: 16),
-                              onPressed: () {
-                                if (qty > 1) {
-                                  setSheetState(() => qty--);
-                                }
-                              },
+                            Text(
+                              'Nama Barang',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF17152B),
+                              ),
                             ),
-                            Text('$qty',
+                            const SizedBox(height: 6),
+                            SizedBox(
+                              height: 48,
+                              child: TextField(
+                                key: const Key('input_item_name'),
+                                controller: nameController,
+                                onChanged: (_) => setSheetState(() {}),
                                 style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14)),
-                            IconButton(
-                              icon: const Icon(Icons.add, size: 16),
-                              onPressed: () {
-                                setSheetState(() => qty++);
-                              },
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF17152B),
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Misal: Daging Sapi, Telur',
+                                  hintStyle: GoogleFonts.roboto(
+                                    fontSize: 12,
+                                    color: const Color(0xFFA5A0BF),
+                                  ),
+                                  prefixIcon: const Icon(Icons.edit_note_rounded,
+                                      color: Color(0xFF6B48FC), size: 20),
+                                  filled: true,
+                                  fillColor: const Color(0xFFF9F8FF),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 12),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE9E4FF), width: 1.2),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFF6B48FC), width: 1.5),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+
+                      // Kolom Jumlah & Satuan
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Jumlah',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF17152B),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              height: 48,
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF9F8FF),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                    color: const Color(0xFFE9E4FF), width: 1.2),
+                              ),
+                              child: Row(
+                                children: [
+                                  // Tombol Minus
+                                  InkWell(
+                                    borderRadius: BorderRadius.circular(6),
+                                    onTap: () {
+                                      if (qty > 1) {
+                                        setSheetState(() => qty--);
+                                      }
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(4),
+                                      child: Icon(
+                                        Icons.remove_rounded,
+                                        size: 16,
+                                        color: qty > 1
+                                            ? const Color(0xFF17152B)
+                                            : const Color(0xFFB0B0C0),
+                                      ),
+                                    ),
+                                  ),
+                                  // Teks Angka
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets.symmetric(horizontal: 2),
+                                    child: Text(
+                                      '$qty',
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
+                                        color: const Color(0xFF17152B),
+                                      ),
+                                    ),
+                                  ),
+                                  // Tombol Plus
+                                  InkWell(
+                                    borderRadius: BorderRadius.circular(6),
+                                    onTap: () => setSheetState(() => qty++),
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(4),
+                                      child: Icon(
+                                        Icons.add_rounded,
+                                        size: 16,
+                                        color: Color(0xFF6B48FC),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Container(
+                                    width: 1,
+                                    height: 20,
+                                    color: const Color(0xFFE2DCFE),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  // Dropdown Satuan
+                                  Expanded(
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: selectedUnit,
+                                        isDense: true,
+                                        isExpanded: true,
+                                        icon: const Icon(
+                                            Icons.arrow_drop_down_rounded,
+                                            size: 18,
+                                            color: Color(0xFF6B48FC)),
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF6B48FC),
+                                        ),
+                                        items: availableUnits.map((u) {
+                                          return DropdownMenuItem<String>(
+                                            value: u,
+                                            child: Text(u),
+                                          );
+                                        }).toList(),
+                                        onChanged: (val) {
+                                          if (val != null) {
+                                            setSheetState(
+                                                () => selectedUnit = val);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Text('Perkiraan Harga Satuan (Rp)',
-                      style: GoogleFonts.roboto(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    key: const Key('input_item_price'),
-                    controller: priceController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      hintText: 'Contoh: 120000',
-                      prefixText: 'Rp ',
-                      filled: true,
-                      fillColor: const Color(0xFFF7F5FF),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFC6BCFF)),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                  const SizedBox(height: 16),
+
+                  // Catatan untuk Driver (Opsional)
+                  Text(
+                    'Catatan untuk Driver (Opsional)',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF17152B),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Text('Catatan untuk Driver (Opsional)',
-                      style: GoogleFonts.roboto(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: notesController,
                     maxLines: 2,
+                    style: GoogleFonts.roboto(
+                      fontSize: 12.5,
+                      color: const Color(0xFF17152B),
+                    ),
                     decoration: InputDecoration(
                       hintText:
-                          'Tolong potong ukuran rendang, pilih segar...',
-                      filled: true,
-                      fillColor: const Color(0xFFF7F5FF),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFC6BCFF)),
+                          'Misal: Pilih yang masih segar, ukuran sedang...',
+                      hintStyle: GoogleFonts.roboto(
+                        fontSize: 12,
+                        color: const Color(0xFFA5A0BF),
                       ),
+                      prefixIcon: const Padding(
+                        padding: EdgeInsets.only(bottom: 20),
+                        child: Icon(Icons.speaker_notes_outlined,
+                            color: Color(0xFF8C86A8), size: 18),
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFFF9F8FF),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                          horizontal: 14, vertical: 12),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                            color: Color(0xFFE9E4FF), width: 1.2),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF6B48FC), width: 1.5),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 20),
+
+                  // Tombol Simpan
                   SizedBox(
                     width: double.infinity,
-                    height: 44,
+                    height: 48,
                     child: ElevatedButton(
                       key: const Key('btn_save_item'),
-                      onPressed: () {
-                        final name = nameController.text.trim();
-                        final price =
-                            int.tryParse(priceController.text.trim()) ?? 0;
-                        if (name.isNotEmpty && price > 0) {
-                          final newItem = FlexSendItem(
-                            name: name,
-                            qty: qty,
-                            price: price,
-                            notes: notesController.text.isNotEmpty
-                                ? notesController.text
-                                : null,
-                          );
-                          onSaveItem(newItem);
-                          Navigator.of(context).pop();
-                        }
-                      },
+                      onPressed: isNameFilled
+                          ? () {
+                              final name = nameController.text.trim();
+                              final newItem = FlexSendItem(
+                                name: name,
+                                qty: qty,
+                                unit: selectedUnit,
+                                price: 0,
+                                notes: notesController.text.isNotEmpty
+                                    ? notesController.text
+                                    : null,
+                              );
+                              onSaveItem(newItem);
+                              Navigator.of(context).pop();
+                            }
+                          : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF17152B),
+                        disabledBackgroundColor: const Color(0xFFCCC8E0),
                         foregroundColor: Colors.white,
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: Text(
-                        'Simpan ke Daftar Belanja',
-                        style: GoogleFonts.roboto(
-                            fontSize: 13, fontWeight: FontWeight.w700),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.check_circle_outline_rounded,
+                              size: 18, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Simpan ke Daftar Belanja',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

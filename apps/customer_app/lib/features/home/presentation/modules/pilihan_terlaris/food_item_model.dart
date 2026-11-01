@@ -7,6 +7,7 @@ class FoodItemModel {
   final String description;
   final String price;
   final String imageAsset;
+  final String rating;
   final bool isFavorite;
 
   const FoodItemModel({
@@ -14,6 +15,7 @@ class FoodItemModel {
     required this.description,
     required this.price,
     required this.imageAsset,
+    this.rating = '4.9',
     this.isFavorite = false,
   });
 
@@ -22,6 +24,7 @@ class FoodItemModel {
     String? description,
     String? price,
     String? imageAsset,
+    String? rating,
     bool? isFavorite,
   }) {
     return FoodItemModel(
@@ -29,6 +32,7 @@ class FoodItemModel {
       description: description ?? this.description,
       price: price ?? this.price,
       imageAsset: imageAsset ?? this.imageAsset,
+      rating: rating ?? this.rating,
       isFavorite: isFavorite ?? this.isFavorite,
     );
   }
@@ -39,6 +43,7 @@ class FoodItemModel {
         description: json['description'] as String? ?? '',
         price: json['formatted_price'] as String? ?? '',
         imageAsset: json['image_url'] as String? ?? '',
+        rating: json['rating'] as String? ?? '4.9',
         isFavorite: json['is_favorite'] as bool? ?? false,
       );
 
@@ -47,6 +52,7 @@ class FoodItemModel {
         'description': description,
         'formatted_price': price,
         'image_url': imageAsset,
+        'rating': rating,
         'is_favorite': isFavorite,
       };
 }

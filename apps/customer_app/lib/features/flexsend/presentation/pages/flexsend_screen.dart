@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../modules/form/add_item_sheet.dart';
+import '../modules/form/place_picker_bottom_sheet.dart';
 import '../modules/form/shopping_form_view.dart';
 import '../modules/models/flexsend_item_model.dart';
 import '../modules/receipt/shopping_receipt_view.dart';
@@ -13,15 +14,16 @@ import '../modules/tracking/shopping_progress_view.dart';
 export '../modules/models/flexsend_item_model.dart';
 
 /// Halaman FlexSend strictly matching Figma designs in figma/HalamanFlexSend:
-/// - flrxsend.png / flrxsend-4.png / flrxsend-5.png / flrxsend-6.png / flrxsend-7.png
-/// - cari driver.png (radar pulse searching)
-/// - dapat driver.png (driver found + "Lanjut dengan driver ini?")
-/// - beli brng.png (driver shopping in store)
-/// - driver sampai.png (driver on route to delivery)
-/// - driver sampai-1.png (driver arrived + "Selesai dan Lihat Rincian Belanja")
-/// - flrxsend-2.png (receipt / pelunasan tunai breakdown + "SELESAI")
+/// - Mendukung kondisi awal kosong (user input manual sendiri)
+/// - Menambahkan lokasi singgah dengan Google Maps & form pencarian interaktif
+/// - Mendukung hingga maksimal 3 lokasi singgah
 class FlexSendScreen extends StatefulWidget {
-  const FlexSendScreen({super.key});
+  final bool initialEmpty;
+
+  const FlexSendScreen({
+    super.key,
+    this.initialEmpty = true,
+  });
 
   @override
   State<FlexSendScreen> createState() => _FlexSendScreenState();
@@ -41,41 +43,8 @@ class _FlexSendScreenState extends State<FlexSendScreen>
     with SingleTickerProviderStateMixin {
   FlexSendState _currentState = FlexSendState.form;
 
-  // Shopping items in Location 1 (Pasar Pagi Batuphat)
-  final List<FlexSendItem> _location1Items = [
-    FlexSendItem(
-      name: 'Daging Sapi (1 kg)',
-      qty: 1,
-      price: 120000,
-      notes: 'Potong rendang',
-    ),
-    FlexSendItem(
-      name: 'Cabai Merah (1/2 kg)',
-      qty: 1,
-      price: 20000,
-      notes: 'Pilih yang segar',
-    ),
-    FlexSendItem(
-      name: 'Bawang Merah (1/4 kg)',
-      qty: 1,
-      price: 10000,
-    ),
-    FlexSendItem(
-      name: 'Santan Instan (2 bks)',
-      qty: 2,
-      price: 6000,
-    ),
-  ];
-
-  // Shopping items in Location 2 (Apotek Kimia Farma / Lokasi Tambahan)
-  bool _isLocation2Active = true;
-  final List<FlexSendItem> _location2Items = [
-    FlexSendItem(
-      name: 'Minyak Kayu Putih 120ml (1 btl)',
-      qty: 1,
-      price: 25000,
-    ),
-  ];
+  // Daftar lokasi belanja dinamis (Maksimal 3 lokasi)
+  final List<FlexSendLocation> _locations = [];
 
   late AnimationController _radarController;
   Timer? _searchTimer;
@@ -87,6 +56,53 @@ class _FlexSendScreenState extends State<FlexSendScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     );
+
+    // Jika tidak kosong, isi dengan mock data awal
+    if (!widget.initialEmpty) {
+      _locations.add(
+        FlexSendLocation(
+          name: 'Pasar Pagi Batuphat',
+          address: 'Jl. Medan - Banda Aceh, Batuphat',
+          items: [
+            FlexSendItem(
+              name: 'Daging Sapi (1 kg)',
+              qty: 1,
+              price: 120000,
+              notes: 'Potong rendang',
+            ),
+            FlexSendItem(
+              name: 'Cabai Merah (1/2 kg)',
+              qty: 1,
+              price: 20000,
+              notes: 'Pilih yang segar',
+            ),
+            FlexSendItem(
+              name: 'Bawang Merah (1/4 kg)',
+              qty: 1,
+              price: 10000,
+            ),
+            FlexSendItem(
+              name: 'Santan Instan (2 bks)',
+              qty: 2,
+              price: 6000,
+            ),
+          ],
+        ),
+      );
+      _locations.add(
+        FlexSendLocation(
+          name: 'Apotek Kimia Farma',
+          address: 'Jl. Perdagangan No. 8',
+          items: [
+            FlexSendItem(
+              name: 'Minyak Kayu Putih 120ml (1 btl)',
+              qty: 1,
+              price: 25000,
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override
@@ -96,22 +112,22 @@ class _FlexSendScreenState extends State<FlexSendScreen>
     super.dispose();
   }
 
-  int get _location1Subtotal =>
-      _location1Items.fold(0, (sum, item) => sum + (item.price * item.qty));
+  int get _totalTalangan =>
+      _locations.fold(0, (sum, loc) => sum + loc.subtotal);
 
-  int get _location2Subtotal => _isLocation2Active
-      ? _location2Items.fold(0, (sum, item) => sum + (item.price * item.qty))
-      : 0;
+  int get _baseOngkir => _locations.isEmpty ? 0 : 12000;
 
-  int get _totalTalangan => _location1Subtotal + _location2Subtotal;
-  int get _baseOngkir => 12000;
-  int get _extraStopFee => _isLocation2Active ? 2000 : 0;
-  int get _itemQuotaFee => ((_location1Items.length +
-              (_isLocation2Active ? _location2Items.length : 0)) >=
-          4)
-      ? 1000
-      : 0;
+  // Lokasi ke-2 +Rp 2.000, Lokasi ke-3 +Rp 2.000
+  int get _extraStopFee =>
+      _locations.length > 1 ? (_locations.length - 1) * 2000 : 0;
+
+  int get _totalItemsCount =>
+      _locations.fold(0, (sum, loc) => sum + loc.items.length);
+
+  int get _itemQuotaFee => _totalItemsCount >= 4 ? 1000 : 0;
+
   int get _totalOngkir => _baseOngkir + _extraStopFee + _itemQuotaFee;
+
   int get _totalBayar => _totalTalangan + _totalOngkir;
 
   void _startSearching() {
@@ -139,17 +155,49 @@ class _FlexSendScreenState extends State<FlexSendScreen>
     });
   }
 
+  void _openPlacePicker() {
+    if (_locations.length >= 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lokasi singgah belanja maksimal 3 tempat'),
+          backgroundColor: Color(0xFF6B48FC),
+        ),
+      );
+      return;
+    }
+
+    final int nextLocationIndex = _locations.length + 1;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return PlacePickerBottomSheet(
+          locationIndex: nextLocationIndex,
+          onPlaceSelected: (name, address) {
+            setState(() {
+              _locations.add(
+                FlexSendLocation(
+                  name: name,
+                  address: address,
+                ),
+              );
+            });
+          },
+        );
+      },
+    );
+  }
+
   void _openAddItemSheet(int locationIndex) {
+    if (locationIndex < 0 || locationIndex >= _locations.length) return;
+
     showAddItemSheet(
       context: context,
-      locationIndex: locationIndex,
+      locationIndex: locationIndex + 1,
       onSaveItem: (newItem) {
         setState(() {
-          if (locationIndex == 1) {
-            _location1Items.add(newItem);
-          } else {
-            _location2Items.add(newItem);
-          }
+          _locations[locationIndex].items.add(newItem);
         });
       },
     );
@@ -160,24 +208,12 @@ class _FlexSendScreenState extends State<FlexSendScreen>
     switch (_currentState) {
       case FlexSendState.form:
         return ShoppingFormView(
-          location1Items: _location1Items,
-          location2Items: _location2Items,
-          isLocation2Active: _isLocation2Active,
-          onAddLocation: () {
-            if (!_isLocation2Active) {
-              setState(() {
-                _isLocation2Active = true;
-              });
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Lokasi singgah maksimal 2 tempat')),
-              );
-            }
-          },
-          onDeleteLocation2: () {
+          onBack: () => Navigator.of(context).maybePop(),
+          locations: _locations,
+          onAddLocation: _openPlacePicker,
+          onDeleteLocation: (index) {
             setState(() {
-              _isLocation2Active = false;
+              _locations.removeAt(index);
             });
           },
           onAddItem: _openAddItemSheet,
@@ -193,6 +229,7 @@ class _FlexSendScreenState extends State<FlexSendScreen>
       case FlexSendState.searching:
         return FlexSendSearchingView(
           radarController: _radarController,
+          locations: _locations,
           totalBayar: _totalBayar,
           onCancel: _cancelSearching,
           onDriverFound: () {
@@ -218,6 +255,7 @@ class _FlexSendScreenState extends State<FlexSendScreen>
 
       case FlexSendState.shopping:
         return ShoppingProgressView(
+          locations: _locations,
           onBack: () {
             _searchTimer?.cancel();
             _radarController.stop();
@@ -230,6 +268,7 @@ class _FlexSendScreenState extends State<FlexSendScreen>
 
       case FlexSendState.delivering:
         return DeliveringProgressView(
+          locations: _locations,
           onBack: () {
             _searchTimer?.cancel();
             _radarController.stop();
@@ -242,26 +281,25 @@ class _FlexSendScreenState extends State<FlexSendScreen>
 
       case FlexSendState.arrived:
         return DriverArrivedView(
+          locations: _locations,
           onBack: () {
-            _searchTimer?.cancel();
-            _radarController.stop();
-            setState(() => _currentState = FlexSendState.form);
+            setState(() => _currentState = FlexSendState.delivering);
           },
           onSeeReceipt: () {
-            setState(() {
-              _currentState = FlexSendState.receipt;
-            });
+            setState(() => _currentState = FlexSendState.receipt);
           },
         );
 
       case FlexSendState.receipt:
         return ShoppingReceiptView(
-          onFinish: () {
-            setState(() {
-              _currentState = FlexSendState.form;
-            });
-            Navigator.of(context).pop();
-          },
+          locations: _locations,
+          baseOngkir: _baseOngkir,
+          extraStopFee: _extraStopFee,
+          itemQuotaFee: _itemQuotaFee,
+          totalOngkir: _totalOngkir,
+          totalTalangan: _totalTalangan,
+          totalBayar: _totalBayar,
+          onFinish: () => Navigator.of(context).maybePop(),
         );
     }
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
+import 'package:rideon/core/widgets/user_avatar.dart';
 import 'package:rideon/features/home/presentation/modules/services_header/services_header_section.dart';
 import 'header_banner_logic.dart';
 import 'search_bar_widget.dart';
@@ -40,8 +41,7 @@ class HeaderBannerView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectivePhotoUrl =
-        HeaderBannerLogic.resolvePhotoUrl(explicitUrl: photoUrl) ??
-            AppAssets.userAvatar;
+        HeaderBannerLogic.resolvePhotoUrl(explicitUrl: photoUrl);
     final effectiveUserName =
         HeaderBannerLogic.resolveUserName(explicitName: userName) ?? 'User';
 
@@ -138,40 +138,19 @@ class HeaderBannerView extends StatelessWidget {
                       GestureDetector(
                         key: const Key('home_avatar_btn'),
                         onTap: onProfileTap,
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: ClipOval(
-                            child: Image.asset(
-                              effectivePhotoUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Container(
-                                color: const Color(0xFF6B48FC),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  effectiveUserName.isNotEmpty
-                                      ? effectiveUserName[0].toUpperCase()
-                                      : 'U',
-                                  style: GoogleFonts.roboto(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
+                        child: UserAvatar(
+                          photoUrl: effectivePhotoUrl,
+                          name: effectiveUserName,
+                          size: 40,
+                          borderWidth: 2,
+                          borderColor: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
                             ),
-                          ),
+                          ],
                         ),
                       )
                     else

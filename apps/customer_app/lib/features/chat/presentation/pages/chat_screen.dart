@@ -14,11 +14,15 @@ import '../modules/inbox/inbox_view.dart';
 class ChatScreen extends StatefulWidget {
   final bool showBackButton;
   final bool initialShowDetail;
+  final bool isCustomerService;
+  final VoidCallback? onBack;
 
   const ChatScreen({
     super.key,
     this.showBackButton = false,
     this.initialShowDetail = true,
+    this.isCustomerService = false,
+    this.onBack,
   });
 
   @override
@@ -30,55 +34,74 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  final List<Map<String, dynamic>> _messages = [
-    {
-      'sender': 'driver',
-      'text':
-          'Halo bu, saya sudah sampai di Pasar Sukaramai ya. Mulai carikan daging sapi.',
-      'time': '10.11',
-    },
-    {
-      'sender': 'driver',
-      'text': 'Sekalian, cabai merahnya juga mau yang keriting atau biasa?',
-      'time': '10.11',
-    },
-    {
-      'sender': 'user',
-      'text': 'Boleh mas, sekalian aja',
-      'time': '10.11',
-    },
-    {
-      'sender': 'driver',
-      'text': 'Baik bukk',
-      'time': '10.11',
-    },
-    {
-      'sender': 'user',
-      'text': 'Terima kasih banyak',
-      'time': '10.11',
-    },
-    {
-      'sender': 'driver',
-      'text': 'Segera meluncur ya mas',
-      'time': '10.11',
-    },
-    {
-      'sender': 'driver',
-      'text': 'Ditunggu ya buk',
-      'time': '10.11',
-    },
-  ];
-
-  final List<String> _quickReplies = [
-    'Boleh mas, sekalian aja',
-    'Makasih ya mas',
-    'Segera meluncur ya mas',
-  ];
+  late final List<Map<String, dynamic>> _messages;
+  late final List<String> _quickReplies;
 
   @override
   void initState() {
     super.initState();
     _showDetail = widget.initialShowDetail || widget.showBackButton;
+
+    if (widget.isCustomerService) {
+      _messages = [
+        {
+          'sender': 'driver',
+          'text':
+              'Halo kak! Selamat datang di Layanan Pelanggan RideOn. Ada yang bisa kami bantu terkait pesanan atau akun kakak hari ini?',
+          'time': 'Sekarang',
+        },
+      ];
+      _quickReplies = [
+        'Kendala Pesanan',
+        'Bantuan Akun',
+        'Metode Pembayaran',
+        'Hubungi Tim Teknis',
+      ];
+    } else {
+      _messages = [
+        {
+          'sender': 'driver',
+          'text':
+              'Halo bu, saya sudah sampai di Pasar Sukaramai ya. Mulai carikan daging sapi.',
+          'time': '10.11',
+        },
+        {
+          'sender': 'driver',
+          'text': 'Sekalian, cabai merahnya juga mau yang keriting atau biasa?',
+          'time': '10.11',
+        },
+        {
+          'sender': 'user',
+          'text': 'Boleh mas, sekalian aja',
+          'time': '10.11',
+        },
+        {
+          'sender': 'driver',
+          'text': 'Baik bukk',
+          'time': '10.11',
+        },
+        {
+          'sender': 'user',
+          'text': 'Terima kasih banyak',
+          'time': '10.11',
+        },
+        {
+          'sender': 'driver',
+          'text': 'Segera meluncur ya mas',
+          'time': '10.11',
+        },
+        {
+          'sender': 'driver',
+          'text': 'Ditunggu ya buk',
+          'time': '10.11',
+        },
+      ];
+      _quickReplies = [
+        'Boleh mas, sekalian aja',
+        'Makasih ya mas',
+        'Segera meluncur ya mas',
+      ];
+    }
   }
 
   @override
@@ -129,6 +152,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     if (!_showDetail) {
       return ChatInboxView(
+        onBack: widget.onBack,
         onOpenConversation: () {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -147,6 +171,7 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           ConversationHeader(
+            isCustomerService: widget.isCustomerService,
             onBack: () {
               if (widget.showBackButton) {
                 Navigator.of(context).pop();
@@ -200,6 +225,9 @@ class _ChatScreenState extends State<ChatScreen> {
           // Message input bar
           ChatInputBar(
             controller: _messageController,
+            hintText: widget.isCustomerService
+                ? 'Ketik pesan untuk Customer Service...'
+                : 'Ketik pesan untuk driver...',
             onSend: _sendMessage,
           ),
         ],

@@ -5,10 +5,12 @@ import 'package:rideon/core/constants/app_colors.dart';
 
 class ChatInboxView extends StatelessWidget {
   final VoidCallback onOpenConversation;
+  final VoidCallback? onBack;
 
   const ChatInboxView({
     super.key,
     required this.onOpenConversation,
+    this.onBack,
   });
 
   @override
@@ -17,33 +19,71 @@ class ChatInboxView extends StatelessWidget {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          // Pastel lavender gradient header with centered white RideOn logo
+          // Header gradient horizontal lavender (#9F88FD) ke putih (#FFFFFF) presisi Figma node [44:9043]
           Container(
             width: double.infinity,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Color(0xFFB4A5FE),
-                  Color(0xFFE2DCFE),
-                  Color(0xFFF7F5FF),
+                  Color(0xFF9F88FD),
+                  Color(0xFFBAA7FD),
+                  Color(0xFFEFEAFF),
+                  Color(0xFFFFFFFF),
                 ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+                stops: [0.0, 0.45, 0.85, 1.0],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
               ),
               borderRadius: BorderRadius.vertical(
                 bottom: Radius.circular(28),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x18000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
             ),
             child: SafeArea(
               bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                child: Center(
-                  child: Image.asset(
-                    AppAssets.logoWhite,
-                    height: 38,
-                    fit: BoxFit.contain,
-                  ),
+              child: SizedBox(
+                height: 63,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Tombol Back Figma Squircle 34x34 persis seperti di header favorit & aktivitas
+                    Positioned(
+                      left: 16,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onBack ?? () => Navigator.of(context).maybePop(),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Centered RideOn Logo
+                    Center(
+                      child: Image.asset(
+                        AppAssets.logoWhite,
+                        width: 95,
+                        height: 63,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

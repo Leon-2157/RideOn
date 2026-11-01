@@ -29,6 +29,7 @@ class BerandaScreen extends StatelessWidget {
   final VoidCallback? onLoginTap;
   final VoidCallback? onProfileTap;
   final Function(int)? onServiceTap;
+  final Function(FoodItemModel)? onFoodTap;
   final VoidCallback? onSearchTap;
   final bool isLoggedIn;
   final String? userName;
@@ -40,6 +41,7 @@ class BerandaScreen extends StatelessWidget {
     this.onLoginTap,
     this.onProfileTap,
     this.onServiceTap,
+    this.onFoodTap,
     this.onSearchTap,
     this.isLoggedIn = true,
     this.userName,
@@ -65,7 +67,17 @@ class BerandaScreen extends StatelessWidget {
               onServiceTap: onServiceTap,
             ),
           ),
-          const SliverToBoxAdapter(child: PilihanTerlarisSection()),
+          SliverToBoxAdapter(
+            child: PilihanTerlarisSection(
+              onFoodTap: (food) {
+                if (onFoodTap != null) {
+                  onFoodTap!(food);
+                } else {
+                  onServiceTap?.call(1);
+                }
+              },
+            ),
+          ),
           const SliverToBoxAdapter(child: CekPromoSection()),
           const SliverToBoxAdapter(child: RekomendasiWisataSection()),
           const SliverToBoxAdapter(child: SizedBox(height: 80)),

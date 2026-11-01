@@ -10,6 +10,7 @@ import 'alamat_email_screen.dart';
 import 'keamanan_akun_screen.dart';
 import 'lokasi_anda_screen.dart';
 import 'kebijakan_privasi_screen.dart';
+import 'package:rideon/features/chat/presentation/pages/chat_screen.dart';
 
 // Widgets Import
 import '../widgets/profil_header_card.dart';
@@ -44,9 +45,10 @@ class PengaturanAkunScreen extends StatefulWidget {
 class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
   String _selectedTheme = 'Ikuti Sistem';
   String _userName = 'Peter';
-  String _phoneNumber = '0812-3456-7890';
+  String _phoneNumber = '';
   String _email = 'Belum ditambahkan';
   String? _photoUrl;
+  bool _isPhoneAdded = false;
   bool _isEmailAdded = false;
   bool _isEmailVerified = false;
 
@@ -65,9 +67,10 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
             _userName = user.displayName!;
           });
         }
-        if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty) {
+        if (user.phoneNumber != null && user.phoneNumber!.trim().isNotEmpty) {
           setState(() {
             _phoneNumber = user.phoneNumber!;
+            _isPhoneAdded = true;
           });
         }
         if (user.photoURL != null && user.photoURL!.isNotEmpty) {
@@ -83,9 +86,21 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
             .then((doc) {
           if (doc.exists && mounted) {
             final data = doc.data()!;
+            final phone = (data['phoneNumber'] as String?)?.trim();
+            final bool hasValidPhone = phone != null &&
+                phone.isNotEmpty &&
+                phone != '0812-3456-7890' &&
+                phone != 'Belum ditambahkan';
+
             setState(() {
               _userName = data['name'] ?? _userName;
-              _phoneNumber = data['phoneNumber'] ?? _phoneNumber;
+              if (hasValidPhone) {
+                _phoneNumber = phone;
+                _isPhoneAdded = true;
+              } else {
+                _phoneNumber = '';
+                _isPhoneAdded = false;
+              }
               final pUrl = data['photoUrl'] as String?;
               if (pUrl != null && pUrl.isNotEmpty) {
                 _photoUrl = pUrl;
@@ -319,20 +334,29 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
 
   Widget _buildTopHeader(BuildContext context) {
     return Container(
+      width: double.infinity,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
           colors: [
-            Color(0xFFB4A5FE),
-            Color(0xFFE2DCFE),
-            Color(0xFFF7F5FF),
+            Color(0xFF9F88FD),
+            Color(0xFFBAA7FD),
+            Color(0xFFEFEAFF),
+            Color(0xFFFFFFFF),
           ],
+          stops: [0.0, 0.45, 0.85, 1.0],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
         ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(28),
-          bottomRight: Radius.circular(28),
+        borderRadius: BorderRadius.vertical(
+          bottom: Radius.circular(28),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x18000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       child: SafeArea(
         bottom: false,
@@ -341,18 +365,19 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
           child: Row(
             children: [
               GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () => Navigator.of(context).pop(),
                 child: Container(
-                  width: 34,
-                  height: 34,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE6E0FF),
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
                     Icons.arrow_back_rounded,
                     size: 20,
-                    color: Color(0xFF17152B),
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -363,12 +388,12 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF17152B),
+                      color: const Color(0xFF1E143E),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 34), // Balancing back button
+              const SizedBox(width: 36), // Balancing back button
             ],
           ),
         ),
@@ -377,21 +402,45 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
   }
 
   Widget _buildSettingsCard(List<Widget> children) {
+    // Sisipkan divider pemisah putih transparan lembut di antara setiap baris menu
+    final List<Widget> dividedChildren = [];
+    for (int i = 0; i < children.length; i++) {
+      dividedChildren.add(children[i]);
+      if (i < children.length - 1) {
+        dividedChildren.add(
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: Colors.white.withValues(alpha: 0.2),
+            indent: 14,
+            endIndent: 14,
+          ),
+        );
+      }
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       decoration: BoxDecoration(
-        color: const Color(0xFFC7BCFE),
-        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            Color(0xFF6B48FC),
+            Color(0xFFC6BCFF),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6B48FC).withValues(alpha: 0.15),
+            color: const Color(0xFF6B48FC).withValues(alpha: 0.18),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Column(
-        children: children,
+        children: dividedChildren,
       ),
     );
   }
@@ -412,12 +461,12 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Card 1: Informasi Akun (Avatar, Nama, No HP, Verified Badge)
+                  // Card 1: Informasi Akun (Avatar, Nama, No HP, Verified Badge jika sudah ada nomor WA)
                   ProfilHeaderCard(
                     userName: _userName,
                     phoneNumber: _phoneNumber,
                     photoUrl: _photoUrl,
-                    isVerified: true,
+                    isVerified: _isPhoneAdded,
                   ),
                   const SizedBox(height: 20),
 
@@ -471,18 +520,30 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                     MenuItemTile(
                       icon: Icons.chat_bubble_outline_rounded,
                       title: 'Nomor WhatsApp',
-                      subtitle: '• $_phoneNumber',
-                      badgeText: 'Aktif',
+                      subtitle: _isPhoneAdded
+                          ? '• $_phoneNumber'
+                          : 'Belum ditambahkan',
+                      badgeText: _isPhoneAdded ? 'Aktif' : '+Tambahkan',
+                      badgeColor: _isPhoneAdded
+                          ? const Color(0xFF8CE1D7)
+                          : const Color(0xFFF2EFFF),
+                      badgeTextColor: _isPhoneAdded
+                          ? const Color(0xFF114B44)
+                          : const Color(0xFF6B48FC),
                       onTap: () async {
                         final result = await Navigator.of(context).push<String>(
                           MaterialPageRoute(
-                            builder: (context) => NomorWaScreen(currentPhone: _phoneNumber),
+                            builder: (context) => NomorWaScreen(
+                              currentPhone: _isPhoneAdded ? _phoneNumber : '',
+                            ),
                           ),
                         );
-                        if (result != null) {
+                        if (result != null && result.trim().isNotEmpty) {
                           setState(() {
-                            _phoneNumber = result;
+                            _phoneNumber = result.trim();
+                            _isPhoneAdded = true;
                           });
+                          _loadCurrentUserData();
                         }
                       },
                     ),
@@ -550,76 +611,37 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                   ]),
                   const SizedBox(height: 16),
 
-                  // Kebijakan Privasi & syarat Card
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const KebijakanPrivasiScreen(),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFC7BCFE),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF6B48FC).withValues(alpha: 0.12),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                  // Card Gabungan: Kebijakan Privasi & Customer Service
+                  _buildSettingsCard([
+                    MenuItemTile(
+                      icon: Icons.verified_user_outlined,
+                      title: 'Kebijakan Privasi & syarat',
+                      subtitle: 'Ketentuan Penggunaan Platform',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const KebijakanPrivasiScreen(),
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFD6CEFF),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.shield_outlined,
-                              size: 20,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Kebijakan Privasi & syarat',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF17152B),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Ketentuan Penggunaan Platfrom',
-                                  style: GoogleFonts.roboto(
-                                    fontSize: 10.5,
-                                    color: const Color(0xFF4C4566),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(
-                            Icons.chevron_right_rounded,
-                            size: 20,
-                            color: Color(0xFF17152B),
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                  ),
+                    MenuItemTile(
+                      icon: Icons.support_agent_rounded,
+                      title: 'Customer Service',
+                      subtitle: 'Bantuan & Hubungi Layanan CS',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const ChatScreen(
+                              showBackButton: true,
+                              initialShowDetail: true,
+                              isCustomerService: true,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ]),
                   const SizedBox(height: 24),
 
                   // Bottom Logout Button

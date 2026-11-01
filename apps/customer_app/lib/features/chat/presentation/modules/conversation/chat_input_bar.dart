@@ -5,11 +5,13 @@ import 'package:rideon/core/constants/app_colors.dart';
 class ChatInputBar extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
+  final String hintText;
 
   const ChatInputBar({
     super.key,
     required this.controller,
     required this.onSend,
+    this.hintText = 'Ketik pesan untuk driver...',
   });
 
   @override
@@ -47,7 +49,7 @@ class ChatInputBar extends StatelessWidget {
                     color: const Color(0xFF17152B),
                   ),
                   decoration: InputDecoration(
-                    hintText: 'Ketik pesan untuk driver...',
+                    hintText: hintText,
                     hintStyle: GoogleFonts.roboto(
                       fontSize: 12.5,
                       color: AppColors.textMuted,

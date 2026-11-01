@@ -2,8 +2,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../modules/splash_logo/expanding_circle_painter.dart';
 import '../modules/splash_logo/splash_logo_view.dart';
 
+export '../modules/splash_logo/expanding_circle_painter.dart';
 export '../modules/splash_logo/splash_logo_view.dart';
 
 /// SplashScreen strictly implementing the Figma prototype (RideOn Test):
@@ -111,13 +113,15 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final maxRadius = math.sqrt(size.width * size.width + size.height * size.height);
+    final diagonalHalf =
+        math.sqrt(size.width * size.width + size.height * size.height) / 2;
+    final maxRadius = diagonalHalf * 1.4;
 
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final isGradientActive = _circleExpansionAnimation.value > 0.6;
-        final isFullyCovered = _circleExpansionAnimation.value >= 0.99;
+        final isGradientActive = _circleExpansionAnimation.value > 0.7;
+        final isFullyCovered = _circleExpansionAnimation.value >= 0.98;
 
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: isGradientActive
@@ -145,31 +149,15 @@ class _SplashScreenState extends State<SplashScreen>
                         child: ColoredBox(color: AppColors.white),
                       ),
 
-                    // Expanding Gradient Circle (Unconstrained via OverflowBox to fill 100% of screen)
+                    // Expanding Gradient Ellipse via CustomPainter
                     if (!isFullyCovered && _circleExpansionAnimation.value > 0.0)
-                      Builder(
-                        builder: (context) {
-                          final currentRadius = _circleExpansionAnimation.value * maxRadius * 1.5;
-
-                          return Center(
-                            child: OverflowBox(
-                              minWidth: 0,
-                              maxWidth: double.infinity,
-                              minHeight: 0,
-                              maxHeight: double.infinity,
-                              child: ClipOval(
-                                child: Container(
-                                  width: currentRadius * 2,
-                                  height: currentRadius * 2,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: AppColors.splashGradient,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: ExpandingCirclePainter(
+                            radius: _circleExpansionAnimation.value * maxRadius,
+                            gradient: AppColors.splashGradient,
+                          ),
+                        ),
                       ),
 
                     // Center Logo (Smooth cross-fade between primary and white logos)

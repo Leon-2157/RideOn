@@ -22,13 +22,6 @@ class LocationCardWidget extends StatelessWidget {
     this.onDeleteLocation,
   });
 
-  String _formatRupiah(int amount) {
-    return amount.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]}.',
-        );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -154,7 +147,7 @@ class LocationCardWidget extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(item.name,
+                          Text('${item.name} (${item.qty} ${item.unit})',
                               style: GoogleFonts.roboto(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -167,11 +160,6 @@ class LocationCardWidget extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Text('Rp ${_formatRupiah(item.price * item.qty)}',
-                        style: GoogleFonts.roboto(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF17152B))),
                   ],
                 ),
               );

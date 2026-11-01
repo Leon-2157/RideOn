@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../aktivitas/presentation/pages/aktivitas_screen.dart';
 import '../../../auth/presentation/pages/login_screen.dart';
 import '../../../chat/presentation/pages/chat_screen.dart';
@@ -34,6 +35,8 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   late int _currentIndex;
+  String? _userName;
+  String? _photoUrl;
 
   bool get _isLoggedIn {
     if (widget.isLoggedIn != null) return widget.isLoggedIn!;
@@ -48,6 +51,36 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _loadUserData();
+  }
+
+  void _loadUserData() {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        setState(() {
+          _userName = user.displayName;
+          _photoUrl = user.photoURL;
+        });
+
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .snapshots()
+            .listen((doc) {
+          if (doc.exists && mounted) {
+            final data = doc.data()!;
+            setState(() {
+              _userName = data['name'] ?? _userName;
+              final pUrl = data['photoUrl'] as String?;
+              if (pUrl != null && pUrl.isNotEmpty) {
+                _photoUrl = pUrl;
+              }
+            });
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   void _navigateToLogin() {
@@ -58,12 +91,13 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _navigateToPengaturan() {
-    Navigator.of(context).push(
+  void _navigateToPengaturan() async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const PengaturanAkunScreen(),
       ),
     );
+    _loadUserData();
   }
 
   void _onServiceTap(int serviceIndex) {
@@ -99,16 +133,39 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           BerandaScreen(
             isLoggedIn: _isLoggedIn,
+            userName: _userName,
+            photoUrl: _photoUrl,
             onLoginTap: _navigateToLogin,
             onProfileTap: _navigateToPengaturan,
             onServiceTap: _onServiceTap,
+            onFoodTap: (food) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => FlexFoodScreen(
+                    initialState: FlexFoodState.grid,
+                    initialFood: {
+                      'title': food.title,
+                      'desc': food.description,
+                      'resto': food.description,
+                      'price': food.price,
+                      'image': food.imageAsset,
+                    },
+                  ),
+                ),
+              );
+            },
           ),
           FavoritScreen(
             onBack: () => setState(() => _currentIndex = 0),
             onSelectFood: (_) => _onServiceTap(1),
           ),
-          const AktivitasScreen(),
-          const ChatScreen(initialShowDetail: false),
+          AktivitasScreen(
+            onBack: () => setState(() => _currentIndex = 0),
+          ),
+          ChatScreen(
+            initialShowDetail: false,
+            onBack: () => setState(() => _currentIndex = 0),
+          ),
         ],
       ),
       bottomNavigationBar: CustomBottomNavBar(

@@ -5,13 +5,12 @@ import '../models/flexsend_item_model.dart';
 import 'location_card_widget.dart';
 
 class ShoppingFormView extends StatelessWidget {
-  final List<FlexSendItem> location1Items;
-  final List<FlexSendItem> location2Items;
-  final bool isLocation2Active;
+  final List<FlexSendLocation> locations;
   final VoidCallback onAddLocation;
-  final VoidCallback onDeleteLocation2;
+  final Function(int locationIndex) onDeleteLocation;
   final Function(int locationIndex) onAddItem;
   final VoidCallback onStartSearching;
+  final VoidCallback? onBack;
   final int baseOngkir;
   final int extraStopFee;
   final int itemQuotaFee;
@@ -21,13 +20,12 @@ class ShoppingFormView extends StatelessWidget {
 
   const ShoppingFormView({
     super.key,
-    required this.location1Items,
-    required this.location2Items,
-    required this.isLocation2Active,
+    required this.locations,
     required this.onAddLocation,
-    required this.onDeleteLocation2,
+    required this.onDeleteLocation,
     required this.onAddItem,
     required this.onStartSearching,
+    this.onBack,
     required this.baseOngkir,
     required this.extraStopFee,
     required this.itemQuotaFee,
@@ -61,8 +59,8 @@ class ShoppingFormView extends StatelessWidget {
         Text(
           value,
           style: GoogleFonts.roboto(
-            fontSize: 12,
-            fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+            fontSize: 11.5,
+            fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
             color: color ?? const Color(0xFF17152B),
           ),
         ),
@@ -72,36 +70,50 @@ class ShoppingFormView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalItems =
-        location1Items.length + (isLocation2Active ? location2Items.length : 0);
+    // Syarat tombol aktif: minimal ada 1 lokasi, dan SEMUA lokasi yang ditambahkan wajib memiliki minimal 1 barang
+    final bool hasEmptyLocation = locations.any((loc) => loc.items.isEmpty);
+    final bool isReadyToSearch = locations.isNotEmpty && !hasEmptyLocation;
+
+    final int totalItemCount = locations.fold(0, (sum, loc) => sum + loc.items.length);
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          const FlexSendHeader(title: 'Beranda'),
+          // Header Gradasi Lavender ke Putih Presisi Figma
+          FlexSendHeader(title: 'FlexSend', onBack: onBack),
+
+          // Scrollable Body
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title Section
+                  // Title: FlexSend Titip Belanja Manual
                   Row(
                     children: [
-                      const Icon(Icons.inventory_2_rounded,
-                          size: 18, color: Color(0xFF17152B)),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF17152B),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(Icons.inventory_2_rounded,
+                            size: 14, color: Colors.white),
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'FlexSend',
                         style: GoogleFonts.poppins(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: const Color(0xFF17152B),
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     'Titip Belanja Manual',
                     style: GoogleFonts.roboto(
@@ -119,17 +131,27 @@ class ShoppingFormView extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE2DCFE),
-                            borderRadius: BorderRadius.circular(10),
+                        Image.asset(
+                          'assets/images/illustrations/il_driver_talangi.png',
+                          width: 24,
+                          height: 29,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE2DCFE),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.shield_outlined,
+                              size: 16,
+                              color: Color(0xFF6B48FC),
+                            ),
                           ),
-                          child: const Icon(Icons.shield_outlined,
-                              size: 20, color: Color(0xFF6B48FC)),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,130 +180,229 @@ class ShoppingFormView extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
 
-                  // Location 1 Card
-                  LocationCardWidget(
-                    locationIndex: 1,
-                    locationName: 'Pasar Pagi Batuphat',
-                    badgeText: 'Lokasi 1 (Pasar Utama)',
-                    badgeColor: const Color(0xFFD8E7FE),
-                    items: location1Items,
-                    onAddItem: () => onAddItem(1),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Location 2 Card
-                  if (isLocation2Active) ...[
-                    LocationCardWidget(
-                      locationIndex: 2,
-                      locationName: 'Apotek Kimia Farma',
-                      badgeText: 'Lokasi 2 (+Rp 2.000 Ongkir)',
-                      badgeColor: const Color(0xFFFFECC8),
-                      items: location2Items,
-                      onAddItem: () => onAddItem(2),
-                      onDeleteLocation: onDeleteLocation2,
-                    ),
-                    const SizedBox(height: 14),
-                  ],
-
-                  // Add Location Button
-                  GestureDetector(
-                    key: const Key('btn_add_location'),
-                    onTap: onAddLocation,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                  // Empty State: Jika belum ada lokasi toko/pasar yang ditambahkan
+                  if (locations.isEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                            color: const Color(0xFF6B48FC)
-                                .withValues(alpha: 0.5)),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFE2DCFE), width: 1.2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Column(
                         children: [
-                          const Icon(Icons.location_on_rounded,
-                              size: 16, color: Color(0xFF6B48FC)),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              '+ Tambah Lokasi Singgah Lain (Maks. 3 Tempat)',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.roboto(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF2EFFF),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Icon(
+                              Icons.storefront_rounded,
+                              size: 34,
+                              color: Color(0xFF6B48FC),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Belum Ada Toko Belanja',
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF17152B),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Tambahkan pasar atau toko tempat driver akan membelikan barang pesananmu.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.roboto(
+                              fontSize: 11.5,
+                              color: const Color(0xFF6B6680),
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          GestureDetector(
+                            onTap: onAddLocation,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 10),
+                              decoration: BoxDecoration(
                                 color: const Color(0xFF6B48FC),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.add_location_alt_rounded,
+                                      size: 16, color: Colors.white),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '+ Masukkan Toko / Pasar Pertama',
+                                    style: GoogleFonts.roboto(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
+                  ] else ...[
+                    // Tampilkan List Lokasi yang telah ditambahkan
+                    ...List.generate(locations.length, (index) {
+                      final loc = locations[index];
+                      final locNumber = index + 1;
+                      final isFirst = index == 0;
 
-                  // Rincian Estimasi Biaya Card
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFE2DCFE)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Rincian Estimasi Biaya',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF17152B),
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 14.0),
+                        child: LocationCardWidget(
+                          locationIndex: locNumber,
+                          locationName: loc.name,
+                          badgeText: isFirst
+                              ? 'Lokasi 1 (Pasar Utama)'
+                              : 'Lokasi $locNumber (+Rp 2.000 Ongkir)',
+                          badgeColor: isFirst
+                              ? const Color(0xFFD8E7FE)
+                              : const Color(0xFFFFECC8),
+                          items: loc.items,
+                          onAddItem: () => onAddItem(index),
+                          onDeleteLocation: isFirst ? null : () => onDeleteLocation(index),
+                        ),
+                      );
+                    }),
+
+                    // Add Location Button (Hanya jika belum mencapai 3 lokasi)
+                    if (locations.length < 3) ...[
+                      GestureDetector(
+                        key: const Key('btn_add_location'),
+                        onTap: onAddLocation,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: const Color(0xFF6B48FC)
+                                    .withValues(alpha: 0.5)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.location_on_rounded,
+                                  size: 16, color: Color(0xFF6B48FC)),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  '+ Tambah Lokasi Singgah Lain (Maks. 3 Tempat)',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.roboto(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF6B48FC),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        _buildPriceRow('Ongkir Jarak Tempuh (3.5 km)',
-                            'Rp ${_formatRupiah(baseOngkir)}'),
-                        const SizedBox(height: 8),
-                        _buildPriceRow(
-                            'Tambahan Toko ke-2',
-                            isLocation2Active
-                                ? '+Rp ${_formatRupiah(extraStopFee)}'
-                                : 'Rp 0'),
-                        const SizedBox(height: 8),
-                        _buildPriceRow(
-                            'Biaya Kuota (Item ke-4 s/d 5)',
-                            itemQuotaFee > 0
-                                ? '+Rp ${_formatRupiah(itemQuotaFee)}'
-                                : 'Rp 0'),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 10),
-                          child: Divider(color: Color(0xFFE2DCFE)),
-                        ),
-                        _buildPriceRow(
-                          'Total Ongkos Kirim Driver',
-                          'Rp ${_formatRupiah(totalOngkir)}',
-                          isBold: true,
-                          color: const Color(0xFF6B48FC),
-                        ),
-                        const SizedBox(height: 6),
-                        _buildPriceRow(
-                          'Estimasi Talangan Belanja',
-                          'Rp ${_formatRupiah(totalTalangan)}',
-                          isBold: true,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Catatan: Karcis parkir riil (maks. Rp 2.000/tempat) akan dimasukkan ke struk.',
-                          style: GoogleFonts.roboto(
-                            fontSize: 10,
-                            color: const Color(0xFF6B6680),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Rincian Ongkos Kirim Aplikasi Card
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFE2DCFE)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Ongkos Kirim Aplikasi',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF17152B),
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 10),
+                          _buildPriceRow(
+                              'Ongkos Kirim Dasar', 'Rp ${_formatRupiah(baseOngkir)}'),
+                          if (extraStopFee > 0) ...[
+                            const SizedBox(height: 6),
+                            _buildPriceRow(
+                                'Biaya Singgah Tambahan',
+                                '+Rp ${_formatRupiah(extraStopFee)}',
+                                color: const Color(0xFF6B48FC)),
+                          ],
+                          if (itemQuotaFee > 0) ...[
+                            const SizedBox(height: 6),
+                            _buildPriceRow(
+                                'Biaya Kuota Barang (>3 item)',
+                                '+Rp ${_formatRupiah(itemQuotaFee)}',
+                                color: const Color(0xFF6B48FC)),
+                          ],
+                          const Divider(height: 20, color: Color(0xFFE2DCFE)),
+                          _buildPriceRow(
+                            'Total Ongkir Aplikasi',
+                            'Rp ${_formatRupiah(totalOngkir)}',
+                            isBold: true,
+                            color: const Color(0xFF6B48FC),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
+
+                    // Catatan Driver info card
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9F8FF),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: const Color(0xFF6B48FC)
+                                .withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded,
+                              size: 16, color: Color(0xFF6B48FC)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Harga belanja akan disesuaikan dengan struk asli pembelian oleh driver.',
+                              style: GoogleFonts.roboto(
+                                fontSize: 10.5,
+                                color: const Color(0xFF6B6680),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -289,67 +410,84 @@ class ShoppingFormView extends StatelessWidget {
 
           // Bottom Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.06),
-                  offset: const Offset(0, -4),
                   blurRadius: 10,
+                  offset: const Offset(0, -3),
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Perkiraan Total Bayar',
-                        style: GoogleFonts.roboto(
-                          fontSize: 10.5,
-                          color: const Color(0xFF6B6680),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Total Titip Belanja',
+                          style: GoogleFonts.roboto(
+                            fontSize: 10.5,
+                            color: const Color(0xFF6B6680),
+                          ),
                         ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$totalItemCount Barang (${locations.length} Toko)',
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF17152B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: !isReadyToSearch
+                        ? () {
+                            String message = 'Silakan masukkan toko dan barang belanjaan terlebih dahulu';
+                            if (locations.isEmpty) {
+                              message = 'Silakan masukkan minimal 1 toko belanja';
+                            } else if (hasEmptyLocation) {
+                              message = 'Setiap tempat belanja wajib memiliki minimal 1 barang';
+                            }
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(message),
+                                backgroundColor: const Color(0xFF6B48FC),
+                              ),
+                            );
+                          }
+                        : onStartSearching,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 22, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: !isReadyToSearch
+                            ? const Color(0xFFB0B0C0)
+                            : const Color(0xFF17152B),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      Text(
-                        totalItems > 0
-                            ? 'Rp ${_formatRupiah(totalBayar)}'
-                            : 'Rp -',
+                      child: Text(
+                        'Cari Driver Belanja',
                         style: GoogleFonts.poppins(
-                          fontSize: 16,
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: const Color(0xFF17152B),
+                          color: Colors.white,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  key: const Key('btn_cari_driver_belanja'),
-                  onPressed: totalItems > 0 ? onStartSearching : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B1832),
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: const Color(0xFFE5E7EB),
-                    disabledForegroundColor: const Color(0xFF9CA3AF),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(
-                    'Cari Driver Belanja',
-                    style: GoogleFonts.roboto(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

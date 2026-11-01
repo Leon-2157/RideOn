@@ -3,27 +3,33 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
 import 'package:rideon/core/constants/app_colors.dart';
 
-/// Rating card for food and driver in Activity Summary
+/// Rating card for food/service and driver in Activity Summary (Read-Only / Fixed)
 class ActivityRatingCard extends StatelessWidget {
   final int foodRating;
   final int driverRating;
-  final ValueChanged<int> onFoodRatingChanged;
-  final ValueChanged<int> onDriverRatingChanged;
+  final ValueChanged<int>? onFoodRatingChanged;
+  final ValueChanged<int>? onDriverRatingChanged;
   final String driverName;
   final String vehicleInfo;
+  final String serviceType;
+  final bool isReadOnly;
 
   const ActivityRatingCard({
     super.key,
     required this.foodRating,
     required this.driverRating,
-    required this.onFoodRatingChanged,
-    required this.onDriverRatingChanged,
+    this.onFoodRatingChanged,
+    this.onDriverRatingChanged,
     required this.driverName,
     required this.vehicleInfo,
+    this.serviceType = 'FlexFood',
+    this.isReadOnly = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bool isFoodService = serviceType.toLowerCase().contains('food');
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -43,39 +49,41 @@ class ActivityRatingCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
-            'Nilai makanannya, yuk!',
-            style: GoogleFonts.roboto(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF17152B),
+          // Bagian Rating Makanan hanya muncul jika service adalah FlexFood
+          if (isFoodService) ...[
+            Text(
+              'Rating Makanan Diberikan',
+              style: GoogleFonts.roboto(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF17152B),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(5, (index) {
-              final filled = index < foodRating;
-              return GestureDetector(
-                onTap: () => onFoodRatingChanged(index + 1),
-                child: Padding(
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                final filled = index < foodRating;
+                return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4.0),
                   child: Icon(
                     filled ? Icons.star_rounded : Icons.star_outline_rounded,
                     size: 28,
                     color: filled
                         ? const Color(0xFFFFCC00)
-                        : const Color(0xFF17152B),
+                        : const Color(0xFFD1D5DB),
                   ),
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 14),
-          const Divider(height: 1, color: Color(0xFFE2E8F0)),
-          const SizedBox(height: 14),
+                );
+              }),
+            ),
+            const SizedBox(height: 14),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            const SizedBox(height: 14),
+          ],
+
+          // Rating Driver (FlexRide, FlexFood, FlexSend)
           Text(
-            'Jangan lupa rating driver, ya',
+            'Rating Driver Diberikan',
             style: GoogleFonts.roboto(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -87,17 +95,14 @@ class ActivityRatingCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(5, (index) {
               final filled = index < driverRating;
-              return GestureDetector(
-                onTap: () => onDriverRatingChanged(index + 1),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                  child: Icon(
-                    filled ? Icons.star_rounded : Icons.star_outline_rounded,
-                    size: 28,
-                    color: filled
-                        ? const Color(0xFFFFCC00)
-                        : const Color(0xFF17152B),
-                  ),
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: Icon(
+                  filled ? Icons.star_rounded : Icons.star_outline_rounded,
+                  size: 28,
+                  color: filled
+                      ? const Color(0xFFFFCC00)
+                      : const Color(0xFFD1D5DB),
                 ),
               );
             }),

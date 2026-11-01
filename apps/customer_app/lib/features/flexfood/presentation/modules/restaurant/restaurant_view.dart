@@ -7,6 +7,7 @@ class RestaurantView extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onOpenCustomization;
   final VoidCallback onGoToCheckout;
+  final String restaurantName;
   final int cartQuantity;
   final int subtotalPrice;
 
@@ -15,6 +16,7 @@ class RestaurantView extends StatelessWidget {
     required this.onBack,
     required this.onOpenCustomization,
     required this.onGoToCheckout,
+    this.restaurantName = 'Banku City Resto & Cafe',
     required this.cartQuantity,
     required this.subtotalPrice,
   });
@@ -26,7 +28,7 @@ class RestaurantView extends StatelessWidget {
       body: Column(
         children: [
           FlexFoodHeader(
-            title: '',
+            title: restaurantName,
             onBack: onBack,
           ),
           Expanded(
@@ -184,22 +186,24 @@ class RestaurantView extends StatelessWidget {
                             ],
                           ),
                         ),
-                        OutlinedButton(
-                          onPressed: onOpenCustomization,
-                          style: OutlinedButton.styleFrom(
-                            side:
-                                const BorderSide(color: Color(0xFF6B48FC)),
-                            foregroundColor: const Color(0xFF6B48FC),
-                            shape: RoundedRectangleBorder(
+                        GestureDetector(
+                          onTap: onOpenCustomization,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
                               borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF6B48FC)),
                             ),
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 6),
-                          ),
-                          child: Text(
-                            '+Tambah',
-                            style: GoogleFonts.roboto(
-                                fontSize: 12, fontWeight: FontWeight.w700),
+                            child: Text(
+                              '+Tambah',
+                              style: GoogleFonts.roboto(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF6B48FC),
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -267,22 +271,20 @@ class RestaurantView extends StatelessWidget {
                             ],
                           ),
                         ),
-                        ElevatedButton(
-                          onPressed: null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF817E91),
-                            disabledBackgroundColor:
-                                const Color(0xFF817E91),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 6),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF817E91),
+                            borderRadius: BorderRadius.circular(10),
                           ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 6),
                           child: Text(
                             'Habis',
                             style: GoogleFonts.roboto(
-                                fontSize: 12, color: Colors.white),
+                              fontSize: 12,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -325,22 +327,22 @@ class RestaurantView extends StatelessWidget {
                     ),
                   ),
                 ),
-                ElevatedButton(
-                  onPressed: onGoToCheckout,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6B48FC),
-                    foregroundColor: Colors.white,
+                GestureDetector(
+                  onTap: onGoToCheckout,
+                  child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 18, vertical: 10),
-                    shape: RoundedRectangleBorder(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6B48FC),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                  ),
-                  child: Text(
-                    'Lihat Keranjang',
-                    style: GoogleFonts.roboto(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                    child: Text(
+                      'Lihat Keranjang',
+                      style: GoogleFonts.roboto(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),

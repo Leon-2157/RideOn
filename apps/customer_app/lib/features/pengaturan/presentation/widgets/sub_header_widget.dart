@@ -4,20 +4,29 @@ import 'package:google_fonts/google_fonts.dart';
 /// Header Sub-Screen dengan gradient ungu lembut dan tombol kembali sesuai desain Figma
 Widget buildSubHeader(BuildContext context, String title, {VoidCallback? onBack}) {
   return Container(
+    width: double.infinity,
     decoration: const BoxDecoration(
       gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
         colors: [
-          Color(0xFFB4A5FE),
-          Color(0xFFE2DCFE),
-          Color(0xFFF7F5FF),
+          Color(0xFF9F88FD),
+          Color(0xFFBAA7FD),
+          Color(0xFFEFEAFF),
+          Color(0xFFFFFFFF),
         ],
+        stops: [0.0, 0.45, 0.85, 1.0],
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
       ),
-      borderRadius: BorderRadius.only(
-        bottomLeft: Radius.circular(28),
-        bottomRight: Radius.circular(28),
+      borderRadius: BorderRadius.vertical(
+        bottom: Radius.circular(28),
       ),
+      boxShadow: [
+        BoxShadow(
+          color: Color(0x18000000),
+          blurRadius: 10,
+          offset: Offset(0, 4),
+        ),
+      ],
     ),
     child: SafeArea(
       bottom: false,
@@ -26,18 +35,19 @@ Widget buildSubHeader(BuildContext context, String title, {VoidCallback? onBack}
         child: Row(
           children: [
             GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: onBack ?? () => Navigator.of(context).pop(),
               child: Container(
-                width: 34,
-                height: 34,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE6E0FF),
-                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.white.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
                   Icons.arrow_back_rounded,
                   size: 20,
-                  color: Color(0xFF17152B),
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -48,12 +58,12 @@ Widget buildSubHeader(BuildContext context, String title, {VoidCallback? onBack}
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF17152B),
+                    color: const Color(0xFF1E143E),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 34),
+            const SizedBox(width: 36),
           ],
         ),
       ),

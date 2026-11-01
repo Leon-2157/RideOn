@@ -112,7 +112,7 @@ class _PilihanTerlarisSectionState extends State<PilihanTerlarisSection> {
 
         // List horizontal kartu makanan dengan ruang shadow dan jarak presisi 14px Figma
         SizedBox(
-          height: 186,
+          height: 160,
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             scrollDirection: Axis.horizontal,

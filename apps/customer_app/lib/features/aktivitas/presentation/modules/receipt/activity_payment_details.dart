@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_colors.dart';
 
-/// Items list, payment breakdown, and action button in Activity Summary
+/// Items list and payment breakdown in Activity Summary
 class ActivityPaymentDetails extends StatelessWidget {
   final String paymentMethod;
-  final VoidCallback onReorder;
+  final VoidCallback? onReorder;
 
   const ActivityPaymentDetails({
     super.key,
     required this.paymentMethod,
-    required this.onReorder,
+    this.onReorder,
   });
 
   Widget _buildReceiptRow(String label, String value, {bool isBold = false}) {
@@ -82,36 +82,7 @@ class ActivityPaymentDetails extends StatelessWidget {
         _buildReceiptRow('Total', '29.500', isBold: true),
         const Divider(height: 20, color: Color(0xFFE2E8F0)),
         _buildReceiptRow(paymentMethod, '29.500'),
-        const SizedBox(height: 28),
-
-        GestureDetector(
-          onTap: onReorder,
-          child: Container(
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFF6B48FC),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF6B48FC).withValues(alpha: 0.35),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                'Mau lagi',
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
       ],
     );
   }

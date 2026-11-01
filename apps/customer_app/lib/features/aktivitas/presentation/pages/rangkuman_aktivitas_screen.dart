@@ -26,8 +26,15 @@ class RangkumanAktivitasScreen extends StatefulWidget {
 }
 
 class _RangkumanAktivitasScreenState extends State<RangkumanAktivitasScreen> {
-  int _foodRating = 0;
-  int _driverRating = 0;
+  late int _foodRating;
+  late int _driverRating;
+
+  @override
+  void initState() {
+    super.initState();
+    _foodRating = widget.activity['foodRating'] as int? ?? 5;
+    _driverRating = widget.activity['driverRating'] as int? ?? 5;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,56 +42,92 @@ class _RangkumanAktivitasScreenState extends State<RangkumanAktivitasScreen> {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          // Pastel lavender gradient header with back button and high-contrast dark title
+          // Header gradient horizontal lavender (#9F88FD) ke putih (#FFFFFF) presisi Figma node [44:9005]
           Container(
             width: double.infinity,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Color(0xFFB4A5FE),
-                  Color(0xFFE2DCFE),
-                  Color(0xFFF7F5FF),
+                  Color(0xFF9F88FD),
+                  Color(0xFFBAA7FD),
+                  Color(0xFFEFEAFF),
+                  Color(0xFFFFFFFF),
                 ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+                stops: [0.0, 0.45, 0.85, 1.0],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
               ),
               borderRadius: BorderRadius.vertical(
                 bottom: Radius.circular(28),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x18000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
             ),
             child: SafeArea(
               bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0, vertical: 14.0),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE6E0FF),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Color(0xFF17152B),
-                          size: 20,
+              child: SizedBox(
+                height: 63,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Color(0xFF1E143E),
+                            size: 20,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 14),
-                    Text(
-                      'Rangkuman Aktivitas',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF17152B),
+                      const SizedBox(width: 14),
+                      Text(
+                        'Rangkuman Aktivitas',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1E143E),
+                        ),
                       ),
-                    ),
-                  ],
+                      const Spacer(),
+                      StatefulBuilder(
+                        builder: (context, setFavState) {
+                          final bool isFav =
+                              widget.activity['isFav'] == true;
+                          return IconButton(
+                            icon: Icon(
+                              isFav
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              color: isFav
+                                  ? const Color(0xFF6B48FC)
+                                  : const Color(0xFF1E143E),
+                              size: 24,
+                            ),
+                            onPressed: () {
+                              setFavState(() {
+                                widget.activity['isFav'] = !isFav;
+                              });
+                            },
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -182,16 +225,14 @@ class _RangkumanAktivitasScreenState extends State<RangkumanAktivitasScreen> {
                   ),
                   const SizedBox(height: 18),
 
-                  // Rating Card
+                  // Rating Card (Fixed / Read-Only yang sudah dinilai sebelumnya)
                   ActivityRatingCard(
                     foodRating: _foodRating,
                     driverRating: _driverRating,
-                    onFoodRatingChanged: (val) =>
-                        setState(() => _foodRating = val),
-                    onDriverRatingChanged: (val) =>
-                        setState(() => _driverRating = val),
                     driverName: widget.activity['driver'] as String,
                     vehicleInfo: widget.activity['vehicle'] as String,
+                    serviceType: widget.activity['service'] as String,
+                    isReadOnly: true,
                   ),
                   const SizedBox(height: 18),
 
@@ -206,7 +247,6 @@ class _RangkumanAktivitasScreenState extends State<RangkumanAktivitasScreen> {
                   // Pembelian & Pembayaran
                   ActivityPaymentDetails(
                     paymentMethod: widget.activity['metode'] as String,
-                    onReorder: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),

@@ -5,11 +5,17 @@ import 'package:rideon/core/constants/app_assets.dart';
 class ConversationHeader extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onCall;
+  final bool isCustomerService;
+  final String? customTitle;
+  final String? customSubtitle;
 
   const ConversationHeader({
     super.key,
     required this.onBack,
     required this.onCall,
+    this.isCustomerService = false,
+    this.customTitle,
+    this.customSubtitle,
   });
 
   @override
@@ -19,16 +25,25 @@ class ConversationHeader extends StatelessWidget {
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Color(0xFFB4A5FE),
-            Color(0xFFE2DCFE),
-            Color(0xFFF7F5FF),
+            Color(0xFF9F88FD),
+            Color(0xFFBAA7FD),
+            Color(0xFFEFEAFF),
+            Color(0xFFFFFFFF),
           ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          stops: [0.0, 0.45, 0.85, 1.0],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
         ),
         borderRadius: BorderRadius.vertical(
           bottom: Radius.circular(28),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x18000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       child: SafeArea(
         bottom: false,
@@ -37,48 +52,63 @@ class ConversationHeader extends StatelessWidget {
               const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           child: Row(
             children: [
-              // Back button
+              // Back button (Glassmorphism transparan lembut ikon putih)
               GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: onBack,
                 child: Container(
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE6E0FF),
+                    color: Colors.white.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
                     Icons.arrow_back_rounded,
-                    color: Color(0xFF17152B),
+                    color: Colors.white,
                     size: 20,
                   ),
                 ),
               ),
               const SizedBox(width: 12),
 
-              // Driver Avatar with Online Indicator
+              // Avatar with Online Indicator (Driver vs CS)
               Stack(
                 clipBehavior: Clip.none,
                 children: [
                   Container(
-                    width: 42,
-                    height: 42,
-                    decoration: const BoxDecoration(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      image: DecorationImage(
-                        image: AssetImage(AppAssets.driverPikri),
-                        fit: BoxFit.cover,
-                      ),
+                      color: isCustomerService
+                          ? const Color(0xFF6B48FC)
+                          : null,
+                      image: !isCustomerService
+                          ? const DecorationImage(
+                              image: AssetImage(AppAssets.driverPikri),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
                     ),
+                    child: isCustomerService
+                        ? const Center(
+                            child: Icon(
+                              Icons.support_agent_rounded,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                          )
+                        : null,
                   ),
                   Positioned(
                     bottom: 0,
                     right: 0,
                     child: Container(
-                      width: 12,
-                      height: 12,
+                      width: 13,
+                      height: 13,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF27AE60),
+                        color: const Color(0xFF22C55E),
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
@@ -93,39 +123,27 @@ class ConversationHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(
-                      width: 0,
-                      height: 0,
-                      child: Text(
-                        'Pikri Haykal',
-                        style:
-                            TextStyle(fontSize: 0, color: Colors.transparent),
-                      ),
-                    ),
-                    const SizedBox(
-                      width: 0,
-                      height: 0,
-                      child: Text(
-                        'Honda Vario 160 Hitam • BG 4563 R',
-                        style:
-                            TextStyle(fontSize: 0, color: Colors.transparent),
-                      ),
-                    ),
                     Text(
-                      'Fikri haykal (Driver)',
+                      customTitle ??
+                          (isCustomerService
+                              ? 'Customer Service RideOn'
+                              : 'Fikri haykal (Driver)'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
-                        fontSize: 14.5,
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFF17152B),
+                        color: const Color(0xFF1E143E),
                       ),
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      'Online ( Sedang di Toko )',
+                      customSubtitle ??
+                          (isCustomerService
+                              ? 'Online ( Siap Membantu 24/7 )'
+                              : 'Online ( Sedang di Toko )'),
                       style: GoogleFonts.roboto(
-                        fontSize: 10.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w400,
                         color: Colors.white,
                       ),
@@ -134,23 +152,25 @@ class ConversationHeader extends StatelessWidget {
                 ),
               ),
 
-              // Voice Call Mint Button matching Figma chat-1.png
-              GestureDetector(
-                onTap: onCall,
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFDCFCE7),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.call_rounded,
-                    color: Color(0xFF16A34A),
-                    size: 20,
+              // Voice Call Mint Button (Hanya untuk Driver, DIHAPUS untuk Customer Service)
+              if (!isCustomerService)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onCall,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCFCE7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.call_rounded,
+                      color: Color(0xFF16A34A),
+                      size: 22,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
