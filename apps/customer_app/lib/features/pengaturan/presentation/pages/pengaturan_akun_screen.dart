@@ -1,20 +1,39 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../core/constants/app_assets.dart';
-import '../../../auth/presentation/pages/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Halaman Pengaturan Akun strictly matching Figma customer designs:
-/// - Node [44:1951] (pengaturan polos)
-/// - Ubah Tema Modal [44:2292] (mode terang, mode gelap, ikuti sistem)
-/// - Keluar Modal [44:3290] (keluar atau tidak)
-/// - Sub-screens:
-///   * Ubah Profil (ubah profil.png, pilih foto profil.png)
-///   * Nomor WhatsApp (NOMOR WA-1.png)
-///   * Alamat Email (hubungi email.png)
-///   * Keamanan Akun (ubah sandi.png)
-///   * Lokasi Anda (atur lokadi.png)
-///   * Kebijakan Privasi & Syarat (syarat dan ketentuan.png)
+// Sub-Screens Import
+import 'ubah_profil_screen.dart';
+import 'nomor_wa_screen.dart';
+import 'alamat_email_screen.dart';
+import 'keamanan_akun_screen.dart';
+import 'lokasi_anda_screen.dart';
+import 'kebijakan_privasi_screen.dart';
+
+// Widgets Import
+import '../widgets/profil_header_card.dart';
+import '../widgets/menu_item_tile.dart';
+import '../widgets/tombol_keluar_akun.dart';
+
+// Exports untuk menjaga kompatibilitas seluruh import eksternal & test suite
+export 'ubah_profil_screen.dart';
+export 'atur_posisi_foto_screen.dart';
+export 'nomor_wa_screen.dart';
+export 'alamat_email_screen.dart';
+export 'keamanan_akun_screen.dart';
+export 'lokasi_anda_screen.dart';
+export 'kebijakan_privasi_screen.dart';
+export '../widgets/profil_header_card.dart';
+export '../widgets/menu_item_tile.dart';
+export '../widgets/tombol_keluar_akun.dart';
+export '../widgets/email_verification_dialog.dart';
+export '../widgets/country_code_selector.dart';
+export '../widgets/crop_frame_painter.dart';
+export '../widgets/sub_header_widget.dart';
+
+/// Halaman Utama Pengaturan Akun (Clean Architecture Orchestrator)
+/// Menyusun Header, Card 1 (Profil Info), Card 2 (Menu Items), dan Tombol Keluar Akun
 class PengaturanAkunScreen extends StatefulWidget {
   const PengaturanAkunScreen({super.key});
 
@@ -27,7 +46,67 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
   String _userName = 'Peter';
   String _phoneNumber = '0812-3456-7890';
   String _email = 'Belum ditambahkan';
+  String? _photoUrl;
   bool _isEmailAdded = false;
+  bool _isEmailVerified = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUserData();
+  }
+
+  void _loadCurrentUserData() {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        if (user.displayName != null && user.displayName!.isNotEmpty) {
+          setState(() {
+            _userName = user.displayName!;
+          });
+        }
+        if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty) {
+          setState(() {
+            _phoneNumber = user.phoneNumber!;
+          });
+        }
+        if (user.photoURL != null && user.photoURL!.isNotEmpty) {
+          setState(() {
+            _photoUrl = user.photoURL;
+          });
+        }
+
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get()
+            .then((doc) {
+          if (doc.exists && mounted) {
+            final data = doc.data()!;
+            setState(() {
+              _userName = data['name'] ?? _userName;
+              _phoneNumber = data['phoneNumber'] ?? _phoneNumber;
+              final pUrl = data['photoUrl'] as String?;
+              if (pUrl != null && pUrl.isNotEmpty) {
+                _photoUrl = pUrl;
+              }
+              final email = (data['email'] as String?)?.trim();
+              final isVerif = data['emailVerified'] == true;
+              if (email != null && email.isNotEmpty && !email.endsWith('@rideon.id') && isVerif) {
+                _email = email;
+                _isEmailAdded = true;
+                _isEmailVerified = true;
+              } else {
+                _email = 'Belum ditambahkan';
+                _isEmailAdded = false;
+                _isEmailVerified = false;
+              }
+            });
+          }
+        }).catchError((_) {});
+      }
+    } catch (_) {}
+  }
 
   void _showThemeBottomSheet() {
     showModalBottomSheet(
@@ -238,118 +317,82 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
     );
   }
 
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-          child: Dialog(
-            backgroundColor: Colors.transparent,
-            insetPadding: const EdgeInsets.symmetric(horizontal: 36),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
-              decoration: BoxDecoration(
-                color: const Color(0xFF7E799B).withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.35),
-                  width: 1.2,
+  Widget _buildTopHeader(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFB4A5FE),
+            Color(0xFFE2DCFE),
+            Color(0xFFF7F5FF),
+          ],
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE6E0FF),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_rounded,
+                    size: 20,
+                    color: Color(0xFF17152B),
+                  ),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Keluar dari akun anda?',
-                    textAlign: TextAlign.center,
+              Expanded(
+                child: Center(
+                  child: Text(
+                    'Pengaturan Akun',
                     style: GoogleFonts.poppins(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: const Color(0xFF17152B),
                     ),
                   ),
-                  const SizedBox(height: 24),
-
-                  // KELUAR Button (Red)
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
-                        ),
-                        (route) => false,
-                      );
-                    },
-                    child: Container(
-                      height: 44,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFE83535), Color(0xFFD61F1F)],
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFE83535).withValues(alpha: 0.4),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          'KELUAR',
-                          style: GoogleFonts.roboto(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // BATALKAN Button (Silver/Gray)
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Container(
-                      height: 44,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE1E4EA),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Center(
-                        child: Text(
-                          'BATALKAN',
-                          style: GoogleFonts.roboto(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1B1832),
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(width: 34), // Balancing back button
+            ],
           ),
-        );
-      },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsCard(List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFFC7BCFE),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6B48FC).withValues(alpha: 0.15),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        children: children,
+      ),
     );
   }
 
@@ -369,8 +412,13 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Profile Card
-                  _buildProfileCard(),
+                  // Card 1: Informasi Akun (Avatar, Nama, No HP, Verified Badge)
+                  ProfilHeaderCard(
+                    userName: _userName,
+                    phoneNumber: _phoneNumber,
+                    photoUrl: _photoUrl,
+                    isVerified: true,
+                  ),
                   const SizedBox(height: 20),
 
                   // Section Title: PENGATURAN AKUN
@@ -387,32 +435,40 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                     ),
                   ),
 
-                  // Settings Group Card
+                  // Card 2: Settings Group Card
                   _buildSettingsCard([
-                    _buildSettingItem(
+                    MenuItemTile(
                       icon: Icons.person_outline_rounded,
                       title: 'Ubah Profil',
                       subtitle: 'Nama dan foto akun',
                       onTap: () async {
-                        final result = await Navigator.of(context).push<String>(
+                        final result = await Navigator.of(context).push<Map<String, dynamic>>(
                           MaterialPageRoute(
-                            builder: (context) => UbahProfilScreen(currentName: _userName),
+                            builder: (context) => UbahProfilScreen(
+                              currentName: _userName,
+                              currentPhotoUrl: _photoUrl,
+                            ),
                           ),
                         );
                         if (result != null) {
                           setState(() {
-                            _userName = result;
+                            if (result['name'] != null && (result['name'] as String).isNotEmpty) {
+                              _userName = result['name'];
+                            }
+                            if (result['photoUrl'] != null) {
+                              _photoUrl = result['photoUrl'];
+                            }
                           });
                         }
                       },
                     ),
-                    _buildSettingItem(
+                    MenuItemTile(
                       icon: Icons.palette_outlined,
                       title: 'Ubah Tema',
                       subtitle: 'Sesuaikan Tema',
                       onTap: _showThemeBottomSheet,
                     ),
-                    _buildSettingItem(
+                    MenuItemTile(
                       icon: Icons.chat_bubble_outline_rounded,
                       title: 'Nomor WhatsApp',
                       subtitle: '• $_phoneNumber',
@@ -430,38 +486,56 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                         }
                       },
                     ),
-                    _buildSettingItem(
+                    MenuItemTile(
                       icon: Icons.mail_outline_rounded,
                       title: 'Alamat Email',
-                      subtitle: _isEmailAdded ? _email : '• Belum ditambahkan',
-                      badgeText: _isEmailAdded ? 'Aktif' : '+Tambahkan',
+                      subtitle: (_isEmailAdded && _isEmailVerified) ? _email : '• Belum ditambahkan',
+                      badgeText: (_isEmailAdded && _isEmailVerified)
+                          ? 'Aktif'
+                          : '+Tambahkan',
+                      badgeColor: const Color(0xFF8CE1D7),
+                      badgeTextColor: const Color(0xFF114B44),
                       onTap: () async {
                         final result = await Navigator.of(context).push<String>(
                           MaterialPageRoute(
-                            builder: (context) => const AlamatEmailScreen(),
+                            builder: (context) => AlamatEmailScreen(
+                              currentEmail: (_isEmailAdded && _isEmailVerified) ? _email : '',
+                              userPhone: _phoneNumber,
+                              isEmailVerified: _isEmailVerified,
+                            ),
                           ),
                         );
                         if (result != null) {
                           setState(() {
                             _email = result;
                             _isEmailAdded = true;
+                            _isEmailVerified = true;
                           });
+                          _loadCurrentUserData();
                         }
                       },
                     ),
-                    _buildSettingItem(
+                    MenuItemTile(
                       icon: Icons.lock_outline_rounded,
                       title: 'Keamanan Akun',
                       subtitle: 'Ubah kata sandi akun',
-                      onTap: () {
-                        Navigator.of(context).push(
+                      onTap: () async {
+                        final result = await Navigator.of(context).push<bool>(
                           MaterialPageRoute(
                             builder: (context) => const KeamananAkunScreen(),
                           ),
                         );
+                        if (result == true && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Kata sandi berhasil diperbarui!'),
+                              backgroundColor: Color(0xFF6B48FC),
+                            ),
+                          );
+                        }
                       },
                     ),
-                    _buildSettingItem(
+                    MenuItemTile(
                       icon: Icons.location_on_outlined,
                       title: 'Lokasi Anda',
                       subtitle: 'Atur lokasi',
@@ -548,46 +622,8 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // KELUAR AKUN Button
-                  Center(
-                    child: GestureDetector(
-                      onTap: _showLogoutDialog,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 11),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1B1832),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.22),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.open_in_new_rounded,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'KELUAR AKUN',
-                              style: GoogleFonts.roboto(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                  // Bottom Logout Button
+                  const TombolKeluarAkun(),
                   const SizedBox(height: 24),
                 ],
               ),
@@ -597,1501 +633,4 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
       ),
     );
   }
-
-  Widget _buildTopHeader(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFB4A5FE),
-            Color(0xFFE2DCFE),
-            Color(0xFFF7F5FF),
-          ],
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(28),
-          bottomRight: Radius.circular(28),
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE6E0FF),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back_rounded,
-                    size: 20,
-                    color: Color(0xFF17152B),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'Pengaturan Akun',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF17152B),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 34), // Balancing back button
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 14.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFFC7BCFE),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF6B48FC).withValues(alpha: 0.15),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Circular Peter Avatar with white ring border
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-              image: const DecorationImage(
-                image: AssetImage(AppAssets.userAvatar),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-
-          // User Info (Name + Phone)
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _userName,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF17152B),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.chat_bubble_outline_rounded,
-                      size: 13,
-                      color: Color(0xFF17152B),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      _phoneNumber,
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF17152B),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Verified Pill Badge (Cyan/Teal)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: const Color(0xFF8CE1D7),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Text(
-              'Verified',
-              style: GoogleFonts.roboto(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF114B44),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingsCard(List<Widget> children) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFFC7BCFE),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF6B48FC).withValues(alpha: 0.15),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        children: children,
-      ),
-    );
-  }
-
-  Widget _buildSettingItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    String? badgeText,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD6CEFF),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF17152B),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.roboto(
-                        fontSize: 10.5,
-                        color: const Color(0xFF4C4566),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (badgeText != null) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF8CE1D7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    badgeText,
-                    style: GoogleFonts.roboto(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF114B44),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SUB-SCREEN 1: Ubah Profil (Figma ubah profil.png & pilih foto profil.png)
-// ---------------------------------------------------------------------------
-class UbahProfilScreen extends StatefulWidget {
-  final String currentName;
-
-  const UbahProfilScreen({super.key, required this.currentName});
-
-  @override
-  State<UbahProfilScreen> createState() => _UbahProfilScreenState();
-}
-
-class _UbahProfilScreenState extends State<UbahProfilScreen> {
-  late TextEditingController _nameController;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController(text: widget.currentName);
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  void _showPilihFotoSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1B1832),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.camera_alt_rounded,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Pilih Foto Profil',
-                    style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1B1832),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              _buildFotoSourceOption(
-                icon: Icons.camera_alt_rounded,
-                title: 'Pilih Foto Profil',
-                subtitle: 'Buka Kamera dan Ambil Foto',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Foto kamera dipilih')),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildFotoSourceOption(
-                icon: Icons.image_rounded,
-                title: 'Pilih Dari Galeri',
-                subtitle: 'Pilih Foto Dari Perangkat',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Foto galeri dipilih')),
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1B1832),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: Text(
-                  'BATAL',
-                  style: GoogleFonts.roboto(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildFotoSourceOption({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1EEFF),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: const Color(0xFF6B48FC),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 20, color: Colors.white),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1B1832),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.roboto(
-                      fontSize: 11,
-                      color: const Color(0xFF6B6680),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: Color(0xFF1B1832)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          _buildSubHeader(context, 'Ubah Profil'),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Container(
-                padding: const EdgeInsets.all(20.0),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFC7BCFE),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6B48FC).withValues(alpha: 0.15),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Avatar with Camera Badge
-                    Center(
-                      child: Stack(
-                        children: [
-                          Container(
-                            width: 110,
-                            height: 110,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
-                              image: const DecorationImage(
-                                image: AssetImage(AppAssets.userAvatar),
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 2,
-                            right: 2,
-                            child: GestureDetector(
-                              onTap: _showPilihFotoSheet,
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1B1832),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2),
-                                ),
-                                child: const Icon(
-                                  Icons.camera_alt_rounded,
-                                  size: 18,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Nama Lengkap Label
-                    Text(
-                      'Nama Lengkap',
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF17152B),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Input Field
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDCD7FF),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.6),
-                          width: 1.2,
-                        ),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: TextField(
-                        controller: _nameController,
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF17152B),
-                        ),
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // SIMPAN PERUBAHAN Button
-                    GestureDetector(
-                      onTap: () {
-                        final newName = _nameController.text.trim();
-                        if (newName.isNotEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Perubahan profil berhasil disimpan!'),
-                              backgroundColor: Color(0xFF6B48FC),
-                            ),
-                          );
-                          Navigator.of(context).pop(newName);
-                        }
-                      },
-                      child: Container(
-                        height: 44,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1B1832),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.save_rounded,
-                              size: 18,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'SIMPAN PERUBAHAN',
-                              style: GoogleFonts.roboto(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SUB-SCREEN 2: Nomor WhatsApp (Figma NOMOR WA-1.png)
-// ---------------------------------------------------------------------------
-class NomorWaScreen extends StatefulWidget {
-  final String currentPhone;
-
-  const NomorWaScreen({super.key, required this.currentPhone});
-
-  @override
-  State<NomorWaScreen> createState() => _NomorWaScreenState();
-}
-
-class _NomorWaScreenState extends State<NomorWaScreen> {
-  final _passwordController = TextEditingController();
-  final _phoneController = TextEditingController();
-
-  @override
-  void dispose() {
-    _passwordController.dispose();
-    _phoneController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          _buildSubHeader(context, 'Nomor WhatsApp'),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  // Info Card
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFC7BCFE),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'Nomor WhatsApp terdaftar saat ini: ${widget.currentPhone}\n'
-                      'Untuk menggantinya, masukkan nomor baru Anda. Kami akan mengirimkan 6 digit kode OTP verifikasi ke nomor baru.',
-                      style: GoogleFonts.roboto(
-                        fontSize: 11.5,
-                        color: const Color(0xFF17152B),
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Form Card
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFC7BCFE),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Konfirmasi Kata Sandi Akun',
-                          style: GoogleFonts.roboto(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF17152B),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildInputField(
-                          controller: _passwordController,
-                          hintText: 'Masukkan kata sandi akun',
-                          icon: Icons.lock_outline_rounded,
-                          isPassword: true,
-                        ),
-                        const SizedBox(height: 18),
-                        Text(
-                          'Nomor WhatsApp Baru',
-                          style: GoogleFonts.roboto(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF17152B),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildInputField(
-                          controller: _phoneController,
-                          hintText: '084567891234',
-                          icon: Icons.chat_bubble_outline_rounded,
-                          keyboardType: TextInputType.phone,
-                        ),
-                        const SizedBox(height: 24),
-                        GestureDetector(
-                          onTap: () {
-                            final newPhone = _phoneController.text.trim();
-                            if (newPhone.isNotEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Kode OTP telah dikirimkan ke WhatsApp Anda!'),
-                                  backgroundColor: Color(0xFF6B48FC),
-                                ),
-                              );
-                              Navigator.of(context).pop(newPhone);
-                            }
-                          },
-                          child: Container(
-                            height: 44,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1B1832),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Center(
-                              child: Text(
-                                'KIRIM KODE OTP WHATSAPP',
-                                style: GoogleFonts.roboto(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SUB-SCREEN 3: Alamat Email (Figma hubungi email.png)
-// ---------------------------------------------------------------------------
-class AlamatEmailScreen extends StatefulWidget {
-  const AlamatEmailScreen({super.key});
-
-  @override
-  State<AlamatEmailScreen> createState() => _AlamatEmailScreenState();
-}
-
-class _AlamatEmailScreenState extends State<AlamatEmailScreen> {
-  final _passwordController = TextEditingController();
-  final _emailController = TextEditingController();
-
-  @override
-  void dispose() {
-    _passwordController.dispose();
-    _emailController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          _buildSubHeader(context, 'Alamat Email'),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  // Info Card
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFC7BCFE),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFD6CEFF),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.shield_outlined,
-                            size: 20,
-                            color: Color(0xFF17152B),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Hubungkan Email Anda',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF17152B),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Tambahkan alamat email resmi untuk menerima e-receipt bukti sewa transaksi dan memudahkan pemulihan akun sewaktu-waktu.',
-                                style: GoogleFonts.roboto(
-                                  fontSize: 11,
-                                  color: const Color(0xFF17152B),
-                                  height: 1.35,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Form Card
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFC7BCFE),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Konfirmasi Kata Sandi Akun',
-                          style: GoogleFonts.roboto(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF17152B),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildInputField(
-                          controller: _passwordController,
-                          hintText: 'Masukkan kata sandi akun',
-                          icon: Icons.lock_outline_rounded,
-                          isPassword: true,
-                        ),
-                        const SizedBox(height: 18),
-                        Text(
-                          'Alamat Email Aktif',
-                          style: GoogleFonts.roboto(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF17152B),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildInputField(
-                          controller: _emailController,
-                          hintText: 'peter@gmail.com',
-                          icon: Icons.mail_outline_rounded,
-                          keyboardType: TextInputType.emailAddress,
-                        ),
-                        const SizedBox(height: 24),
-                        GestureDetector(
-                          onTap: () {
-                            final email = _emailController.text.trim();
-                            if (email.isNotEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Email berhasil ditambahkan!'),
-                                  backgroundColor: Color(0xFF6B48FC),
-                                ),
-                              );
-                              Navigator.of(context).pop(email);
-                            }
-                          },
-                          child: Container(
-                            height: 44,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1B1832),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Center(
-                              child: Text(
-                                'SIMPAN & KIRIM OTP',
-                                style: GoogleFonts.roboto(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SUB-SCREEN 4: Keamanan Akun (Figma ubah sandi.png)
-// ---------------------------------------------------------------------------
-class KeamananAkunScreen extends StatefulWidget {
-  const KeamananAkunScreen({super.key});
-
-  @override
-  State<KeamananAkunScreen> createState() => _KeamananAkunScreenState();
-}
-
-class _KeamananAkunScreenState extends State<KeamananAkunScreen> {
-  final _oldPassController = TextEditingController();
-  final _newPassController = TextEditingController();
-  final _confirmPassController = TextEditingController();
-
-  bool _obscureOld = true;
-  bool _obscureNew = true;
-  bool _obscureConfirm = true;
-
-  @override
-  void dispose() {
-    _oldPassController.dispose();
-    _newPassController.dispose();
-    _confirmPassController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          _buildSubHeader(context, 'Keamanan Akun'),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFC7BCFE),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Kata Sandi Saat ini *',
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF17152B),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildPasswordInput(
-                      controller: _oldPassController,
-                      hintText: 'Masukkan sandi saat ini',
-                      obscure: _obscureOld,
-                      onToggle: () => setState(() => _obscureOld = !_obscureOld),
-                    ),
-                    const SizedBox(height: 18),
-
-                    Text(
-                      'Kata Sandi Baru *',
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF17152B),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildPasswordInput(
-                      controller: _newPassController,
-                      hintText: 'Minimal 8 karakter',
-                      obscure: _obscureNew,
-                      onToggle: () => setState(() => _obscureNew = !_obscureNew),
-                    ),
-                    const SizedBox(height: 18),
-
-                    Text(
-                      'Konfirmasi Sandi Baru',
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF17152B),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildPasswordInput(
-                      controller: _confirmPassController,
-                      hintText: 'Ketik ulang sandi baru',
-                      obscure: _obscureConfirm,
-                      onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                    ),
-                    const SizedBox(height: 24),
-
-                    GestureDetector(
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Kata sandi berhasil diperbarui!'),
-                            backgroundColor: Color(0xFF6B48FC),
-                          ),
-                        );
-                        Navigator.of(context).pop();
-                      },
-                      child: Container(
-                        height: 44,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1B1832),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: Text(
-                            'SIMPAN SANDI BARU',
-                            style: GoogleFonts.roboto(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPasswordInput({
-    required TextEditingController controller,
-    required String hintText,
-    required bool obscure,
-    required VoidCallback onToggle,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFDCD7FF),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.6),
-          width: 1.2,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: TextField(
-        controller: controller,
-        obscureText: obscure,
-        style: GoogleFonts.roboto(fontSize: 13, color: const Color(0xFF17152B)),
-        decoration: InputDecoration(
-          hintText: hintText,
-          hintStyle: GoogleFonts.roboto(fontSize: 12, color: const Color(0xFF6B6680)),
-          border: InputBorder.none,
-          suffixIcon: IconButton(
-            icon: Icon(
-              obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              size: 20,
-              color: const Color(0xFF17152B),
-            ),
-            onPressed: onToggle,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SUB-SCREEN 5: Lokasi Anda (Figma atur lokadi.png)
-// ---------------------------------------------------------------------------
-class LokasiAndaScreen extends StatefulWidget {
-  const LokasiAndaScreen({super.key});
-
-  @override
-  State<LokasiAndaScreen> createState() => _LokasiAndaScreenState();
-}
-
-class _LokasiAndaScreenState extends State<LokasiAndaScreen> {
-  String _currentAddress = 'Klik tombol GPS di atas untuk mengisi alamat secara otomatis.';
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          _buildSubHeader(context, 'Lokasi Anda'),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFC7BCFE),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD6CEFF),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.map_rounded,
-                        size: 26,
-                        color: Color(0xFF17152B),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Atur Lokasi Anda',
-                      style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF17152B),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // GPS Button
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _currentAddress = 'Jl. Pegangsaan Timur No. 56, Jakarta Pusat (Titik Akurat GPS)';
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Lokasi GPS berhasil didapatkan!'),
-                            backgroundColor: Color(0xFF6B48FC),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDCD7FF),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            width: 1.2,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.navigation_rounded,
-                              size: 16,
-                              color: Color(0xFF17152B),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Gunakan Titik GPS Saat Ini',
-                              style: GoogleFonts.roboto(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF17152B),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Detail Alamat
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Detail Alamat Lengkap',
-                        style: GoogleFonts.roboto(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF17152B),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        _currentAddress,
-                        style: GoogleFonts.roboto(
-                          fontSize: 11,
-                          color: const Color(0xFF4C4566),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // SIMPAN TITIK LOKASI Button
-                    GestureDetector(
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Titik lokasi berhasil disimpan!'),
-                            backgroundColor: Color(0xFF6B48FC),
-                          ),
-                        );
-                        Navigator.of(context).pop();
-                      },
-                      child: Container(
-                        height: 44,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1B1832),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: Text(
-                            'SIMPAN TITIK LOKASI',
-                            style: GoogleFonts.roboto(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SUB-SCREEN 6: Kebijakan Privasi & Syarat (Figma syarat dan ketentuan.png)
-// ---------------------------------------------------------------------------
-class KebijakanPrivasiScreen extends StatelessWidget {
-  const KebijakanPrivasiScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          _buildSubHeader(context, 'Kebijakan Privasi & syarat'),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFE2DCFE), width: 1.2),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header Box
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFC7BCFE),
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Syarat & Ketentuan RideOn',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF17152B),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Ketentuan umum penggunaan layanan transportasi',
-                            style: GoogleFonts.roboto(
-                              fontSize: 10.5,
-                              color: const Color(0xFF4C4566),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Body Terms
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Selamat datang di RideOn. Dengan mendaftar dan menggunakan platform ini, '
-                            'Anda menyatakan tunduk dan terikat pada syarat dan ketentuan berikut sesuai hukum yang berlaku di Republik Indonesia.',
-                            style: GoogleFonts.roboto(
-                              fontSize: 11,
-                              color: const Color(0xFF4C4566),
-                              height: 1.4,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          _buildSectionTitle('1. Ketentuan Umum & Definisi'),
-                          _buildSectionBody(
-                            '• RideOn adalah platform perantara yang mempertemukan pihak yang menyediakan layanan transportasi (Mitra Pengemudi) dengan pihak yang membutuhkan layanan perjalanan (Penumpang/Customer).\n'
-                            '• RideOn tidak memiliki, menguasai, atau mengelola armada kendaraan yang digunakan oleh Mitra Pengemudi di dalam platform ini.\n'
-                            '• Pengguna wajib berusia minimal 17 tahun dan/atau memiliki identitas resmi (KTP/SIM/Paspor) yang sah menurut hukum Republik Indonesia.',
-                          ),
-                          const SizedBox(height: 14),
-                          _buildSectionTitle('2. Tanggung Jawab & Kewajiban Customer'),
-                          _buildSectionBody(
-                            '• Customer wajib memberikan informasi titik penjemputan dan titik tujuan yang asli dan valid saat melakukan transaksi pemesanan perjalanan.\n'
-                            '• Customer dilarang keras membawa barang terlarang, ilegal, berbahaya, atau hewan yang tidak sesuai dengan kebijakan keselamatan.\n'
-                            '• Customer wajib mematuhi peraturan lalu lintas, termasuk menggunakan helm pelindung yang disediakan oleh Mitra Pengemudi.',
-                          ),
-                          const SizedBox(height: 14),
-                          _buildSectionTitle('3. Tanggung Jawab & Hak Mitra Pengemudi (Driver)'),
-                          _buildSectionBody(
-                            '• Mitra Pengemudi bertanggung jawab penuh atas keselamatan penumpang, kelayakan jalan kendaraan, serta kesesuaian identitas dan plat nomor kendaraan.\n'
-                            '• Mitra Pengemudi berhak menolak pesanan jika Customer dinilai mencurigakan atau membawa muatan berlebih.',
-                          ),
-                          const SizedBox(height: 14),
-                          _buildSectionTitle('4. Batasan Tanggung Jawab'),
-                          _buildSectionBody(
-                            '• RideOn terlepas dari segala tuntutan hukum atas kecelakaan, kehilangan barang bawaan, cedera, atau tindakan kriminal di luar prosedur standar aplikasi.\n'
-                            '• Segala sengketa adalah tanggung jawab penuh antara Mitra Pengemudi dan Customer. RideOn bertindak sebagai mediator untuk membantu menyelesaikan perselisihan.',
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: GoogleFonts.roboto(
-        fontSize: 11.5,
-        fontWeight: FontWeight.w700,
-        color: const Color(0xFF17152B),
-      ),
-    );
-  }
-
-  Widget _buildSectionBody(String body) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4.0),
-      child: Text(
-        body,
-        style: GoogleFonts.roboto(
-          fontSize: 10.5,
-          color: const Color(0xFF4C4566),
-          height: 1.45,
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Shared Sub-Header for Settings Sub-Screens
-// ---------------------------------------------------------------------------
-Widget _buildSubHeader(BuildContext context, String title) {
-  return Container(
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Color(0xFFB4A5FE),
-          Color(0xFFE2DCFE),
-          Color(0xFFF7F5FF),
-        ],
-      ),
-      borderRadius: BorderRadius.only(
-        bottomLeft: Radius.circular(28),
-        bottomRight: Radius.circular(28),
-      ),
-    ),
-    child: SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        child: Row(
-          children: [
-            GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE6E0FF),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.arrow_back_rounded,
-                  size: 20,
-                  color: Color(0xFF17152B),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF17152B),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 34),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Shared Input Field for Sub-Screens
-// ---------------------------------------------------------------------------
-Widget _buildInputField({
-  required TextEditingController controller,
-  required String hintText,
-  required IconData icon,
-  bool isPassword = false,
-  TextInputType keyboardType = TextInputType.text,
-}) {
-  return Container(
-    decoration: BoxDecoration(
-      color: const Color(0xFFDCD7FF),
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(
-        color: Colors.white.withValues(alpha: 0.6),
-        width: 1.2,
-      ),
-    ),
-    padding: const EdgeInsets.symmetric(horizontal: 14),
-    child: Row(
-      children: [
-        Icon(icon, size: 20, color: const Color(0xFF17152B)),
-        const SizedBox(width: 10),
-        Expanded(
-          child: TextField(
-            controller: controller,
-            obscureText: isPassword,
-            keyboardType: keyboardType,
-            style: GoogleFonts.roboto(
-              fontSize: 13,
-              color: const Color(0xFF17152B),
-            ),
-            decoration: InputDecoration(
-              hintText: hintText,
-              hintStyle: GoogleFonts.roboto(
-                fontSize: 12,
-                color: const Color(0xFF6B6680),
-              ),
-              border: InputBorder.none,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
 }

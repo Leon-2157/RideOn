@@ -1,11 +1,16 @@
+import 'dart:async';
 import 'dart:ui';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../data/auth_service.dart';
+import '../../data/wa_gateway_service.dart';
 
 enum ForgotPasswordStep {
   requestOtp, // figma: Lupa kata sandi.png
-  verifyOtp,  // figma: verif.png, verif angka.png, verif salah.png
+  verifyOtp, // figma: verif.png, verif angka.png, verif salah.png
   resetPassword, // figma: sandi baru.png
 }
 
@@ -18,7 +23,14 @@ enum ForgotPasswordStep {
 /// - figma/HalamanLogin/sandi baru.png
 /// - figma/HalamanLogin/ubah sandi success.png
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  final AuthService? authService;
+  final WaGatewayService? waGatewayService;
+
+  const ForgotPasswordScreen({
+    super.key,
+    this.authService,
+    this.waGatewayService,
+  });
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -27,82 +39,440 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   ForgotPasswordStep _currentStep = ForgotPasswordStep.requestOtp;
 
+  // Services
+  late final AuthService _authService;
+  late final WaGatewayService _waGatewayService;
+
   // Controllers
   final TextEditingController _identifierController = TextEditingController();
   final List<TextEditingController> _otpControllers =
       List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> _otpFocusNodes =
+      List.generate(6, (_) => FocusNode());
   final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
   bool _hasOtpError = false;
   bool _hasPasswordError = false;
+  String? _errorMessage;
+
+  String _normalizedPhone = '';
+  String? _matchedUserEmail;
+  int _resendCountdown = 60;
+  Timer? _countdownTimer;
+
+  bool get _isEmailInput => _identifierController.text.trim().contains('@');
+
+  @override
+  void initState() {
+    super.initState();
+    _authService = widget.authService ?? AuthService();
+    _waGatewayService = widget.waGatewayService ?? WaGatewayService();
+    _identifierController.addListener(_onIdentifierChanged);
+  }
+
+  void _onIdentifierChanged() {
+    if (mounted) {
+      setState(() {
+        _errorMessage = null;
+      });
+    }
+  }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
+    _identifierController.removeListener(_onIdentifierChanged);
     _identifierController.dispose();
     for (var c in _otpControllers) {
       c.dispose();
+    }
+    for (var f in _otpFocusNodes) {
+      f.dispose();
     }
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  void _sendOtp() {
-    final text = _identifierController.text.trim();
-    if (text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Masukkan no. WhatsApp atau email')),
-      );
-      return;
-    }
-    // Prefill OTP for testing/simulation
-    _otpControllers[0].text = '1';
-    _otpControllers[1].text = '2';
-    _otpControllers[2].text = '3';
-    _otpControllers[3].text = '4';
-    _otpControllers[4].text = '5';
-    _otpControllers[5].text = '6';
-
-    setState(() {
-      _currentStep = ForgotPasswordStep.verifyOtp;
-      _hasOtpError = false;
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    setState(() => _resendCountdown = 60);
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_resendCountdown > 0) {
+        setState(() => _resendCountdown--);
+      } else {
+        timer.cancel();
+      }
     });
   }
 
-  void _verifyOtp() {
-    final otp = _otpControllers.map((c) => c.text).join();
+  // ---------------------------------------------------------------------------
+  // Action Handlers
+  // ---------------------------------------------------------------------------
+  Future<void> _sendOtp({bool isResend = false}) async {
+    final text = _identifierController.text.trim();
+    if (text.isEmpty) {
+      setState(() {
+        _errorMessage = 'Masukkan no. WhatsApp atau alamat email.';
+      });
+      return;
+    }
+
+    final isEmail = text.contains('@');
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _hasOtpError = false;
+    });
+
+    if (isEmail) {
+      // Alur Email: Kirim link reset password resmi via Firebase Auth
+      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+      if (!emailRegex.hasMatch(text)) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Format alamat email tidak valid.';
+        });
+        return;
+      }
+
+      try {
+        await _authService.auth.sendPasswordResetEmail(email: text.toLowerCase());
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        _showEmailSentDialog(text.toLowerCase());
+      } on FirebaseAuthException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          if (e.code == 'user-not-found') {
+            _errorMessage = 'Alamat email ini belum terdaftar di RideOn.';
+          } else {
+            _errorMessage = e.message ?? 'Gagal mengirim email reset kata sandi.';
+          }
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Gagal mengirim email: $e';
+        });
+      }
+    } else {
+      // Alur WhatsApp: Kirim OTP 6 Digit via WhatsApp Gateway
+      final normalized = _authService.normalizePhoneNumber(text);
+      if (normalized.length < 10) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Nomor WhatsApp tidak valid (minimal 10 digit).';
+        });
+        return;
+      }
+
+      try {
+        // Cek apakah nomor terdaftar di Firestore
+        final isRegistered = await _authService.isPhoneRegistered(normalized);
+        if (!isRegistered) {
+          if (!mounted) return;
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Nomor WhatsApp belum terdaftar di RideOn. Silakan daftar terlebih dahulu.';
+          });
+          return;
+        }
+
+        // Cari user doc di Firestore untuk deteksi email akun
+        try {
+          final query = await _authService.firestore
+              .collection('users')
+              .where('phoneNumber', isEqualTo: normalized)
+              .limit(1)
+              .get();
+          if (query.docs.isNotEmpty) {
+            final data = query.docs.first.data();
+            final regEmail = (data['email'] as String?)?.trim();
+            final authEmail = (data['authEmail'] as String?)?.trim();
+            if (regEmail != null && regEmail.isNotEmpty) {
+              _matchedUserEmail = regEmail;
+            } else if (authEmail != null && authEmail.isNotEmpty) {
+              _matchedUserEmail = authEmail;
+            }
+          }
+        } catch (_) {}
+
+        final waResult = await _waGatewayService.sendOtp(
+          normalized,
+          purpose: 'reset_password',
+        );
+
+        if (!mounted) return;
+        if (!waResult.success) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = waResult.error ?? 'Gagal mengirimkan kode OTP ke WhatsApp.';
+          });
+          return;
+        }
+
+        // Bersihkan seluruh digit OTP agar kotak kosong
+        for (var c in _otpControllers) {
+          c.clear();
+        }
+
+        setState(() {
+          _isLoading = false;
+          _normalizedPhone = normalized;
+          _currentStep = ForgotPasswordStep.verifyOtp;
+          _hasOtpError = false;
+          _errorMessage = null;
+        });
+
+        _startCountdown();
+
+        if (waResult.simulated && waResult.simulatedCode != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Simulasi WhatsApp: Kode OTP Anda [${waResult.simulatedCode}]'),
+              duration: const Duration(seconds: 8),
+              backgroundColor: const Color(0xFF6B48FC),
+            ),
+          );
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Terjadi kesalahan: $e';
+        });
+      }
+    }
+  }
+
+  Future<void> _verifyOtp() async {
+    final otp = _otpControllers.map((c) => c.text.trim()).join();
     if (otp.length < 6) {
       setState(() {
         _hasOtpError = true;
+        _errorMessage = 'Masukkan 6 digit kode OTP WhatsApp secara lengkap.';
       });
       return;
     }
 
     setState(() {
+      _isLoading = true;
       _hasOtpError = false;
-      _currentStep = ForgotPasswordStep.resetPassword;
+      _errorMessage = null;
     });
+
+    try {
+      final isValid = await _waGatewayService.verifyOtp(_normalizedPhone, otp);
+      if (!mounted) return;
+
+      if (!isValid) {
+        setState(() {
+          _isLoading = false;
+          _hasOtpError = true;
+          _errorMessage = 'Kode OTP WhatsApp tidak valid atau telah kedaluwarsa.';
+        });
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _hasOtpError = false;
+        _errorMessage = null;
+        _currentStep = ForgotPasswordStep.resetPassword;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _hasOtpError = true;
+        _errorMessage = 'Gagal memverifikasi OTP: $e';
+      });
+    }
   }
 
-  void _saveNewPassword() {
+  Future<void> _saveNewPassword() async {
     final p1 = _newPasswordController.text;
     final p2 = _confirmPasswordController.text;
 
-    if (p1.length < 6 || p1 != p2) {
+    if (p1.length < 6) {
       setState(() {
         _hasPasswordError = true;
+        _errorMessage = 'Kata sandi minimal 6 karakter.';
+      });
+      return;
+    }
+
+    if (p1 != p2) {
+      setState(() {
+        _hasPasswordError = true;
+        _errorMessage = 'Konfirmasi kata sandi baru tidak cocok.';
       });
       return;
     }
 
     setState(() {
+      _isLoading = true;
       _hasPasswordError = false;
+      _errorMessage = null;
     });
 
-    _showSuccessDialog();
+    try {
+      final result = await _waGatewayService.resetPassword(
+        phoneNumber: _normalizedPhone,
+        newPassword: p1,
+      );
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        setState(() => _isLoading = false);
+        _showSuccessDialog();
+        return;
+      }
+
+      // Jika gateway belum memiliki serviceAccountKey.json,
+      // tetapi akun pengguna memiliki email resmi di Firestore:
+      if (_matchedUserEmail != null &&
+          _matchedUserEmail!.isNotEmpty &&
+          !_matchedUserEmail!.endsWith('@rideon.id')) {
+        await _authService.auth.sendPasswordResetEmail(email: _matchedUserEmail!);
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        _showEmailFallbackDialog(_matchedUserEmail!);
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _hasPasswordError = true;
+        _errorMessage = result['error'] ?? 'Gagal memperbarui kata sandi.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _hasPasswordError = true;
+        _errorMessage = 'Terjadi kesalahan: $e';
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dialogs
+  // ---------------------------------------------------------------------------
+  void _showEmailSentDialog(String email) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFFF1F1FD).withValues(alpha: 0.8),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      offset: const Offset(0, 4),
+                      blurRadius: 20,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEDE9FE),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.mark_email_read_rounded,
+                        color: Color(0xFF6B48FC),
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Tautan Reset Terkirim!',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.dark,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Kami telah mengirimkan tautan untuk mengatur ulang kata sandi ke:\n$email\n\nSilakan periksa Kotak Masuk (Inbox) atau folder Spam pada Gmail Anda, lalu klik tautan tersebut untuk membuat kata sandi baru.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.roboto(
+                        fontSize: 12,
+                        color: AppColors.dark.withValues(alpha: 0.75),
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: ElevatedButton.icon(
+                        key: const Key('btn_kembali_setelah_kirim_email'),
+                        onPressed: () {
+                          Navigator.of(context).pop(); // Close dialog
+                          Navigator.of(context).pop(); // Pop back to LoginScreen
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.dark,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                        ),
+                        icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                        label: Text(
+                          'KEMBALI KE HALAMAN MASUK',
+                          style: GoogleFonts.roboto(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showSuccessDialog() {
@@ -120,7 +490,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.90),
+                  color: Colors.white.withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: const Color(0xFFF1F1FD).withValues(alpha: 0.8),
@@ -137,6 +507,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEDE9FE),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check_circle_rounded,
+                        color: Color(0xFF6B48FC),
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     Text(
                       'Berhasil Diubah!',
                       textAlign: TextAlign.center,
@@ -176,6 +560,108 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         icon: const Icon(Icons.login_rounded, size: 18),
                         label: Text(
                           'MASUK SEKARANG',
+                          style: GoogleFonts.roboto(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showEmailFallbackDialog(String email) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFFF1F1FD).withValues(alpha: 0.8),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      offset: const Offset(0, 4),
+                      blurRadius: 20,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEDE9FE),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.mark_email_read_rounded,
+                        color: Color(0xFF6B48FC),
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Verifikasi WhatsApp Berhasil!',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.dark,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Nomor WhatsApp Anda telah diverifikasi. Demi keamanan ganda, tautan reset kata sandi telah dikirimkan ke email terdaftar Anda:\n\n$email\n\nSilakan periksa Kotak Masuk atau folder Spam pada Gmail Anda untuk menyelesaikan penggantian kata sandi.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.roboto(
+                        fontSize: 12,
+                        color: AppColors.dark.withValues(alpha: 0.75),
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          Navigator.of(context).pop();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.dark,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                        ),
+                        icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                        label: Text(
+                          'KEMBALI KE HALAMAN MASUK',
                           style: GoogleFonts.roboto(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -237,6 +723,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   // Step 1: Lupa kata sandi.png
   // ---------------------------------------------------------------------------
   Widget _buildRequestOtpCard() {
+    final isEmail = _isEmailInput;
+
     return _buildGlassCardWrapper(
       children: [
         // Circular Key Icon
@@ -263,11 +751,42 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 24),
 
+        // Error message banner
+        if (_errorMessage != null) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE83535), width: 1),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline_rounded, color: Color(0xFFE83535), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _errorMessage!,
+                    style: GoogleFonts.roboto(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFE83535),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
         _buildInputField(
           controller: _identifierController,
           hintText: 'No. WhatsApp / Email',
-          prefixIcon: Icons.person_rounded,
+          prefixIcon: isEmail ? Icons.email_outlined : Icons.person_rounded,
           keyName: 'input_forgot_identifier',
+          keyboardType: isEmail ? TextInputType.emailAddress : TextInputType.text,
         ),
         const SizedBox(height: 18),
 
@@ -276,19 +795,34 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           width: double.infinity,
           child: ElevatedButton.icon(
             key: const Key('btn_kirim_kode_otp'),
-            onPressed: _sendOtp,
+            onPressed: _isLoading ? null : () => _sendOtp(),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.dark,
               foregroundColor: Colors.white,
+              disabledBackgroundColor: AppColors.dark.withValues(alpha: 0.6),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(13),
               ),
             ),
-            icon: const Icon(Icons.send_rounded, size: 16),
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Icon(
+                    isEmail ? Icons.mail_outline_rounded : Icons.send_rounded,
+                    size: 16,
+                  ),
             label: Text(
-              'KIRIM KODE OTP',
+              _isLoading
+                  ? 'MEMPROSES...'
+                  : (isEmail ? 'KIRIM TAUTAN RESET KE EMAIL' : 'KIRIM KODE OTP'),
               style: GoogleFonts.roboto(
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
               ),
@@ -322,7 +856,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 6),
         Text(
-          'Masukkan OTP yang dikirim ke WhatsApp Anda.',
+          'Masukkan 6 digit kode OTP yang kami kirimkan ke WhatsApp $_normalizedPhone.',
           textAlign: TextAlign.center,
           style: GoogleFonts.roboto(
             fontSize: 11.5,
@@ -332,7 +866,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         const SizedBox(height: 16),
 
         // Error alert banner if invalid OTP (verif salah.png)
-        if (_hasOtpError) ...[
+        if (_hasOtpError || _errorMessage != null) ...[
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -347,7 +881,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Kode OTP WhatsApp tidak valid.',
+                    _errorMessage ?? 'Kode OTP WhatsApp tidak valid.',
                     style: GoogleFonts.roboto(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -386,28 +920,46 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               return SizedBox(
                 width: 38,
                 height: 42,
-                child: TextField(
-                  key: Key('otp_box_$i'),
-                  controller: _otpControllers[i],
-                  textAlign: TextAlign.center,
-                  keyboardType: TextInputType.number,
-                  maxLength: 1,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.dark,
-                  ),
-                  decoration: const InputDecoration(
-                    counterText: '',
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 8),
-                  ),
-                  onChanged: (val) {
-                    if (val.isNotEmpty && i < 5) {
-                      FocusScope.of(context).nextFocus();
+                child: KeyboardListener(
+                  focusNode: FocusNode(),
+                  onKeyEvent: (event) {
+                    if (event is KeyDownEvent &&
+                        event.logicalKey == LogicalKeyboardKey.backspace &&
+                        _otpControllers[i].text.isEmpty &&
+                        i > 0) {
+                      _otpFocusNodes[i - 1].requestFocus();
                     }
                   },
+                  child: TextField(
+                    key: Key('otp_box_$i'),
+                    controller: _otpControllers[i],
+                    focusNode: _otpFocusNodes[i],
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 1,
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.dark,
+                    ),
+                    decoration: const InputDecoration(
+                      counterText: '',
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                    ),
+                    onChanged: (val) {
+                      if (val.isNotEmpty && i < 5) {
+                        _otpFocusNodes[i + 1].requestFocus();
+                      } else if (val.isEmpty && i > 0) {
+                        _otpFocusNodes[i - 1].requestFocus();
+                      }
+                      if (_otpControllers.every((c) => c.text.isNotEmpty)) {
+                        _verifyOtp();
+                      }
+                    },
+                  ),
                 ),
               );
             }),
@@ -415,16 +967,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 12),
 
-        // Countdown timer
-        Text(
-          'Kode kadaluarsa dalam 5:00',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.roboto(
-            fontSize: 11,
-            color: AppColors.dark.withValues(alpha: 0.75),
-            height: 1.4,
+        // Countdown timer & Resend Button
+        if (_resendCountdown > 0) ...[
+          Text(
+            'Kode kadaluarsa dalam 0:${_resendCountdown.toString().padLeft(2, '0')}',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.roboto(
+              fontSize: 11,
+              color: AppColors.dark.withValues(alpha: 0.75),
+              height: 1.4,
+            ),
           ),
-        ),
+        ] else ...[
+          GestureDetector(
+            onTap: _isLoading ? null : () => _sendOtp(isResend: true),
+            child: Text(
+              'KIRIM ULANG KODE OTP VIA WA',
+              style: GoogleFonts.roboto(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF6B48FC),
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
 
         // Button: KONFIRMASI / VERIFIKASI
@@ -433,17 +1000,27 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           width: double.infinity,
           child: ElevatedButton.icon(
             key: const Key('btn_verifikasi_otp'),
-            onPressed: _verifyOtp,
+            onPressed: _isLoading ? null : _verifyOtp,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.dark,
               foregroundColor: Colors.white,
+              disabledBackgroundColor: AppColors.dark.withValues(alpha: 0.6),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(13),
               ),
             ),
-            icon: const Icon(Icons.send_rounded, size: 16),
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.send_rounded, size: 16),
             label: Text(
-              'KONFIRMASI',
+              _isLoading ? 'MEMVERIFIKASI...' : 'KONFIRMASI',
               style: GoogleFonts.roboto(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -487,7 +1064,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 16),
 
-        if (_hasPasswordError) ...[
+        if (_hasPasswordError || _errorMessage != null) ...[
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -502,7 +1079,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Kata sandi minimal 6 karakter dan harus sama.',
+                    _errorMessage ?? 'Kata sandi minimal 6 karakter dan harus sama.',
                     style: GoogleFonts.roboto(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -555,17 +1132,27 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           width: double.infinity,
           child: ElevatedButton.icon(
             key: const Key('btn_simpan_sandi_baru'),
-            onPressed: _saveNewPassword,
+            onPressed: _isLoading ? null : _saveNewPassword,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.dark,
               foregroundColor: Colors.white,
+              disabledBackgroundColor: AppColors.dark.withValues(alpha: 0.6),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(13),
               ),
             ),
-            icon: const Icon(Icons.save_rounded, size: 16),
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.save_rounded, size: 16),
             label: Text(
-              'SIMPAN SANDI BARU',
+              _isLoading ? 'MENYIMPAN...' : 'SIMPAN SANDI BARU',
               style: GoogleFonts.roboto(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -644,6 +1231,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     String? keyName,
     bool obscureText = false,
     Widget? suffixIcon,
+    TextInputType keyboardType = TextInputType.text,
   }) {
     return Container(
       height: 42,
@@ -680,6 +1268,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               key: keyName != null ? Key(keyName) : null,
               controller: controller,
               obscureText: obscureText,
+              keyboardType: keyboardType,
               style: GoogleFonts.roboto(
                 fontSize: 12,
                 fontWeight: FontWeight.w400,
