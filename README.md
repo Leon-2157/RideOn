@@ -37,7 +37,7 @@ RideOn/
 | :--- | :--- | :--- | :--- |
 | **Customer App** | `apps/customer_app` | Pengguna / Penumpang | Pesan ojek/mobil, pesan makanan, kirim paket, pelacakan real-time, dompet digital. |
 | **Driver App** | `apps/driver_app` | Mitra Pengemudi | Terima orderan, navigasi peta GPS, riwayat pendapatan, penarikan saldo (withdraw). |
-| **Page Toko** | `apps/page_toko` | Mitra Merchant Toko | Manajemen katalog menu/produk, terima pesanan masuk, laporan penjualan harian. |
+| **Page Toko** | `apps/page_toko` | Mitra Merchant Toko | Manajemen katalog menu/produk, terima pesanan masuk, laporan penjualan harian. | Tarik saldo. |
 
 ---
 
