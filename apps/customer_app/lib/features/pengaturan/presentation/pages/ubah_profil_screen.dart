@@ -145,16 +145,6 @@ class _UbahProfilScreenState extends State<UbahProfilScreen> {
       }
 
       if (!mounted) return;
-      final successMsg = photoSizeKb != null
-          ? 'Profil tersimpan di Firebase! (Foto dikompresi: $photoSizeKb)'
-          : 'Perubahan profil berhasil disimpan di Firebase!';
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(successMsg),
-          backgroundColor: const Color(0xFF6B48FC),
-        ),
-      );
 
       Navigator.of(context).pop({
         'name': newName,

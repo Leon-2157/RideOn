@@ -22,13 +22,20 @@ class ProfilHeaderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 14.0),
       decoration: BoxDecoration(
-        color: const Color(0xFFC7BCFE),
-        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            Color(0xFF6B48FC),
+            Color(0xFFC6BCFF),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6B48FC).withValues(alpha: 0.15),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: const Color(0xFF6B48FC).withValues(alpha: 0.18),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -44,7 +51,7 @@ class ProfilHeaderCard extends StatelessWidget {
           ),
           const SizedBox(width: 14),
 
-          // User Info (Name + Phone)
+          // User Info (Name + Phone / Status)
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -54,33 +61,73 @@ class ProfilHeaderCard extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF17152B),
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 3),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.chat_bubble_outline_rounded,
-                      size: 13,
-                      color: Color(0xFF17152B),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      phoneNumber,
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF17152B),
+                if (isVerified &&
+                    phoneNumber.trim().isNotEmpty &&
+                    phoneNumber.trim() != 'Belum ditambahkan' &&
+                    phoneNumber.trim() != '• Belum ditambahkan')
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        size: 13,
+                        color: Colors.white70,
                       ),
+                      const SizedBox(width: 5),
+                      Text(
+                        phoneNumber,
+                        style: GoogleFonts.roboto(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  )
+                else if (!isVerified) ...[
+                  const SizedBox(height: 5),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 5,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.gpp_maybe_rounded,
+                          size: 13,
+                          color: Color(0xFFEF4444),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Belum Terverifikasi',
+                          style: GoogleFonts.roboto(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFEF4444),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
 
-          // Verified Pill Badge (Cyan/Teal)
+          // Status Pill Badge di Sisi Kanan (Hanya tampil jika akun SUDAH terverifikasi)
           if (isVerified)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
