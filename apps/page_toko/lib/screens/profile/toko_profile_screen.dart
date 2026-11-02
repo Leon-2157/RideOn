@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_image.dart';
@@ -15,6 +16,7 @@ class TokoProfileScreen extends StatefulWidget {
 class _TokoProfileScreenState extends State<TokoProfileScreen> {
   bool _isStoreOpen = true;
   String _ownerName = 'Muhammad Taufiq';
+  String _ownerAvatar = 'assets/images/avatar_owner.png';
   String _storeName = 'Warung Taufiq Gateng';
   final String _storeCategory = 'Katering & Masakan Nusantara';
   String _operationalDays = 'Senin - Jumat';
@@ -22,12 +24,13 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
   String _closeHour = '20.00';
   String _address = 'Meunasah Pinto, Kec. Muara Batu, Kabupaten Aceh Utara, Aceh';
 
-  void _openEditProfileSheet() {
-    Navigator.push(
+  void _openEditProfileSheet() async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => EditProfileScreen(
           initialName: _ownerName,
+          initialAvatar: _ownerAvatar,
           onSave: (newName) {
             setState(() {
               _ownerName = newName;
@@ -37,6 +40,18 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
         ),
       ),
     );
+
+    if (result != null && result is Map<String, dynamic> && mounted) {
+      setState(() {
+        if (result['name'] != null) {
+          _ownerName = result['name'] as String;
+          _storeName = 'Warung $_ownerName';
+        }
+        if (result['photoPath'] != null) {
+          _ownerAvatar = result['photoPath'] as String;
+        }
+      });
+    }
   }
 
   void _openOperationalHoursSheet() {
@@ -155,29 +170,38 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: AppColors.primaryLight, width: 2),
               ),
-              child: const AppImage(
-                assetPath: 'assets/images/avatar_owner.png',
-                width: 80,
-                height: 80,
-                borderRadius: BorderRadius.all(Radius.circular(40)),
-                fit: BoxFit.cover,
-                placeholder: DecoratedBox(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primary,
-                  ),
-                  child: Center(
-                    child: Text(
-                      'WT',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
+              child: _ownerAvatar.startsWith('assets/')
+                  ? AppImage(
+                      assetPath: _ownerAvatar,
+                      width: 80,
+                      height: 80,
+                      borderRadius: const BorderRadius.all(Radius.circular(40)),
+                      fit: BoxFit.cover,
+                      placeholder: const DecoratedBox(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.primary,
+                        ),
+                        child: Center(
+                          child: Text(
+                            'WT',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : ClipOval(
+                      child: Image.file(
+                        File(_ownerAvatar),
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
                       ),
                     ),
-                  ),
-                ),
-              ),
             ),
           ),
           const SizedBox(height: 14),

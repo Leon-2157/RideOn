@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/app_image.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final String initialName;
@@ -19,6 +22,8 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _nameController;
+  File? _pickedImageFile;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -30,6 +35,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    Navigator.of(context).pop();
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (picked != null && mounted) {
+        setState(() {
+          _pickedImageFile = File(picked.path);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Foto profil berhasil dipilih!'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memilih foto: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   void _openPhotoPickerSheet() {
@@ -80,15 +118,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 icon: Icons.camera_alt_rounded,
                 title: 'Ambil Dari Kamera',
                 subtitle: 'Buka Kamera dan Ambil Foto',
-                onTap: () {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Foto kamera berhasil dipilih'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
+                onTap: () => _pickImage(ImageSource.camera),
               ),
               const SizedBox(height: 12),
 
@@ -97,15 +127,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 icon: Icons.image_rounded,
                 title: 'Pilih Dari Galeri',
                 subtitle: 'Pilih Foto Dari Perangkat',
-                onTap: () {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Foto galeri berhasil dipilih'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
+                onTap: () => _pickImage(ImageSource.gallery),
               ),
               const SizedBox(height: 20),
 
@@ -212,7 +234,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         backgroundColor: AppColors.success,
       ),
     );
-    Navigator.pop(context, updatedName);
+    Navigator.pop(context, {
+      'name': updatedName,
+      'photoPath': _pickedImageFile?.path,
+    });
   }
 
   @override
@@ -302,7 +327,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   child: Column(
                     children: [
-                      // Avatar with Padlock + Camera Button
+                      // Avatar with Padlock / Selected Image + Camera Button
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
@@ -321,39 +346,61 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               ],
                             ),
                             child: ClipOval(
-                              child: Container(
-                                color: const Color(0xFF155DFC),
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    // Digital circuit dots & lines pattern
-                                    Positioned.fill(
-                                      child: CustomPaint(
-                                        painter: _CircuitPatternPainter(),
-                                      ),
-                                    ),
-                                    // Golden Padlock
-                                    Container(
-                                      padding: const EdgeInsets.all(16),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFBBF24),
-                                        borderRadius: BorderRadius.circular(18),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.15),
-                                            blurRadius: 6,
+                              child: _pickedImageFile != null
+                                  ? Image.file(
+                                      _pickedImageFile!,
+                                      width: 124,
+                                      height: 124,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : (widget.initialAvatar != null && widget.initialAvatar!.isNotEmpty)
+                                      ? (widget.initialAvatar!.startsWith('http') ||
+                                              widget.initialAvatar!.startsWith('assets/')
+                                          ? AppImage(
+                                              assetPath: widget.initialAvatar!,
+                                              width: 124,
+                                              height: 124,
+                                              fit: BoxFit.cover,
+                                            )
+                                          : Image.file(
+                                              File(widget.initialAvatar!),
+                                              width: 124,
+                                              height: 124,
+                                              fit: BoxFit.cover,
+                                            ))
+                                      : Container(
+                                          color: const Color(0xFF155DFC),
+                                          child: Stack(
+                                            alignment: Alignment.center,
+                                            children: [
+                                              // Digital circuit dots & lines pattern
+                                              Positioned.fill(
+                                                child: CustomPaint(
+                                                  painter: _CircuitPatternPainter(),
+                                                ),
+                                              ),
+                                              // Golden Padlock
+                                              Container(
+                                                padding: const EdgeInsets.all(16),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFFBBF24),
+                                                  borderRadius: BorderRadius.circular(18),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: Colors.black.withValues(alpha: 0.15),
+                                                      blurRadius: 6,
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: const Icon(
+                                                  Icons.lock_rounded,
+                                                  color: Color(0xFF1E293B),
+                                                  size: 34,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                      child: const Icon(
-                                        Icons.lock_rounded,
-                                        color: Color(0xFF1E293B),
-                                        size: 34,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                                        ),
                             ),
                           ),
 
