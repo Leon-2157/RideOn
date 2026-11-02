@@ -85,26 +85,29 @@ void main() {
     // Tap Daftar Sekarang
     await tester.tap(find.byKey(const Key('link_daftar_sekarang')));
     await tester.pumpAndSettle();
-    expect(find.text('Daftar Akun'), findsOneWidget);
+    expect(find.text('Daftar Pemilik Toko'), findsOneWidget);
     expect(find.text('LANJUTKAN'), findsOneWidget);
 
-    // Tap Lanjutkan to Step 2
+    // Tap Lanjutkan to Step 2 (Lengkapi Daftar Toko)
     await tester.tap(find.text('LANJUTKAN'));
     await tester.pumpAndSettle();
-    expect(find.text('Kelengkapan Toko'), findsOneWidget);
-    expect(find.text('BUAT AKUN'), findsOneWidget);
+    expect(find.text('Lengkapi Daftar Toko'), findsOneWidget);
+    expect(find.text('UPLOAD'), findsOneWidget);
 
-    // Tap Buat Akun to OTP
-    await tester.tap(find.text('BUAT AKUN'));
+    // Check Syarat & Ketentuan checkbox
+    await tester.tap(find.byType(Checkbox));
     await tester.pumpAndSettle();
-    expect(find.text('Verifikasi WhatsApp'), findsOneWidget);
-    expect(find.text('VERIFIKASI'), findsOneWidget);
 
-    // Tap Verifikasi to Success
-    await tester.tap(find.text('VERIFIKASI'));
+    // Tap UPLOAD to Step 3 (Berkas Berhasil di Upload)
+    await tester.tap(find.text('UPLOAD'));
     await tester.pumpAndSettle();
-    expect(find.text('Akun berhasil dibuat!'), findsOneWidget);
-    expect(find.text('MASUK SEKARANG'), findsOneWidget);
+    expect(find.text('BERKAS BERHASIL DI UPLOAD'), findsOneWidget);
+    expect(find.text('CEK EMAIL SEKARANG'), findsOneWidget);
+
+    // Tap CEK EMAIL SEKARANG -> returns to login
+    await tester.tap(find.text('CEK EMAIL SEKARANG'));
+    await tester.pumpAndSettle();
+    expect(find.text('MASUK'), findsOneWidget);
   });
 
   testWidgets('All screens render on ultra-compact 320x480 without overflow',
