@@ -18,16 +18,17 @@ class TokoLoginScreen extends StatefulWidget {
 }
 
 class _TokoLoginScreenState extends State<TokoLoginScreen> {
-  // 0: Login, 1: Daftar Pemilik Toko, 2: Lengkapi Daftar Toko, 3: Berkas Berhasil di Upload
+  // 0: Login (frame 15)
+  // 1: Lupa Kata Sandi (frame 20)
+  // 2: Verifikasi WhatsApp OTP (frame 22)
+  // 3: Lengkapi Daftar Toko (frame 27)
+  // 4: Berkas Berhasil di Upload (frame 31)
   int _currentStep = 0;
 
   late final TextEditingController _identifierController;
   final TextEditingController _passwordController = TextEditingController();
-
-  // Register Pemilik Controllers (3 fields matching Figma)
-  final TextEditingController _ownerNameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _forgotIdentifierController = TextEditingController();
+  final TextEditingController _otpController = TextEditingController(text: '123456');
 
   // Lengkapi Toko Controllers (5 fields matching Figma)
   final TextEditingController _storeNameController = TextEditingController();
@@ -54,9 +55,8 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
   void dispose() {
     _identifierController.dispose();
     _passwordController.dispose();
-    _ownerNameController.dispose();
-    _phoneController.dispose();
-    _emailController.dispose();
+    _forgotIdentifierController.dispose();
+    _otpController.dispose();
     _storeNameController.dispose();
     _storeDescController.dispose();
     _addressController.dispose();
@@ -97,77 +97,6 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
     widget.onLoginSuccess();
-  }
-
-  void _showForgotPasswordSheet() {
-    final phoneResetController = TextEditingController();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Lupa Kata Sandi',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Masukkan nomor WhatsApp atau email yang terdaftar untuk menerima kode reset.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: phoneResetController,
-              decoration: InputDecoration(
-                hintText: 'No. WhatsApp / Email',
-                prefixIcon: const Icon(Icons.contact_mail_outlined, color: AppColors.primary),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Kode verifikasi reset kata sandi telah dikirimkan.'),
-                      backgroundColor: AppColors.primary,
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.dark,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                child: const Text('KIRIM KODE', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _showPhotoPickerSheet(int itemIndex) {
@@ -516,10 +445,12 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
       case 0:
         return _buildGlassLoginCard();
       case 1:
-        return _buildRegisterStep1Card();
+        return _buildForgotPasswordCard();
       case 2:
-        return _buildRegisterStep2Card();
+        return _buildOtpCard();
       case 3:
+        return _buildRegisterStep2Card();
+      case 4:
         return _buildSuccessCard();
       default:
         return _buildGlassLoginCard();
@@ -555,6 +486,9 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
     );
   }
 
+  // ===========================================================================
+  // Step 0: Login Card (Figma frame 15)
+  // ===========================================================================
   Widget _buildGlassLoginCard() {
     return _buildGlassCardWrapper(
       child: Column(
@@ -571,27 +505,6 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
               Icons.bolt_rounded,
               size: 54,
               color: Colors.white,
-            ),
-          ),
-
-          const SizedBox(height: 6),
-
-          // Mitra Toko Badge Chip
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.28),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.50), width: 0.8),
-            ),
-            child: const Text(
-              'MITRA TOKO',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
-                color: AppColors.dark,
-              ),
             ),
           ),
 
@@ -631,7 +544,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
           Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
-              onTap: _showForgotPasswordSheet,
+              onTap: () => setState(() => _currentStep = 1),
               child: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 4),
                 child: Text(
@@ -730,7 +643,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
           // Footer: Belum punya akun? Daftar Sekarang
           GestureDetector(
             key: const Key('link_daftar_sekarang'),
-            onTap: () => setState(() => _currentStep = 1),
+            onTap: () => setState(() => _currentStep = 3),
             child: RichText(
               text: TextSpan(
                 text: 'Belum punya akun? ',
@@ -758,104 +671,85 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
   }
 
   // ===========================================================================
-  // Step 1: Daftar Pemilik Toko (Matching Figma Image 1)
+  // Step 1: Lupa Kata Sandi Card (Figma frame 20)
   // ===========================================================================
-  Widget _buildRegisterStep1Card() {
+  Widget _buildForgotPasswordCard() {
     return _buildGlassCardWrapper(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.40),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.60), width: 1),
+            ),
+            child: const Icon(Icons.vpn_key_rounded, color: AppColors.dark, size: 24),
+          ),
+
+          const SizedBox(height: 16),
+
           const Text(
-            'Daftar Pemilik Toko',
+            'Lupa Kata Sandi?',
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
               color: AppColors.dark,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
-            'Lengkapi data diri Anda untuk memulai',
+            'Masukkan nomor WhatsApp atau alamat email\nyang terdaftar di akun RideOn Anda.',
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w400,
+              height: 1.4,
               color: AppColors.dark.withValues(alpha: 0.80),
             ),
           ),
 
           const SizedBox(height: 20),
 
-          // Field 1: Nama Pemilik
           _buildGlassInputField(
-            controller: _ownerNameController,
-            hintText: 'Nama Pemilik',
+            controller: _forgotIdentifierController,
+            hintText: 'No. WhatsApp / Email',
             prefixIcon: Icons.person_rounded,
-          ),
-
-          const SizedBox(height: 14),
-
-          // Field 2: No. HP / WhatsApp Aktif
-          _buildGlassInputField(
-            controller: _phoneController,
-            hintText: 'No. HP / WhatsApp Aktif',
-            prefixIcon: Icons.chat_bubble_rounded,
-            keyboardType: TextInputType.phone,
-          ),
-
-          const SizedBox(height: 14),
-
-          // Field 3: Email
-          _buildGlassInputField(
-            controller: _emailController,
-            hintText: 'Email',
-            prefixIcon: Icons.email_rounded,
             keyboardType: TextInputType.emailAddress,
           ),
 
-          const SizedBox(height: 22),
+          const SizedBox(height: 20),
 
-          // Button: LANJUTKAN
           SizedBox(
             width: double.infinity,
             height: 44,
-            child: ElevatedButton(
+            child: ElevatedButton.icon(
               onPressed: () => setState(() => _currentStep = 2),
+              icon: const Icon(Icons.send_rounded, size: 16),
+              label: const Text(
+                'KIRIM KODE OTP',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.6),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.dark,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
               ),
-              child: const Text(
-                'LANJUTKAN',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.6),
-              ),
             ),
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
-          // Footer link: Sudah punya akun? Masuk di sini
           GestureDetector(
             onTap: () => setState(() => _currentStep = 0),
-            child: RichText(
-              text: TextSpan(
-                text: 'Sudah punya akun? ',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.dark.withValues(alpha: 0.85),
-                ),
-                children: const [
-                  TextSpan(
-                    text: 'Masuk di sini',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.dark,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ],
+            child: const Text(
+              '← Kembali ke halaman Masuk',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.dark,
               ),
             ),
           ),
@@ -865,7 +759,136 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
   }
 
   // ===========================================================================
-  // Step 2: Lengkapi Daftar Toko (Matching Figma Image 2, 3, 4)
+  // Step 2: Verifikasi WhatsApp OTP (Figma frame 22)
+  // ===========================================================================
+  Widget _buildOtpCard() {
+    return _buildGlassCardWrapper(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.40),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.60), width: 1),
+            ),
+            child: const Icon(Icons.chat_bubble_rounded, color: AppColors.dark, size: 24),
+          ),
+
+          const SizedBox(height: 16),
+
+          const Text(
+            'Verifikasi WhatsApp',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: AppColors.dark,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Masukkan OTP yang dikirim ke WhatsApp Anda.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.dark.withValues(alpha: 0.80),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(13),
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.primary.withValues(alpha: 0.20),
+                  Colors.white.withValues(alpha: 0.20),
+                ],
+              ),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.35),
+                width: 0.8,
+              ),
+            ),
+            child: Center(
+              child: TextField(
+                controller: _otpController,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  letterSpacing: 10,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.dark,
+                ),
+                decoration: const InputDecoration(
+                  counterText: '',
+                  hintText: '1 2 3 4 5 6',
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          Text(
+            'Kode kadaluarsa dalam\n5:00',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: AppColors.dark.withValues(alpha: 0.70),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              onPressed: () => setState(() => _currentStep = 0),
+              icon: const Icon(Icons.send_rounded, size: 16),
+              label: const Text(
+                'VERIFIKASI',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.6),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.dark,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          GestureDetector(
+            onTap: () => setState(() => _currentStep = 0),
+            child: const Text(
+              '← Kembali ke halaman Masuk',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.dark,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // Step 3: Lengkapi Daftar Toko (Figma frame 27)
   // ===========================================================================
   Widget _buildRegisterStep2Card() {
     return _buildGlassCardWrapper(
@@ -918,7 +941,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             index: 2,
             controller: _addressController,
             hintText: 'Alamat Lengkap',
-            prefixIcon: Icons.two_wheeler_rounded,
+            prefixIcon: Icons.local_shipping_rounded,
           ),
 
           const SizedBox(height: 12),
@@ -1015,7 +1038,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
                   );
                   return;
                 }
-                setState(() => _currentStep = 3);
+                setState(() => _currentStep = 4);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.dark,
@@ -1125,7 +1148,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
   }
 
   // ===========================================================================
-  // Step 3: Berkas Berhasil di Upload (Matching Figma Image 4 Right Panel)
+  // Step 4: Berkas Berhasil di Upload (Figma frame 31)
   // ===========================================================================
   Widget _buildSuccessCard() {
     return _buildGlassCardWrapper(
@@ -1149,7 +1172,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
           const SizedBox(height: 16),
 
           Text(
-            'Tim operasional sedang memvalidasi Keaslian Berkas\nAnda. Proses aktivasi radar memakan waktu 1x24 jam.',
+            'Tim operasional sedang memvalidasi Keaslian Berkas\nAnda. Proses aktivasi radar memakan waktu 1×24 jam.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 11.5,

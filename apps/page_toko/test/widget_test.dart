@@ -82,14 +82,25 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: TokoLoginScreen(onLoginSuccess: () {})));
     expect(find.text('MASUK'), findsOneWidget);
 
-    // Tap Daftar Sekarang
-    await tester.tap(find.byKey(const Key('link_daftar_sekarang')));
+    // Test Lupa Kata Sandi flow
+    await tester.tap(find.text('Lupa kata sandi?'));
     await tester.pumpAndSettle();
-    expect(find.text('Daftar Pemilik Toko'), findsOneWidget);
-    expect(find.text('LANJUTKAN'), findsOneWidget);
+    expect(find.text('Lupa Kata Sandi?'), findsOneWidget);
+    expect(find.text('KIRIM KODE OTP'), findsOneWidget);
 
-    // Tap Lanjutkan to Step 2 (Lengkapi Daftar Toko)
-    await tester.tap(find.text('LANJUTKAN'));
+    // Tap Kirim Kode OTP -> goes to Verifikasi WhatsApp
+    await tester.tap(find.text('KIRIM KODE OTP'));
+    await tester.pumpAndSettle();
+    expect(find.text('Verifikasi WhatsApp'), findsOneWidget);
+    expect(find.text('VERIFIKASI'), findsOneWidget);
+
+    // Tap Verifikasi -> returns to login
+    await tester.tap(find.text('VERIFIKASI'));
+    await tester.pumpAndSettle();
+    expect(find.text('MASUK'), findsOneWidget);
+
+    // Tap Daftar Sekarang -> goes to Lengkapi Daftar Toko
+    await tester.tap(find.byKey(const Key('link_daftar_sekarang')));
     await tester.pumpAndSettle();
     expect(find.text('Lengkapi Daftar Toko'), findsOneWidget);
     expect(find.text('UPLOAD'), findsOneWidget);
@@ -98,7 +109,7 @@ void main() {
     await tester.tap(find.byType(Checkbox));
     await tester.pumpAndSettle();
 
-    // Tap UPLOAD to Step 3 (Berkas Berhasil di Upload)
+    // Tap UPLOAD to Step 4 (Berkas Berhasil di Upload)
     await tester.tap(find.text('UPLOAD'));
     await tester.pumpAndSettle();
     expect(find.text('BERKAS BERHASIL DI UPLOAD'), findsOneWidget);
