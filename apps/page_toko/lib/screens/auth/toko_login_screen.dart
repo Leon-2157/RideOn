@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/app_image.dart';
 
 class TokoLoginScreen extends StatefulWidget {
   final VoidCallback onLoginSuccess;
@@ -28,14 +27,15 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
   final TextEditingController _ownerNameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _registerPasswordController = TextEditingController();
   final TextEditingController _storeNameController = TextEditingController();
   final TextEditingController _storeDescController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _postalController = TextEditingController();
-  final TextEditingController _countryController = TextEditingController(text: 'Indonesia');
   final TextEditingController _otpController = TextEditingController();
 
   bool _obscurePassword = true;
+  bool _obscureRegisterPassword = true;
   bool _hasLoginError = false;
   bool _isLoading = false;
   bool _agreeTerms = false;
@@ -53,11 +53,11 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
     _ownerNameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _registerPasswordController.dispose();
     _storeNameController.dispose();
     _storeDescController.dispose();
     _addressController.dispose();
     _postalController.dispose();
-    _countryController.dispose();
     _otpController.dispose();
     super.dispose();
   }
@@ -108,7 +108,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
       builder: (ctx) => Padding(
         padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: minAxis(),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -167,6 +167,8 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
     );
   }
 
+  static MainAxisSize minAxis() => MainAxisSize.min;
+
   @override
   Widget build(BuildContext context) {
     // ponytail: single root screen handles auth states; upgrade to route-based when deep linking needed
@@ -182,7 +184,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 18.0),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: size.width > 393 ? 373 : size.width - 24,
@@ -213,17 +215,17 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
     }
   }
 
-  Widget _buildGlassLoginCard() {
+  Widget _buildGlassCardWrapper({required Widget child}) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(20.0),
+      borderRadius: BorderRadius.circular(24.0),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+        filter: ImageFilter.blur(sigmaX: 18.0, sigmaY: 18.0),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 26.0),
+          padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 26.0),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.32),
-            borderRadius: BorderRadius.circular(20.0),
+            borderRadius: BorderRadius.circular(24.0),
             border: Border.all(
               color: const Color(0xFFF1F1FD).withValues(alpha: 0.65),
               width: 1.0,
@@ -231,277 +233,661 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.08),
-                offset: const Offset(0, 4),
-                blurRadius: 20.0,
+                offset: const Offset(0, 8),
+                blurRadius: 24.0,
               ),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Logo RideOn Toko
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: const AppImage(
-                  assetPath: 'assets/images/logo.png',
-                  width: 90,
-                  height: 48,
-                  fit: BoxFit.contain,
-                  placeholder: Icon(Icons.bolt_rounded, size: 36, color: AppColors.primary),
-                ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassLoginCard() {
+    return _buildGlassCardWrapper(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Logo RideOn (White vector/png)
+          Image.asset(
+            'assets/images/logo_white.png',
+            width: 124,
+            height: 75,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) => const Icon(
+              Icons.bolt_rounded,
+              size: 54,
+              color: Colors.white,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          // Mitra Toko Badge Chip
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.50), width: 0.8),
+            ),
+            child: const Text(
+              'MITRA TOKO',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                color: AppColors.dark,
               ),
+            ),
+          ),
 
-              const SizedBox(height: 18),
+          const SizedBox(height: 20),
 
-              // Subtitle
-              const Text(
-                'Mitra Toko RideOn',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.dark,
-                  letterSpacing: 0.2,
-                ),
+          // Input 1: No. WhatsApp / Email
+          _buildGlassInputField(
+            controller: _identifierController,
+            hintText: 'No. WhatsApp / Email',
+            prefixIcon: Icons.person_rounded,
+            keyboardType: TextInputType.emailAddress,
+            keyName: 'input_login_identifier',
+          ),
+
+          const SizedBox(height: 14),
+
+          // Input 2: Kata Sandi
+          _buildGlassInputField(
+            controller: _passwordController,
+            hintText: 'Kata Sandi',
+            prefixIcon: Icons.lock_rounded,
+            obscureText: _obscurePassword,
+            keyName: 'input_login_password',
+            suffixIcon: GestureDetector(
+              onTap: () => setState(() => _obscurePassword = !_obscurePassword),
+              child: Icon(
+                _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                size: 18,
+                color: AppColors.dark,
               ),
+            ),
+          ),
 
-              const SizedBox(height: 18),
+          const SizedBox(height: 8),
 
-              // Input 1: No. WhatsApp / Email
-              _buildGlassInputField(
-                controller: _identifierController,
-                hintText: 'No. WhatsApp / Email',
-                prefixIcon: Icons.person_rounded,
-                keyboardType: TextInputType.emailAddress,
-                keyName: 'input_login_identifier',
-              ),
-
-              const SizedBox(height: 14),
-
-              // Input 2: Kata Sandi
-              _buildGlassInputField(
-                controller: _passwordController,
-                hintText: 'Kata Sandi',
-                prefixIcon: Icons.lock_rounded,
-                obscureText: _obscurePassword,
-                keyName: 'input_login_password',
-                suffixIcon: GestureDetector(
-                  onTap: () => setState(() => _obscurePassword = !_obscurePassword),
-                  child: Icon(
-                    _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                    size: 18,
+          // Lupa kata sandi?
+          Align(
+            alignment: Alignment.centerRight,
+            child: GestureDetector(
+              onTap: _showForgotPasswordSheet,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  'Lupa kata sandi?',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                     color: AppColors.dark,
                   ),
                 ),
               ),
+            ),
+          ),
 
-              const SizedBox(height: 6),
+          const SizedBox(height: 10),
 
-              // Lupa kata sandi?
-              Align(
-                alignment: Alignment.centerRight,
-                child: GestureDetector(
-                  onTap: _showForgotPasswordSheet,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 4),
+          // Error banner
+          if (_hasLoginError) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE83535), width: 1),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.error_outline_rounded, color: Color(0xFFE83535), size: 18),
+                  SizedBox(width: 8),
+                  Expanded(
                     child: Text(
-                      'Lupa kata sandi?',
+                      'Email/WhatsApp atau kata sandi yang Anda masukkan salah.',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.dark,
+                        color: Color(0xFFE83535),
                       ),
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              // Error banner matching auth spec
-              if (_hasLoginError) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE83535), width: 1),
-                  ),
-                  child: Row(
-                    children: const [
-                      Icon(Icons.error_outline_rounded, color: Color(0xFFE83535), size: 18),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Email/WhatsApp atau kata sandi yang Anda masukkan salah.',
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFFE83535),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-
-              // Button: MASUK
-              SizedBox(
-                height: 42,
-                width: double.infinity,
-                child: ElevatedButton(
-                  key: const Key('btn_masuk_login'),
-                  onPressed: _isLoading ? null : _submitLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.dark,
-                    foregroundColor: Colors.white,
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(13.0),
-                    ),
-                    padding: EdgeInsets.zero,
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'MASUK',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Divider: ATAU
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 1,
-                      color: AppColors.dark.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Text(
-                      'ATAU',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.dark.withValues(alpha: 0.8),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(
-                      height: 1,
-                      color: AppColors.dark.withValues(alpha: 0.35),
                     ),
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 12),
+          ],
 
-              const SizedBox(height: 14),
-
-              // Button: Lanjutkan Dengan Google
-              Container(
-                height: 42,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
+          // Button: MASUK
+          SizedBox(
+            height: 44,
+            width: double.infinity,
+            child: ElevatedButton(
+              key: const Key('btn_masuk_login'),
+              onPressed: _isLoading ? null : _submitLogin,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.dark,
+                foregroundColor: Colors.white,
+                elevation: 2,
+                shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(13.0),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x2503045E),
-                      offset: Offset(0, 2),
-                      blurRadius: 8.0,
-                    ),
-                  ],
                 ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    key: const Key('btn_google_login'),
-                    borderRadius: BorderRadius.circular(13.0),
-                    onTap: _isLoading ? null : _handleGoogleLogin,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                padding: EdgeInsets.zero,
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      'MASUK',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Divider: ATAU
+          _buildOrDivider(),
+
+          const SizedBox(height: 14),
+
+          // Button: Lanjutkan Dengan Google
+          _buildGoogleButton(),
+
+          const SizedBox(height: 22),
+
+          // Footer: Belum punya akun? Daftar Sekarang
+          GestureDetector(
+            key: const Key('link_daftar_sekarang'),
+            onTap: () => setState(() => _currentStep = 1),
+            child: RichText(
+              text: TextSpan(
+                text: 'Belum punya akun? ',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.dark.withValues(alpha: 0.85),
+                ),
+                children: const [
+                  TextSpan(
+                    text: 'Daftar Sekarang',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.dark,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRegisterStep1Card() {
+    return _buildGlassCardWrapper(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Text(
+            'Daftar Akun',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: AppColors.dark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Lengkapi data diri pemilik untuk memulai',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+              color: AppColors.dark.withValues(alpha: 0.80),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Google Button at top matching Figma
+          _buildGoogleButton(),
+
+          const SizedBox(height: 12),
+
+          _buildOrDivider(),
+
+          const SizedBox(height: 12),
+
+          // Input 1: Nama Lengkap
+          _buildGlassInputField(
+            controller: _ownerNameController,
+            hintText: 'Nama Lengkap',
+            prefixIcon: Icons.person_rounded,
+          ),
+
+          const SizedBox(height: 12),
+
+          // Input 2: No. WhatsApp Aktif
+          _buildGlassInputField(
+            controller: _phoneController,
+            hintText: 'No. WhatsApp Aktif',
+            prefixIcon: Icons.chat_bubble_rounded,
+            keyboardType: TextInputType.phone,
+          ),
+
+          const SizedBox(height: 12),
+
+          // Input 3: Alamat Email
+          _buildGlassInputField(
+            controller: _emailController,
+            hintText: 'Alamat Email',
+            prefixIcon: Icons.mail_outline_rounded,
+            keyboardType: TextInputType.emailAddress,
+          ),
+
+          const SizedBox(height: 12),
+
+          // Input 4: Kata Sandi
+          _buildGlassInputField(
+            controller: _registerPasswordController,
+            hintText: 'Kata sandi (Min. 8 karakter)',
+            prefixIcon: Icons.lock_rounded,
+            obscureText: _obscureRegisterPassword,
+            suffixIcon: GestureDetector(
+              onTap: () => setState(() => _obscureRegisterPassword = !_obscureRegisterPassword),
+              child: Icon(
+                _obscureRegisterPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                size: 18,
+                color: AppColors.dark,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          // Button: LANJUTKAN
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton(
+              onPressed: () => setState(() => _currentStep = 2),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.dark,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+              ),
+              child: const Text(
+                'LANJUTKAN',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.5),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Footer link
+          GestureDetector(
+            onTap: () => setState(() => _currentStep = 0),
+            child: RichText(
+              text: TextSpan(
+                text: 'Sudah punya akun? ',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.dark.withValues(alpha: 0.85),
+                ),
+                children: const [
+                  TextSpan(
+                    text: 'Masuk di sini',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.dark,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRegisterStep2Card() {
+    return _buildGlassCardWrapper(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Text(
+            'Kelengkapan Toko',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: AppColors.dark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Informasi toko untuk pelanggan Anda',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+              color: AppColors.dark.withValues(alpha: 0.80),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          _buildGlassInputField(
+            controller: _storeNameController,
+            hintText: 'Nama Toko / Resto',
+            prefixIcon: Icons.storefront_rounded,
+          ),
+
+          const SizedBox(height: 12),
+
+          _buildGlassInputField(
+            controller: _storeDescController,
+            hintText: 'Kategori / Deskripsi Toko',
+            prefixIcon: Icons.description_rounded,
+          ),
+
+          const SizedBox(height: 12),
+
+          _buildGlassInputField(
+            controller: _addressController,
+            hintText: 'Alamat Lengkap Toko',
+            prefixIcon: Icons.location_on_rounded,
+          ),
+
+          const SizedBox(height: 12),
+
+          _buildGlassInputField(
+            controller: _postalController,
+            hintText: 'Kode Pos',
+            prefixIcon: Icons.markunread_mailbox_rounded,
+            keyboardType: TextInputType.number,
+          ),
+
+          const SizedBox(height: 14),
+
+          // Checkbox container matching Figma
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(13),
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.primary.withValues(alpha: 0.15),
+                  Colors.white.withValues(alpha: 0.18),
+                ],
+              ),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.35),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: _agreeTerms,
+                  activeColor: AppColors.dark,
+                  checkColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                  onChanged: (val) => setState(() => _agreeTerms = val ?? false),
+                ),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      text: 'Saya menyetujui ',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.dark.withValues(alpha: 0.85),
+                      ),
                       children: const [
-                        Icon(Icons.g_mobiledata_rounded, color: Colors.redAccent, size: 26),
-                        SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            'Lanjutkan Dengan Google',
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.dark,
-                            ),
+                        TextSpan(
+                          text: 'Syarat & Ketentuan',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.dark,
                           ),
                         ),
+                        TextSpan(text: ' Mitra RideOn.'),
                       ],
                     ),
                   ),
                 ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton(
+              onPressed: () => setState(() => _currentStep = 3),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.dark,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
               ),
+              child: const Text(
+                'BUAT AKUN',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.5),
+              ),
+            ),
+          ),
 
-              const SizedBox(height: 20),
+          const SizedBox(height: 14),
 
-              // Footer: Belum punya akun? Daftar Sekarang
-              GestureDetector(
-                key: const Key('link_daftar_sekarang'),
-                onTap: () => setState(() => _currentStep = 1),
-                child: RichText(
-                  text: TextSpan(
-                    text: 'Belum punya akun? ',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.dark.withValues(alpha: 0.85),
-                    ),
-                    children: const [
-                      TextSpan(
-                        text: 'Daftar Sekarang',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.dark,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ],
-                  ),
+          GestureDetector(
+            onTap: () => setState(() => _currentStep = 1),
+            child: const Text(
+              '← Kembali ke Data Pemilik',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.dark,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOtpCard() {
+    return _buildGlassCardWrapper(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.40),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.60), width: 1),
+            ),
+            child: const Icon(Icons.chat_bubble_rounded, color: AppColors.dark, size: 26),
+          ),
+
+          const SizedBox(height: 14),
+
+          const Text(
+            'Verifikasi WhatsApp',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: AppColors.dark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Masukkan OTP yang dikirim ke WhatsApp Anda.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.dark.withValues(alpha: 0.80),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          Container(
+            height: 46,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(13),
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.primary.withValues(alpha: 0.20),
+                  Colors.white.withValues(alpha: 0.20),
+                ],
+              ),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.35),
+                width: 0.8,
+              ),
+            ),
+            child: Center(
+              child: TextField(
+                controller: _otpController,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  letterSpacing: 10,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.dark,
+                ),
+                decoration: const InputDecoration(
+                  counterText: '',
+                  hintText: '••••••',
+                  border: InputBorder.none,
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+
+          const SizedBox(height: 18),
+
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              onPressed: () => setState(() => _currentStep = 4),
+              icon: const Icon(Icons.send_rounded, size: 16),
+              label: const Text(
+                'VERIFIKASI',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.6),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.dark,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          GestureDetector(
+            onTap: () => setState(() => _currentStep = 0),
+            child: const Text(
+              '← Kembali ke halaman Masuk',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.dark,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessCard() {
+    return _buildGlassCardWrapper(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const SizedBox(height: 10),
+
+          const Text(
+            'Akun berhasil dibuat!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: AppColors.dark,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          Text(
+            'Akun Anda telah berhasil dibuat.\nSilakan masuk dan bereksplorasi.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: AppColors.dark.withValues(alpha: 0.80),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              onPressed: widget.onLoginSuccess,
+              icon: const Icon(Icons.login_rounded, size: 18),
+              label: const Text(
+                'MASUK SEKARANG',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.5),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.dark,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+        ],
       ),
     );
   }
@@ -516,7 +902,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
     TextInputType keyboardType = TextInputType.text,
   }) {
     return Container(
-      height: 42,
+      height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 14.0),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(13.0),
@@ -579,315 +965,86 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
     );
   }
 
-  Widget _buildRegisterStep1Card() {
+  Widget _buildGoogleButton() {
     return Container(
+      height: 44,
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(13.0),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Color(0x2003045E),
+            offset: Offset(0, 2),
+            blurRadius: 8.0,
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Daftar Pemilik Toko',
-            style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Lengkapi data diri pemilik untuk memulai',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 22),
-          _registerField(controller: _ownerNameController, hint: 'Nama Pemilik Toko', icon: Icons.person_rounded),
-          const SizedBox(height: 12),
-          _registerField(
-            controller: _phoneController,
-            hint: 'No. HP / WhatsApp Aktif',
-            icon: Icons.chat_bubble_rounded,
-            keyboardType: TextInputType.phone,
-          ),
-          const SizedBox(height: 12),
-          _registerField(
-            controller: _emailController,
-            hint: 'Alamat Email',
-            icon: Icons.email_rounded,
-            keyboardType: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 22),
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: ElevatedButton(
-              onPressed: () => setState(() => _currentStep = 2),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.dark,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-              ),
-              child: const Text('LANJUTKAN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          GestureDetector(
-            onTap: () => setState(() => _currentStep = 0),
-            child: const Text(
-              'Sudah punya akun? Masuk di sini',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRegisterStep2Card() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Kelengkapan Toko',
-            style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Informasi toko untuk pelanggan Anda',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 20),
-          _registerField(controller: _storeNameController, hint: 'Nama Toko / Resto', icon: Icons.storefront_rounded),
-          const SizedBox(height: 12),
-          _registerField(controller: _storeDescController, hint: 'Deskripsi Toko', icon: Icons.description_rounded),
-          const SizedBox(height: 12),
-          _registerField(controller: _addressController, hint: 'Alamat Lengkap Toko', icon: Icons.location_on_rounded),
-          const SizedBox(height: 12),
-          _registerField(controller: _postalController, hint: 'Kode Pos', icon: Icons.markunread_mailbox_rounded),
-          const SizedBox(height: 14),
-          Row(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const Key('btn_google_login'),
+          borderRadius: BorderRadius.circular(13.0),
+          onTap: _isLoading ? null : _handleGoogleLogin,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Checkbox(
-                value: _agreeTerms,
-                activeColor: AppColors.primary,
-                onChanged: (val) => setState(() => _agreeTerms = val ?? false),
+              Image.asset(
+                'assets/images/google_icon.png',
+                width: 18,
+                height: 18,
+                errorBuilder: (context, error, stackTrace) => const Icon(
+                  Icons.g_mobiledata_rounded,
+                  color: Colors.redAccent,
+                  size: 24,
+                ),
               ),
-              Expanded(
+              const SizedBox(width: 8),
+              const Flexible(
                 child: Text(
-                  'Saya menyetujui Syarat & Ketentuan Mitra RideOn.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textPrimary.withValues(alpha: 0.85)),
+                  'Lanjutkan Dengan Google',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.dark,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: ElevatedButton(
-              onPressed: () => setState(() => _currentStep = 3),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.dark,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-              ),
-              child: const Text('DAFTAR SEKARANG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            ),
-          ),
-          const SizedBox(height: 14),
-          GestureDetector(
-            onTap: () => setState(() => _currentStep = 0),
-            child: const Text(
-              'Batal & Kembali ke Masuk',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOtpCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: const BoxDecoration(
-              color: AppColors.primarySoft,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.chat_rounded, color: AppColors.primary, size: 28),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Verifikasi WhatsApp',
-            style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Masukkan 6 digit kode OTP yang dikirimkan.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _otpController,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 22, letterSpacing: 8, fontWeight: FontWeight.bold),
-            decoration: InputDecoration(
-              counterText: '',
-              hintText: '••••••',
-              filled: true,
-              fillColor: AppColors.primarySoft.withValues(alpha: 0.4),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: ElevatedButton(
-              onPressed: () => setState(() => _currentStep = 4),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.dark,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-              ),
-              child: const Text('VERIFIKASI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            ),
-          ),
-          const SizedBox(height: 14),
-          GestureDetector(
-            onTap: () => setState(() => _currentStep = 0),
-            child: const Text(
-              'Kembali ke halaman Masuk',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSuccessCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 30),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 68,
-            height: 68,
-            decoration: const BoxDecoration(
-              color: Color(0xFFDCFCE7),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.check_rounded, color: AppColors.success, size: 38),
-          ),
-          const SizedBox(height: 18),
-          const Text(
-            'LOGIN BERHASIL',
-            style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Selamat datang di Mitra Toko RideOn',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: ElevatedButton.icon(
-              onPressed: widget.onLoginSuccess,
-              icon: const Icon(Icons.login_rounded, size: 18),
-              label: const Text('MASUK SEKARANG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.dark,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _registerField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-        decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 18),
-          hintText: hint,
-          hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 12),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         ),
       ),
+    );
+  }
+
+  Widget _buildOrDivider() {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 1,
+            color: AppColors.dark.withValues(alpha: 0.30),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Text(
+            'ATAU',
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w500,
+              color: AppColors.dark.withValues(alpha: 0.75),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: AppColors.dark.withValues(alpha: 0.30),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -74,13 +74,37 @@ void main() {
     expect(find.text('SIMPAN PERUBAHAN'), findsOneWidget);
   });
 
-  testWidgets('Login renders on 360x640', (WidgetTester tester) async {
+  testWidgets('Login and registration steps render on 360x640', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(360, 640);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
     await tester.pumpWidget(MaterialApp(home: TokoLoginScreen(onLoginSuccess: () {})));
     expect(find.text('MASUK'), findsOneWidget);
+
+    // Tap Daftar Sekarang
+    await tester.tap(find.byKey(const Key('link_daftar_sekarang')));
+    await tester.pumpAndSettle();
+    expect(find.text('Daftar Akun'), findsOneWidget);
+    expect(find.text('LANJUTKAN'), findsOneWidget);
+
+    // Tap Lanjutkan to Step 2
+    await tester.tap(find.text('LANJUTKAN'));
+    await tester.pumpAndSettle();
+    expect(find.text('Kelengkapan Toko'), findsOneWidget);
+    expect(find.text('BUAT AKUN'), findsOneWidget);
+
+    // Tap Buat Akun to OTP
+    await tester.tap(find.text('BUAT AKUN'));
+    await tester.pumpAndSettle();
+    expect(find.text('Verifikasi WhatsApp'), findsOneWidget);
+    expect(find.text('VERIFIKASI'), findsOneWidget);
+
+    // Tap Verifikasi to Success
+    await tester.tap(find.text('VERIFIKASI'));
+    await tester.pumpAndSettle();
+    expect(find.text('Akun berhasil dibuat!'), findsOneWidget);
+    expect(find.text('MASUK SEKARANG'), findsOneWidget);
   });
 
   testWidgets('All screens render on ultra-compact 320x480 without overflow',
