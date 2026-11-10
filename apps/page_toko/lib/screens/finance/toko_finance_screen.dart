@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../data/toko_state.dart';
 import '../../theme/app_colors.dart';
 
 class TokoFinanceScreen extends StatefulWidget {
@@ -9,8 +10,14 @@ class TokoFinanceScreen extends StatefulWidget {
 }
 
 class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
-  int _balance = 12450000;
-  String _activeBank = 'BCA •••• 4912';
+  String _activeFilter = 'Semua';
+
+  String _formatRp(int amount) {
+    return amount.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
+  }
 
   void _showTarikSaldoSheet() {
     showModalBottomSheet(
@@ -18,12 +25,9 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _TarikSaldoSheet(
-        maxBalance: _balance,
-        activeBank: _activeBank,
-        onSuccess: (amount) {
-          setState(() {
-            _balance -= amount;
-          });
+        maxBalance: TokoState.balance.value,
+        activeBank: TokoState.activeBank.value,
+        onProceedToPin: (amount) {
           _showPinVerificationDialog(amount);
         },
       ),
@@ -33,25 +37,44 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
   void _showPinVerificationDialog(int amount) {
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (_) => _PinVerificationDialog(
+      barrierDismissible: true,
+      builder: (dialogCtx) => _PinVerificationDialog(
         onVerified: () {
-          Navigator.pop(context); // close PIN
-          _showTarikSuccessDialog(amount);
+          Navigator.pop(dialogCtx);
+          if (amount <= 0 || amount > TokoState.balance.value) return;
+
+          final formatted = _formatRp(amount);
+          final now = DateTime.now();
+          final hh = now.hour.toString().padLeft(2, '0');
+          final mm = now.minute.toString().padLeft(2, '0');
+          final txId = '#WD-${now.millisecondsSinceEpoch.toString().substring(7)}';
+          final timeStr = 'Hari ini, $hh:$mm WIB';
+          final bankName = TokoState.activeBank.value.split(' ').first;
+
+          TokoState.balance.value -= amount;
+          TokoState.transactions.value = [
+            {
+              'title': 'Tarik Saldo Berhasil',
+              'subtitle': timeStr,
+              'target': 'Ke $bankName',
+              'amount': '-Rp $formatted',
+              'isNegative': true,
+            },
+            ...TokoState.transactions.value,
+          ];
+
+          _showTarikSuccessDialog(amount, txId, timeStr);
         },
       ),
     );
   }
 
-  void _showTarikSuccessDialog(int amount) {
-    final formatted = amount.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]}.',
-    );
+  void _showTarikSuccessDialog(int amount, String txId, String timeStr) {
+    final formatted = _formatRp(amount);
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         contentPadding: const EdgeInsets.all(24),
         content: Column(
@@ -78,7 +101,7 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Dana Rp $formatted sedang dikirimkan ke rekening $_activeBank. Mohon cek mutasi rekening Anda.',
+              'Dana Rp $formatted sedang dikirimkan ke rekening ${TokoState.activeBank.value}. Mohon cek mutasi rekening Anda.',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
             ),
@@ -91,9 +114,9 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
               ),
               child: Column(
                 children: [
-                  _detailRow('ID Transaksi', '#WD-99401'),
+                  _detailRow('ID Transaksi', txId),
                   const SizedBox(height: 6),
-                  _detailRow('Tanggal & Jam', '5 Okt 2026, 13:02 WIB'),
+                  _detailRow('Tanggal & Jam', timeStr),
                   const SizedBox(height: 6),
                   _detailRow('Total Ditransfer', 'Rp $formatted', isBold: true),
                 ],
@@ -103,7 +126,7 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(dialogCtx),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.dark,
                   foregroundColor: Colors.white,
@@ -123,13 +146,23 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-            color: isBold ? AppColors.textPrimary : AppColors.textPrimary,
+        Flexible(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            value,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
           ),
         ),
       ],
@@ -142,93 +175,143 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AddBankSheet(
+        ownerName: TokoState.ownerName.value.toUpperCase(),
         onSaved: (bankLabel) {
-          setState(() {
-            _activeBank = bankLabel;
-          });
+          TokoState.activeBank.value = bankLabel;
         },
+      ),
+    );
+  }
+
+  void _showFinanceSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Pengaturan Keuangan', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _detailRow('Rekening Utama', TokoState.activeBank.value, isBold: true),
+            const SizedBox(height: 8),
+            _detailRow('Jadwal Pencairan', 'Instan (1×24 jam)'),
+            const SizedBox(height: 8),
+            _detailRow('Min. Tarik Saldo', 'Rp 10.000'),
+            const SizedBox(height: 8),
+            _detailRow('PIN Keamanan Default', TokoState.securityPin),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Tutup'),
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final formattedBalance = _balance.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]}.',
-    );
-
-    // ponytail: unified finance tab with direct withdrawal sheet; upgrade to multi-currency / e-wallet when needed
+    // ponytail: ListenableBuilder tracks TokoState balance, activeBank, and transaction history; upgrade to API pagination when history grows
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: ListenableBuilder(
+          listenable: Listenable.merge([
+            TokoState.balance,
+            TokoState.activeBank,
+            TokoState.transactions,
+          ]),
+          builder: (context, _) {
+            final formattedBalance = _formatRp(TokoState.balance.value);
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Expanded(
-                    child: Text(
-                      'Keuangan',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Keuangan',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.settings_outlined, size: 20, color: AppColors.textPrimary),
+                          onPressed: _showFinanceSettingsDialog,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.settings_outlined, size: 20, color: AppColors.textPrimary),
-                      onPressed: _showAddBankSheet,
-                    ),
+                  const SizedBox(height: 18),
+                  _buildBalanceCard(formattedBalance),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Riwayat Transaksi',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: ['Semua', 'Masuk', 'Keluar'].map((f) {
+                          final isSel = _activeFilter == f;
+                          return GestureDetector(
+                            onTap: () => setState(() => _activeFilter = f),
+                            child: Container(
+                              margin: const EdgeInsets.only(left: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: isSel ? AppColors.primary : AppColors.primarySoft,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                f,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: isSel ? Colors.white : AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 14),
+                  _buildTransactionList(TokoState.transactions.value),
                 ],
               ),
-              const SizedBox(height: 18),
-              _buildBalanceCard(formattedBalance),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Expanded(
-                    child: Text(
-                      'Riwayat Transaksi',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'Filter Tanggal',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              _buildTransactionList(),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -270,7 +353,7 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  _activeBank,
+                  TokoState.activeBank.value,
                   style: const TextStyle(
                     fontSize: 11,
                     color: Colors.white,
@@ -325,37 +408,36 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
     );
   }
 
-  Widget _buildTransactionList() {
-    final List<Map<String, dynamic>> txs = [
-      {
-        'title': 'Tarik Saldo Berhasil',
-        'subtitle': 'Senin, 05 Okt • 10:15 WIB',
-        'target': 'Ke BCA',
-        'amount': '-Rp 1.500.000',
-        'isNegative': true,
-      },
-      {
-        'title': 'Pendapatan Hari Ini',
-        'subtitle': 'Order #FD-8819 • 13:20 WIB',
-        'target': 'Sukses',
-        'amount': '+Rp 845.000',
-        'isNegative': false,
-      },
-      {
-        'title': 'Pendapatan Pesanan',
-        'subtitle': 'Order #FD-8810 • 04 Okt',
-        'target': 'Sukses',
-        'amount': '+Rp 120.000',
-        'isNegative': false,
-      },
-    ];
+  Widget _buildTransactionList(List<Map<String, dynamic>> txs) {
+    final filteredTxs = txs.where((t) {
+      if (_activeFilter == 'Masuk') return !(t['isNegative'] as bool);
+      if (_activeFilter == 'Keluar') return (t['isNegative'] as bool);
+      return true;
+    }).toList();
+
+    if (filteredTxs.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 28),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.borderLight),
+        ),
+        child: const Text(
+          'Belum ada transaksi pada filter ini',
+          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        ),
+      );
+    }
 
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: txs.length,
+      itemCount: filteredTxs.length,
       itemBuilder: (context, index) {
-        final tx = txs[index];
+        final tx = filteredTxs[index];
         final isNegative = tx['isNegative'] as bool;
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -436,12 +518,12 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
 class _TarikSaldoSheet extends StatefulWidget {
   final int maxBalance;
   final String activeBank;
-  final ValueChanged<int> onSuccess;
+  final ValueChanged<int> onProceedToPin;
 
   const _TarikSaldoSheet({
     required this.maxBalance,
     required this.activeBank,
-    required this.onSuccess,
+    required this.onProceedToPin,
   });
 
   @override
@@ -449,7 +531,28 @@ class _TarikSaldoSheet extends StatefulWidget {
 }
 
 class _TarikSaldoSheetState extends State<_TarikSaldoSheet> {
-  final TextEditingController _amountController = TextEditingController(text: '1000000');
+  late final TextEditingController _amountController;
+  String? _amountError;
+
+  String _formatDot(int amount) {
+    return amount.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final defaultAmt = widget.maxBalance >= 1000000 ? 1000000 : widget.maxBalance;
+    _amountController = TextEditingController(text: defaultAmt > 0 ? _formatDot(defaultAmt) : '');
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -459,96 +562,111 @@ class _TarikSaldoSheetState extends State<_TarikSaldoSheet> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 44,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Tarik Saldo Omzet',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(14),
+            const SizedBox(height: 16),
+            const Text(
+              'Tarik Saldo Omzet',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.account_balance_rounded, color: AppColors.primary, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Rekening Tujuan Pencairan', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                      Text(widget.activeBank, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                    ],
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.account_balance_rounded, color: AppColors.primary, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Rekening Tujuan Pencairan', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                        Text(widget.activeBank, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      ],
+                    ),
                   ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Jumlah Penarikan',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    _amountController.text = _formatDot(widget.maxBalance);
+                    setState(() => _amountError = null);
+                  },
+                  child: const Text('Tarik Semua', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Jumlah Penarikan', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-              GestureDetector(
-                onTap: () {
-                  _amountController.text = widget.maxBalance.toString();
-                },
-                child: const Text('Tarik Semua', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _amountController,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              prefixText: 'Rp ',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                final amt = int.tryParse(_amountController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-                if (amt <= 0 || amt > widget.maxBalance) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Nominal penarikan tidak valid atau saldo tidak cukup')),
-                  );
-                  return;
-                }
-                Navigator.pop(context);
-                widget.onSuccess(amt);
+            const SizedBox(height: 8),
+            TextField(
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              onChanged: (_) {
+                if (_amountError != null) setState(() => _amountError = null);
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              decoration: InputDecoration(
+                prefixText: 'Rp ',
+                errorText: _amountError,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
-              child: const Text('Konfirmasi & Masukkan PIN', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  final amt = int.tryParse(_amountController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+                  if (amt < 10000) {
+                    setState(() => _amountError = 'Minimal penarikan Rp 10.000');
+                    return;
+                  }
+                  if (amt > widget.maxBalance) {
+                    setState(() => _amountError = 'Saldo tidak mencukupi');
+                    return;
+                  }
+                  Navigator.pop(context);
+                  widget.onProceedToPin(amt);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Konfirmasi & Masukkan PIN', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -565,6 +683,26 @@ class _PinVerificationDialog extends StatefulWidget {
 
 class _PinVerificationDialogState extends State<_PinVerificationDialog> {
   final TextEditingController _pinController = TextEditingController();
+  String? _pinError;
+
+  @override
+  void dispose() {
+    _pinController.dispose();
+    super.dispose();
+  }
+
+  void _verify() {
+    final pin = _pinController.text.trim();
+    if (!RegExp(r'^\d{6}$').hasMatch(pin)) {
+      setState(() => _pinError = 'PIN keamanan harus 6 digit angka');
+      return;
+    }
+    if (pin != TokoState.securityPin) {
+      setState(() => _pinError = 'PIN keamanan salah (default: ${TokoState.securityPin})');
+      return;
+    }
+    widget.onVerified();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -575,12 +713,27 @@ class _PinVerificationDialogState extends State<_PinVerificationDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Masukkan Sandi Anda',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const SizedBox(width: 24),
+                const Expanded(
+                  child: Text(
+                    'Masukkan PIN Keamanan',
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                ),
+                GestureDetector(
+                  key: const Key('btn_close_pin_dialog'),
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.close, size: 22, color: AppColors.textSecondary),
+                ),
+              ],
             ),
             const SizedBox(height: 6),
-            const Text('Masukan sandi anda', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            const Text('Masukkan 6 digit PIN toko (default: 123456)', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
             const SizedBox(height: 20),
             TextField(
               controller: _pinController,
@@ -588,9 +741,19 @@ class _PinVerificationDialogState extends State<_PinVerificationDialog> {
               obscureText: true,
               maxLength: 6,
               textAlign: TextAlign.center,
+              onChanged: (_) {
+                if (_pinError != null) setState(() => _pinError = null);
+              },
               style: const TextStyle(fontSize: 22, letterSpacing: 8, fontWeight: FontWeight.bold),
               decoration: InputDecoration(
                 counterText: '',
+                errorText: _pinError,
+                hintText: '••••••',
+                hintStyle: TextStyle(
+                  color: AppColors.textMuted.withValues(alpha: 0.45),
+                  fontWeight: FontWeight.normal,
+                  letterSpacing: 6,
+                ),
                 filled: true,
                 fillColor: AppColors.primarySoft,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
@@ -600,8 +763,8 @@ class _PinVerificationDialogState extends State<_PinVerificationDialog> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: widget.onVerified,
-                icon: const Icon(Icons.send_rounded, size: 16),
+                onPressed: _verify,
+                icon: const Icon(Icons.verified_user_rounded, size: 16),
                 label: const Text('VERIFIKASI', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.dark,
@@ -619,9 +782,10 @@ class _PinVerificationDialogState extends State<_PinVerificationDialog> {
 }
 
 class _AddBankSheet extends StatefulWidget {
+  final String ownerName;
   final ValueChanged<String> onSaved;
 
-  const _AddBankSheet({required this.onSaved});
+  const _AddBankSheet({required this.ownerName, required this.onSaved});
 
   @override
   State<_AddBankSheet> createState() => _AddBankSheetState();
@@ -631,7 +795,58 @@ class _AddBankSheetState extends State<_AddBankSheet> {
   String _selectedBank = 'Bank Mandiri (Persero)';
   final TextEditingController _accountNumberController = TextEditingController(text: '1420019283741');
   bool _isMainAccount = true;
-  bool _isVerified = true;
+  bool _isVerified = false;
+  String? _accountError;
+
+  @override
+  void dispose() {
+    _accountNumberController.dispose();
+    super.dispose();
+  }
+
+  void _checkAccount() {
+    final digits = _accountNumberController.text.replaceAll(RegExp(r'\s+'), '');
+    if (!RegExp(r'^\d{8,}$').hasMatch(digits)) {
+      setState(() {
+        _isVerified = false;
+        _accountError = 'Nomor rekening minimal 8 digit angka';
+      });
+      return;
+    }
+    setState(() {
+      _accountError = null;
+      _isVerified = true;
+    });
+  }
+
+  void _saveBank() {
+    final digits = _accountNumberController.text.replaceAll(RegExp(r'\s+'), '');
+    if (!RegExp(r'^\d{8,}$').hasMatch(digits)) {
+      setState(() {
+        _isVerified = false;
+        _accountError = 'Masukkan nomor rekening yang valid (min. 8 digit)';
+      });
+      return;
+    }
+    if (!_isVerified) {
+      setState(() {
+        _accountError = 'Tekan Periksa untuk memverifikasi rekening terlebih dahulu';
+      });
+      return;
+    }
+
+    final cleanBank = _selectedBank.startsWith('Bank ') ? _selectedBank.substring(5) : _selectedBank;
+    final shortBank = cleanBank.split(' ').first;
+    final lastFour = digits.substring(digits.length - 4);
+    if (_isMainAccount) {
+      widget.onSaved('$shortBank •••• $lastFour');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rekening $shortBank •••• $lastFour disimpan sebagai rekening cadangan')),
+      );
+    }
+    Navigator.pop(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -641,138 +856,154 @@ class _AddBankSheetState extends State<_AddBankSheet> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Tambah Rekening Bank',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Text('Pilih Bank', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-          const SizedBox(height: 6),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedBank,
-            items: const [
-              DropdownMenuItem(value: 'Bank Mandiri (Persero)', child: Text('Bank Mandiri (Persero)')),
-              DropdownMenuItem(value: 'BCA (Bank Central Asia)', child: Text('BCA (Bank Central Asia)')),
-              DropdownMenuItem(value: 'BRI (Bank Rakyat Indonesia)', child: Text('BRI (Bank Rakyat Indonesia)')),
-              DropdownMenuItem(value: 'BSI (Bank Syariah Indonesia)', child: Text('BSI (Bank Syariah Indonesia)')),
-            ],
-            onChanged: (val) {
-              if (val != null) setState(() => _selectedBank = val);
-            },
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.account_balance_outlined, color: AppColors.primary),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Text('Nomor Rekening', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _accountNumberController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Tambah Rekening Bank',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() => _isVerified = true);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primarySoft,
-                  foregroundColor: AppColors.primary,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
                 ),
-                child: const Text('Periksa', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text('Pilih Bank', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: _selectedBank,
+              items: const [
+                DropdownMenuItem(value: 'Bank Mandiri (Persero)', child: Text('Bank Mandiri (Persero)', overflow: TextOverflow.ellipsis)),
+                DropdownMenuItem(value: 'BCA (Bank Central Asia)', child: Text('BCA (Bank Central Asia)', overflow: TextOverflow.ellipsis)),
+                DropdownMenuItem(value: 'BRI (Bank Rakyat Indonesia)', child: Text('BRI (Bank Rakyat Indonesia)', overflow: TextOverflow.ellipsis)),
+                DropdownMenuItem(value: 'BSI (Bank Syariah Indonesia)', child: Text('BSI (Bank Syariah Indonesia)', overflow: TextOverflow.ellipsis)),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _selectedBank = val;
+                    _isVerified = false;
+                  });
+                }
+              },
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.account_balance_outlined, color: AppColors.primary),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
-            ],
-          ),
-          if (_isVerified) ...[
+            ),
             const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFECFDF5),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFA7F3D0)),
-              ),
-              child: Row(
-                children: const [
-                  Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Nama Pemilik: JONI UTAMA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.success)),
-                        Text('Rekening terverifikasi dan sesuai dengan data pemilik toko.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                      ],
+            const Text('Nomor Rekening', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _accountNumberController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) {
+                      setState(() {
+                        _isVerified = false;
+                        _accountError = null;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      errorText: _accountError,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                   ),
-                ],
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: _checkAccount,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primarySoft,
+                    foregroundColor: AppColors.primary,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('Periksa', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            if (_isVerified) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Nama Pemilik: ${widget.ownerName}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.success)),
+                          const Text('Rekening terverifikasi dan sesuai dengan data pemilik toko.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text('Jadikan Rekening Utama', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      Text('Hasil pencairan saldo akan otomatis masuk ke rekening ini', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Switch(
+                  value: _isMainAccount,
+                  onChanged: (val) => setState(() => _isMainAccount = val),
+                  activeThumbColor: AppColors.primary,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _saveBank,
+                icon: const Icon(Icons.verified_outlined, size: 18),
+                label: const Text('Simpan Rekening', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
               ),
             ),
           ],
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text('Jadikan Rekening Utama', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  Text('Hasil pencairan saldo akan otomatis masuk ke rekening ini', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                ],
-              ),
-              Switch(
-                value: _isMainAccount,
-                onChanged: (val) => setState(() => _isMainAccount = val),
-                activeThumbColor: AppColors.primary,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                final shortBank = _selectedBank.split(' ').first;
-                widget.onSaved('$shortBank •••• ${_accountNumberController.text.substring((_accountNumberController.text.length - 4).clamp(0, _accountNumberController.text.length))}');
-                Navigator.pop(context);
-              },
-              icon: const Icon(Icons.verified_outlined, size: 18),
-              label: const Text('Simpan Rekening', style: TextStyle(fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

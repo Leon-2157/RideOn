@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
@@ -23,28 +25,41 @@ class AppImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ponytail: AppImage standardizes asset rendering across all screens with high quality filtering
-    Widget imageWidget = Image.asset(
-      assetPath,
-      width: width,
-      height: height,
-      fit: fit,
-      filterQuality: FilterQuality.high,
-      errorBuilder: (context, error, stackTrace) {
-        return placeholder ??
-            Container(
-              width: width,
-              height: height,
-              color: AppColors.primarySoft,
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.image_not_supported_outlined,
-                color: AppColors.primary,
-                size: 24,
-              ),
-            );
-      },
-    );
+    // ponytail: AppImage standardizes asset, network, and local file rendering across all screens with high quality filtering
+    final isNetwork = assetPath.startsWith('http://') ||
+        assetPath.startsWith('https://') ||
+        assetPath.startsWith('blob:');
+    final isAsset = assetPath.startsWith('assets/');
+
+    Widget imageWidget;
+    if (isNetwork || (kIsWeb && !isAsset)) {
+      imageWidget = Image.network(
+        assetPath,
+        width: width,
+        height: height,
+        fit: fit,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+      );
+    } else if (isAsset) {
+      imageWidget = Image.asset(
+        assetPath,
+        width: width,
+        height: height,
+        fit: fit,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+      );
+    } else {
+      imageWidget = Image.file(
+        File(assetPath),
+        width: width,
+        height: height,
+        fit: fit,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+      );
+    }
 
     if (borderRadius != null) {
       return ClipRRect(
@@ -55,5 +70,20 @@ class AppImage extends StatelessWidget {
     }
 
     return imageWidget;
+  }
+
+  Widget _buildPlaceholder() {
+    return placeholder ??
+        Container(
+          width: width,
+          height: height,
+          color: AppColors.primarySoft,
+          alignment: Alignment.center,
+          child: const Icon(
+            Icons.image_not_supported_outlined,
+            color: AppColors.primary,
+            size: 24,
+          ),
+        );
   }
 }

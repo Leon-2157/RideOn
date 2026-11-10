@@ -8,15 +8,21 @@ void main() {
 }
 
 class TokoApp extends StatefulWidget {
-  const TokoApp({super.key});
+  final bool initialLoggedIn;
+  const TokoApp({super.key, this.initialLoggedIn = false});
 
   @override
   State<TokoApp> createState() => _TokoAppState();
 }
 
 class _TokoAppState extends State<TokoApp> {
-  // Set to true to start directly in the store dashboard, or false to start at login
-  bool _isLoggedIn = true;
+  late bool _isLoggedIn;
+
+  @override
+  void initState() {
+    super.initState();
+    _isLoggedIn = widget.initialLoggedIn;
+  }
 
   @override
   Widget build(BuildContext context) {

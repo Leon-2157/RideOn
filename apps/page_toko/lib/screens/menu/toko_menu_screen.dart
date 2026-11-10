@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_image.dart';
 
@@ -12,12 +13,6 @@ class TokoMenuScreen extends StatefulWidget {
 class _TokoMenuScreenState extends State<TokoMenuScreen> {
   int _selectedCategoryIndex = 0;
   final TextEditingController _searchController = TextEditingController();
-
-  final List<String> _categories = [
-    'Semua (24)',
-    'Makanan Utama',
-    'Minuman',
-  ];
 
   final List<Map<String, dynamic>> _menuItems = [
     {
@@ -36,7 +31,6 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
       'desc': 'Ayam bakar manis gurih lengkap sambal dan lalapan segar.',
       'price': 30000,
       'isAvailable': true,
-      'image': 'assets/images/food_nasgor.png',
     },
     {
       'id': '3',
@@ -53,7 +47,6 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
       'desc': 'Ayam krispi digeprek dengan cabai rawit pedas nikmat.',
       'price': 22000,
       'isAvailable': true,
-      'image': 'assets/images/food_nasgor.png',
     },
     {
       'id': '5',
@@ -86,6 +79,41 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
     );
   }
 
+  void _deleteMenuItem(String id, String name) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Hapus Menu?', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        content: Text('Yakin ingin menghapus "$name" dari daftar menu?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                _menuItems.removeWhere((m) => m['id'] == id);
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Menu "$name" dihapus')),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _toggleAvailability(int index) {
     setState(() {
       _menuItems[index]['isAvailable'] = !(_menuItems[index]['isAvailable'] as bool);
@@ -101,12 +129,19 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
   @override
   Widget build(BuildContext context) {
     // ponytail: in-memory menu state; upgrade to persistent local storage / SQLite when offline mode required
+    final categories = [
+      'Semua (${_menuItems.length})',
+      'Makanan Utama',
+      'Minuman',
+      'Cemilan',
+    ];
     final query = _searchController.text.toLowerCase();
     final filtered = _menuItems.where((m) {
       final matchesSearch = (m['name'] as String).toLowerCase().contains(query);
       if (!matchesSearch) return false;
       if (_selectedCategoryIndex == 1) return m['category'] == 'Makanan Utama';
       if (_selectedCategoryIndex == 2) return m['category'] == 'Minuman';
+      if (_selectedCategoryIndex == 3) return m['category'] == 'Cemilan';
       return true;
     }).toList();
 
@@ -181,12 +216,12 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
-                children: List.generate(_categories.length, (index) {
+                children: List.generate(categories.length, (index) {
                   final isSelected = _selectedCategoryIndex == index;
                   return Padding(
                     padding: const EdgeInsets.only(right: 10),
                     child: ChoiceChip(
-                      label: Text(_categories[index]),
+                      label: Text(categories[index]),
                       selected: isSelected,
                       onSelected: (selected) {
                         if (selected) {
@@ -333,21 +368,41 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Text(
-                                          'Rp ${(item['price'] as int).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.primary,
+                                        Expanded(
+                                          child: Text(
+                                            'Rp ${(item['price'] as int).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w800,
+                                              color: AppColors.primary,
+                                            ),
                                           ),
                                         ),
-                                        GestureDetector(
-                                          onTap: () => _openAddEditMenuModal(item: item),
-                                          child: const Icon(
-                                            Icons.edit_note_rounded,
-                                            color: AppColors.primary,
-                                            size: 22,
-                                          ),
+                                        const SizedBox(width: 8),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            GestureDetector(
+                                              onTap: () => _deleteMenuItem(item['id'] as String, item['name'] as String),
+                                              child: const Padding(
+                                                padding: EdgeInsets.only(right: 10),
+                                                child: Icon(
+                                                  Icons.delete_outline_rounded,
+                                                  color: AppColors.danger,
+                                                  size: 20,
+                                                ),
+                                              ),
+                                            ),
+                                            GestureDetector(
+                                              onTap: () => _openAddEditMenuModal(item: item),
+                                              child: const Icon(
+                                                Icons.edit_note_rounded,
+                                                color: AppColors.primary,
+                                                size: 22,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
@@ -382,6 +437,11 @@ class _AddEditMenuSheetState extends State<_AddEditMenuSheet> {
   late TextEditingController _priceController;
   late TextEditingController _descController;
   String _selectedCategory = 'Makanan Utama';
+  String? _imagePath;
+  String? _imageError;
+  String? _nameError;
+  String? _priceError;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -394,6 +454,9 @@ class _AddEditMenuSheetState extends State<_AddEditMenuSheet> {
     if (widget.item != null && widget.item?['category'] != null) {
       _selectedCategory = widget.item!['category'] as String;
     }
+    if (widget.item != null && widget.item?['image'] != null) {
+      _imagePath = widget.item!['image'] as String?;
+    }
   }
 
   @override
@@ -404,18 +467,226 @@ class _AddEditMenuSheetState extends State<_AddEditMenuSheet> {
     super.dispose();
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    Navigator.of(context).pop();
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (picked != null) {
+        final fileSize = await picked.length();
+        if (fileSize > 5 * 1024 * 1024) {
+          if (mounted) {
+            setState(() {
+              _imageError = 'Ukuran foto maksimal 5MB.';
+            });
+          }
+          return;
+        }
+        if (mounted) {
+          setState(() {
+            _imagePath = picked.path;
+            _imageError = null;
+          });
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _imageError = 'Gagal memilih foto: $e';
+      });
+    }
+  }
+
+  void _openPhotoPickerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.dark,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Pilih Foto Menu',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              _buildPickerOption(
+                icon: Icons.camera_alt_rounded,
+                title: 'Ambil Dari Kamera',
+                subtitle: 'Buka Kamera dan Ambil Foto',
+                onTap: () => _pickImage(ImageSource.camera),
+              ),
+              const SizedBox(height: 12),
+              _buildPickerOption(
+                icon: Icons.image_rounded,
+                title: 'Pilih Dari Galeri',
+                subtitle: 'Pilih Foto Dari Perangkat',
+                onTap: () => _pickImage(ImageSource.gallery),
+              ),
+              if (_imagePath != null) ...[
+                const SizedBox(height: 12),
+                _buildPickerOption(
+                  icon: Icons.delete_outline_rounded,
+                  title: 'Hapus Foto',
+                  subtitle: 'Gunakan Ikon Default',
+                  color: AppColors.danger,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() {
+                      _imagePath = null;
+                      _imageError = null;
+                    });
+                  },
+                ),
+              ],
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.dark,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('BATAL', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPickerOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    final optColor = color ?? AppColors.primary;
+    return Material(
+      color: const Color(0xFFF5F3FF),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: optColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: color ?? AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textPrimary,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _submit() {
-    if (_nameController.text.trim().isEmpty) return;
+    final name = _nameController.text.trim();
     final priceVal = int.tryParse(_priceController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
-    widget.onSave({
+    bool hasError = false;
+    if (name.isEmpty) {
+      setState(() => _nameError = 'Nama menu wajib diisi');
+      hasError = true;
+    }
+    if (priceVal <= 0) {
+      setState(() => _priceError = 'Harga harus lebih dari Rp 0');
+      hasError = true;
+    }
+    if (hasError) return;
+
+    final data = <String, dynamic>{
       'id': widget.item?['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      'name': _nameController.text.trim(),
+      'name': name,
       'category': _selectedCategory,
       'desc': _descController.text.trim(),
       'price': priceVal,
       'isAvailable': widget.item?['isAvailable'] ?? true,
-    });
+    };
+    if (_imagePath != null && _imagePath!.isNotEmpty) {
+      data['image'] = _imagePath;
+    }
+
+    widget.onSave(data);
     Navigator.pop(context);
   }
 
@@ -472,46 +743,111 @@ class _AddEditMenuSheetState extends State<_AddEditMenuSheet> {
           const Divider(height: 1, color: AppColors.borderLight),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Foto Menu', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 30),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFBF9FF),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.primaryLight, style: BorderStyle.solid),
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.border),
+                  GestureDetector(
+                    key: const Key('btn_upload_menu_photo'),
+                    onTap: _openPhotoPickerSheet,
+                    child: _imagePath != null
+                        ? Container(
+                            width: double.infinity,
+                            height: 160,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.primaryLight),
+                            ),
+                            child: Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: AppImage(
+                                    assetPath: _imagePath!,
+                                    borderRadius: BorderRadius.circular(16),
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 10,
+                                  right: 10,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.dark.withValues(alpha: 0.8),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        Icon(Icons.camera_alt_outlined, size: 14, color: Colors.white),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Ubah Foto',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 30),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFBF9FF),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.primaryLight, style: BorderStyle.solid),
+                            ),
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: AppColors.border),
+                                  ),
+                                  child: const Icon(Icons.camera_alt_outlined, color: AppColors.primary, size: 22),
+                                ),
+                                const SizedBox(height: 10),
+                                const Text('Unggah Foto Menu', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                                const SizedBox(height: 4),
+                                const Text('Format JPG, PNG maksimal 5MB', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                              ],
+                            ),
                           ),
-                          child: const Icon(Icons.camera_alt_outlined, color: AppColors.primary, size: 22),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text('Unggah Foto Menu', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                        const SizedBox(height: 4),
-                        const Text('Format JPG, PNG maksimal 5MB', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                      ],
-                    ),
                   ),
+                  if (_imageError != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      _imageError!,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.danger,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   const Text('Nama Menu', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _nameController,
+                    onChanged: (_) {
+                      if (_nameError != null) setState(() => _nameError = null);
+                    },
                     decoration: InputDecoration(
                       hintText: 'Masukkan nama menu',
+                      errorText: _nameError,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
@@ -520,6 +856,7 @@ class _AddEditMenuSheetState extends State<_AddEditMenuSheet> {
                   const Text('Kategori', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: _selectedCategory,
                     items: const [
                       DropdownMenuItem(value: 'Makanan Utama', child: Text('Makanan Utama')),
@@ -540,9 +877,13 @@ class _AddEditMenuSheetState extends State<_AddEditMenuSheet> {
                   TextField(
                     controller: _priceController,
                     keyboardType: TextInputType.number,
+                    onChanged: (_) {
+                      if (_priceError != null) setState(() => _priceError = null);
+                    },
                     decoration: InputDecoration(
                       prefixText: 'Rp ',
                       hintText: '0',
+                      errorText: _priceError,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),

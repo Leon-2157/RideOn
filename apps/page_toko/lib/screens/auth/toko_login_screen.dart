@@ -1,16 +1,20 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../data/toko_state.dart';
 import '../../theme/app_colors.dart';
 
 class TokoLoginScreen extends StatefulWidget {
   final VoidCallback onLoginSuccess;
   final String? initialIdentifier;
+  final Set<int>? initialUploadedIndices;
 
   const TokoLoginScreen({
     super.key,
     required this.onLoginSuccess,
     this.initialIdentifier,
+    this.initialUploadedIndices,
   });
 
   @override
@@ -23,15 +27,19 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
   // 2: Verifikasi WhatsApp OTP (frame 22)
   // 3: Lengkapi Daftar Toko (frame 27)
   // 4: Berkas Berhasil di Upload (frame 31)
+  // 5: Buat Kata Sandi Baru
   int _currentStep = 0;
 
   late final TextEditingController _identifierController;
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _forgotIdentifierController = TextEditingController();
-  final TextEditingController _otpController = TextEditingController(text: '123456');
+  final TextEditingController _otpController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
 
-  // Lengkapi Toko Controllers (5 fields matching Figma)
+  // Lengkapi Toko Controllers (matching Figma + owner name)
   final TextEditingController _storeNameController = TextEditingController();
+  final TextEditingController _ownerNameController = TextEditingController();
   final TextEditingController _storeDescController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _postalController = TextEditingController();
@@ -41,23 +49,36 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
   final Set<int> _uploadedIndices = {};
 
   bool _obscurePassword = true;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
   bool _hasLoginError = false;
+  String _loginErrorMessage = 'Email/WhatsApp dan kata sandi wajib diisi.';
   bool _isLoading = false;
   bool _agreeTerms = false;
+
+  Timer? _otpTimer;
+  int _otpSecondsLeft = 300;
 
   @override
   void initState() {
     super.initState();
     _identifierController = TextEditingController(text: widget.initialIdentifier ?? '');
+    if (widget.initialUploadedIndices != null) {
+      _uploadedIndices.addAll(widget.initialUploadedIndices!);
+    }
   }
 
   @override
   void dispose() {
+    _otpTimer?.cancel();
     _identifierController.dispose();
     _passwordController.dispose();
     _forgotIdentifierController.dispose();
     _otpController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     _storeNameController.dispose();
+    _ownerNameController.dispose();
     _storeDescController.dispose();
     _addressController.dispose();
     _postalController.dispose();
@@ -65,15 +86,65 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
     super.dispose();
   }
 
+  void _goToStep(int step) {
+    if (step != 2) {
+      _otpTimer?.cancel();
+    }
+    setState(() {
+      _hasLoginError = false;
+      _currentStep = step;
+    });
+    if (step == 2) {
+      _startOtpTimer();
+    }
+  }
+
+  void _startOtpTimer() {
+    _otpTimer?.cancel();
+    setState(() => _otpSecondsLeft = 300);
+    _otpTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_otpSecondsLeft > 0) {
+        setState(() => _otpSecondsLeft--);
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  bool _isValidIdentifier(String value) {
+    final v = value.trim();
+    if (v.contains('@')) {
+      return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v);
+    }
+    final digits = v.replaceAll(RegExp(r'[\s\-\+\(\)]'), '');
+    return RegExp(r'^0?\d{8,15}$').hasMatch(digits);
+  }
+
   Future<void> _submitLogin() async {
     final identifier = _identifierController.text.trim();
     final password = _passwordController.text;
 
     if (identifier.isEmpty || password.isEmpty) {
-      setState(() => _hasLoginError = true);
+      setState(() {
+        _hasLoginError = true;
+        _loginErrorMessage = 'Email/WhatsApp dan kata sandi wajib diisi.';
+      });
       return;
     }
 
+    if (!_isValidIdentifier(identifier) || password.length < 6) {
+      setState(() {
+        _hasLoginError = true;
+        _loginErrorMessage = 'Masukkan email / No. WA valid dan sandi minimal 6 karakter.';
+      });
+      return;
+    }
+
+    // ponytail: local format validation gates login until backend auth API is connected
     setState(() {
       _isLoading = true;
       _hasLoginError = false;
@@ -105,79 +176,101 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.dark,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
+                Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: AppColors.dark,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Pilih Foto',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.dark),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Pilih Foto',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.dark),
+                const SizedBox(height: 18),
+                _buildPickerOption(
+                  icon: Icons.camera_alt_rounded,
+                  title: 'Ambil Dari Kamera',
+                  subtitle: 'Buka Kamera dan Ambil Foto',
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    try {
+                      final picker = ImagePicker();
+                      final picked = await picker.pickImage(source: ImageSource.camera);
+                      if (picked != null && mounted) {
+                        setState(() => _uploadedIndices.add(itemIndex));
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Gagal mengambil foto: $e'),
+                            backgroundColor: AppColors.danger,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                _buildPickerOption(
+                  icon: Icons.image_rounded,
+                  title: 'Pilih Dari Galeri',
+                  subtitle: 'Pilih Foto Dari Perangkat',
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    try {
+                      final picker = ImagePicker();
+                      final picked = await picker.pickImage(source: ImageSource.gallery);
+                      if (picked != null && mounted) {
+                        setState(() => _uploadedIndices.add(itemIndex));
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Gagal memilih foto: $e'),
+                            backgroundColor: AppColors.danger,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.dark,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('BATAL', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 18),
-            _buildPickerOption(
-              icon: Icons.camera_alt_rounded,
-              title: 'Ambil Dari Kamera',
-              subtitle: 'Buka Kamera dan Ambil Foto',
-              onTap: () async {
-                Navigator.pop(ctx);
-                try {
-                  final picker = ImagePicker();
-                  await picker.pickImage(source: ImageSource.camera);
-                } catch (_) {}
-                if (mounted) {
-                  setState(() => _uploadedIndices.add(itemIndex));
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildPickerOption(
-              icon: Icons.image_rounded,
-              title: 'Pilih Dari Galeri',
-              subtitle: 'Pilih Foto Dari Perangkat',
-              onTap: () async {
-                Navigator.pop(ctx);
-                try {
-                  final picker = ImagePicker();
-                  await picker.pickImage(source: ImageSource.gallery);
-                } catch (_) {}
-                if (mounted) {
-                  setState(() => _uploadedIndices.add(itemIndex));
-                }
-              },
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(ctx),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.dark,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('BATAL', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -266,7 +359,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: const [
                           Text(
-                            'Syarat & Ketentuan RideOn',
+                            'Syarat & Ketentuan Mitra Toko RideOn',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
@@ -275,7 +368,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'Ketentuan umum penggunaan layanan transportasi',
+                            'Ketentuan umum kemitraan toko kuliner & merchant',
                             style: TextStyle(
                               fontSize: 11,
                               color: AppColors.textSecondary,
@@ -298,39 +391,37 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   children: [
                     const Text(
-                      'Selamat datang di RideOn. Dengan mendaftar dan menggunakan platform ini, Anda menyatakan tunduk dan terikat pada syarat dan ketentuan berikut sesuai hukum yang berlaku di Republik Indonesia.',
+                      'Selamat datang di RideOn Merchant. Dengan mendaftarkan toko dan menggunakan platform ini, Anda menyatakan tunduk dan terikat pada ketentuan kemitraan berikut sesuai hukum yang berlaku di Republik Indonesia.',
                       style: TextStyle(fontSize: 12, height: 1.5, color: AppColors.dark),
                     ),
                     const SizedBox(height: 12),
                     _buildTermsSection(
-                      '1. Ketentuan Umum & Definisi',
+                      '1. Ketentuan Umum Kemitraan Toko',
                       [
-                        'RideOn adalah platform perantara yang mempertemukan pihak yang menyediakan layanan transportasi (Mitra Pengemudi) dengan pihak yang membutuhkan layanan perjalanan (Penumpang/Customer).',
-                        'RideOn tidak memiliki, menguasai, atau mengelola armada kendaraan yang digunakan oleh Mitra Pengemudi di dalam platform ini.',
-                        'Pengguna wajib berusia minimal 17 tahun dan/atau memiliki identitas resmi (KTP/SIM/Paspor) yang sah menurut hukum Republik Indonesia. Pengguna di bawah umur wajib didampingi oleh orang dewasa saat menggunakan layanan.',
+                        'RideOn adalah platform perantara yang menghubungkan Mitra Toko Makanan dengan Pelanggan serta Mitra Pengemudi untuk layanan pemesanan dan pengantaran kuliner.',
+                        'Mitra Toko bertanggung jawab atas keabsahan informasi toko, alamat outlet, jam operasional, serta daftar menu yang ditampilkan pada aplikasi.',
+                        'Pendaftar atau pengelola akun Mitra Toko wajib berusia minimal 17 tahun dan memiliki identitas serta izin usaha yang sah.',
                       ],
                     ),
                     _buildTermsSection(
-                      '2. Tanggung Jawab & Kewajiban Customer',
+                      '2. Kualitas Menu & Kebersihan Pangan',
                       [
-                        'Customer wajib memberikan informasi titik penjemputan dan titik tujuan yang asli dan valid saat melakukan transaksi pemesanan perjalanan.',
-                        'Customer dilarang keras membawa barang terlarang, ilegal, berbahaya, atau hewan yang tidak sesuai dengan kebijakan keselamatan selama perjalanan berlangsung.',
-                        'Customer wajib mematuhi peraturan lalu lintas, termasuk menggunakan helm pelindung (untuk layanan ojek motor) yang disediakan oleh Mitra Pengemudi.',
-                        'Kerusakan pada kendaraan Mitra Pengemudi di luar batas wajar pemakaian yang diakibatkan oleh kelalaian atau kesengajaan Customer akan menjadi tanggung jawab Customer sesuai nilai kerugian atau kesepakatan dengan Mitra Pengemudi.',
+                        'Mitra Toko wajib memastikan seluruh makanan dan minuman yang disajikan bersih, aman dikonsumsi, halal sesuai keterangan menu, dan sesuai deskripsi serta harga.',
+                        'Mitra Toko wajib memperbarui ketersediaan stok menu secara berkala dan mengemas pesanan dengan rapi agar aman selama pengantaran oleh kurir.',
                       ],
                     ),
                     _buildTermsSection(
-                      '3. Tanggung Jawab & Hak Mitra Pengemudi (Driver)',
+                      '3. Pemrosesan Pesanan & Pencairan Saldo',
                       [
-                        'Mitra Pengemudi bertanggung jawab penuh atas keselamatan penumpang, kelayakan jalan kendaraan, serta kesesuaian identitas dan plat nomor kendaraan dengan yang tertera di aplikasi.',
-                        'Mitra Pengemudi berhak menolak pesanan jika Customer dinilai mencurigakan, membawa muatan berlebih/berbahaya, atau tidak memenuhi standar keselamatan berkendara.',
+                        'Mitra Toko wajib merespons pesanan masuk dalam batas waktu konfirmasi dan menyiapkan pesanan sesuai estimasi waktu masak.',
+                        'Hasil penjualan non-tunai masuk ke Saldo Aktif Toko setelah pesanan selesai dan dapat dicairkan ke rekening bank terverifikasi milik pemilik toko.',
                       ],
                     ),
                     _buildTermsSection(
                       '4. Batasan Tanggung Jawab',
                       [
-                        'RideOn terlepas dari segala tuntutan hukum atas kecelakaan, kehilangan barang bawaan, cedera, atau tindakan kriminal yang dilakukan oleh pengguna atau pengemudi di luar prosedur standar operasi aplikasi.',
-                        'Segala sengketa atau perselisihan adalah tanggung jawab penuh antara Mitra Pengemudi dan Customer. RideOn hanya akan bertindak sebagai mediator untuk membantu menyelesaikan perselisihan jika diperlukan.',
+                        'RideOn berhak menonaktifkan sementara akun toko apabila ditemukan pelanggaran keamanan pangan, penolakan pesanan berulang tanpa alasan, atau penyalahgunaan data.',
+                        'Perselisihan antara Mitra Toko, Pelanggan, atau Mitra Pengemudi akan diselesaikan melalui mekanisme mediasi tim operasional RideOn.',
                       ],
                     ),
                   ],
@@ -452,6 +543,8 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
         return _buildRegisterStep2Card();
       case 4:
         return _buildSuccessCard();
+      case 5:
+        return _buildResetPasswordCard();
       default:
         return _buildGlassLoginCard();
     }
@@ -517,6 +610,9 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             prefixIcon: Icons.person_rounded,
             keyboardType: TextInputType.emailAddress,
             keyName: 'input_login_identifier',
+            onChanged: (_) {
+              if (_hasLoginError) setState(() => _hasLoginError = false);
+            },
           ),
 
           const SizedBox(height: 14),
@@ -528,6 +624,9 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             prefixIcon: Icons.lock_rounded,
             obscureText: _obscurePassword,
             keyName: 'input_login_password',
+            onChanged: (_) {
+              if (_hasLoginError) setState(() => _hasLoginError = false);
+            },
             suffixIcon: GestureDetector(
               onTap: () => setState(() => _obscurePassword = !_obscurePassword),
               child: Icon(
@@ -544,7 +643,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
           Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
-              onTap: () => setState(() => _currentStep = 1),
+              onTap: () => _goToStep(1),
               child: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 4),
                 child: Text(
@@ -572,13 +671,13 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
                 border: Border.all(color: const Color(0xFFE83535), width: 1),
               ),
               child: Row(
-                children: const [
-                  Icon(Icons.error_outline_rounded, color: Color(0xFFE83535), size: 18),
-                  SizedBox(width: 8),
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: Color(0xFFE83535), size: 18),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Email/WhatsApp atau kata sandi yang Anda masukkan salah.',
-                      style: TextStyle(
+                      _loginErrorMessage,
+                      style: const TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFFE83535),
@@ -643,7 +742,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
           // Footer: Belum punya akun? Daftar Sekarang
           GestureDetector(
             key: const Key('link_daftar_sekarang'),
-            onTap: () => setState(() => _currentStep = 3),
+            onTap: () => _goToStep(3),
             child: RichText(
               text: TextSpan(
                 text: 'Belum punya akun? ',
@@ -718,6 +817,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             hintText: 'No. WhatsApp / Email',
             prefixIcon: Icons.person_rounded,
             keyboardType: TextInputType.emailAddress,
+            keyName: 'input_forgot_identifier',
           ),
 
           const SizedBox(height: 20),
@@ -726,7 +826,19 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             width: double.infinity,
             height: 44,
             child: ElevatedButton.icon(
-              onPressed: () => setState(() => _currentStep = 2),
+              onPressed: () {
+                final ident = _forgotIdentifierController.text.trim();
+                if (ident.isEmpty || !_isValidIdentifier(ident)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Masukkan nomor WhatsApp atau email yang valid.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
+                _goToStep(2);
+              },
               icon: const Icon(Icons.send_rounded, size: 16),
               label: const Text(
                 'KIRIM KODE OTP',
@@ -743,7 +855,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
           const SizedBox(height: 16),
 
           GestureDetector(
-            onTap: () => setState(() => _currentStep = 0),
+            onTap: () => _goToStep(0),
             child: const Text(
               '← Kembali ke halaman Masuk',
               style: TextStyle(
@@ -818,6 +930,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             ),
             child: Center(
               child: TextField(
+                key: const Key('input_otp_code'),
                 controller: _otpController,
                 keyboardType: TextInputType.number,
                 maxLength: 6,
@@ -828,9 +941,15 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
                   fontWeight: FontWeight.bold,
                   color: AppColors.dark,
                 ),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   counterText: '',
                   hintText: '1 2 3 4 5 6',
+                  hintStyle: TextStyle(
+                    fontSize: 16,
+                    letterSpacing: 6,
+                    fontWeight: FontWeight.normal,
+                    color: AppColors.textMuted.withValues(alpha: 0.45),
+                  ),
                   border: InputBorder.none,
                 ),
               ),
@@ -840,12 +959,35 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
           const SizedBox(height: 10),
 
           Text(
-            'Kode kadaluarsa dalam\n5:00',
+            'Kode kadaluarsa dalam\n${(_otpSecondsLeft ~/ 60)}:${(_otpSecondsLeft % 60).toString().padLeft(2, '0')}',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w500,
               color: AppColors.dark.withValues(alpha: 0.70),
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          GestureDetector(
+            onTap: () {
+              _startOtpTimer();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Kode OTP baru telah dikirimkan ke WhatsApp Anda.'),
+                  backgroundColor: AppColors.primary,
+                ),
+              );
+            },
+            child: const Text(
+              'Kirim Ulang Kode',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.dark,
+                decoration: TextDecoration.underline,
+              ),
             ),
           ),
 
@@ -855,7 +997,28 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             width: double.infinity,
             height: 44,
             child: ElevatedButton.icon(
-              onPressed: () => setState(() => _currentStep = 0),
+              onPressed: () {
+                final otp = _otpController.text.trim();
+                if (!RegExp(r'^\d{6}$').hasMatch(otp)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Masukkan 6 digit kode OTP yang valid.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
+                if (_otpSecondsLeft <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Kode OTP sudah kadaluarsa. Silakan kirim ulang kode.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
+                _goToStep(5);
+              },
               icon: const Icon(Icons.send_rounded, size: 16),
               label: const Text(
                 'VERIFIKASI',
@@ -872,7 +1035,143 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
           const SizedBox(height: 16),
 
           GestureDetector(
-            onTap: () => setState(() => _currentStep = 0),
+            onTap: () => _goToStep(0),
+            child: const Text(
+              '← Kembali ke halaman Masuk',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.dark,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // Step 5: Buat Sandi Baru (setelah verifikasi OTP berhasil)
+  // ===========================================================================
+  Widget _buildResetPasswordCard() {
+    return _buildGlassCardWrapper(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.40),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.60), width: 1),
+            ),
+            child: const Icon(Icons.lock_reset_rounded, color: AppColors.dark, size: 26),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Buat Sandi Baru',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: AppColors.dark,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Masukkan kata sandi baru minimal 6 karakter\nuntuk mengamankan akun toko Anda.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.4,
+              color: AppColors.dark.withValues(alpha: 0.80),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildGlassInputField(
+            controller: _newPasswordController,
+            hintText: 'Kata Sandi Baru',
+            prefixIcon: Icons.lock_rounded,
+            obscureText: _obscureNewPassword,
+            keyName: 'input_new_password',
+            suffixIcon: GestureDetector(
+              onTap: () => setState(() => _obscureNewPassword = !_obscureNewPassword),
+              child: Icon(
+                _obscureNewPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                size: 18,
+                color: AppColors.dark,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _buildGlassInputField(
+            controller: _confirmPasswordController,
+            hintText: 'Konfirmasi Kata Sandi',
+            prefixIcon: Icons.lock_outline_rounded,
+            obscureText: _obscureConfirmPassword,
+            keyName: 'input_confirm_password',
+            suffixIcon: GestureDetector(
+              onTap: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+              child: Icon(
+                _obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                size: 18,
+                color: AppColors.dark,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton(
+              key: const Key('btn_save_new_password'),
+              onPressed: () {
+                final newPass = _newPasswordController.text;
+                final confirmPass = _confirmPasswordController.text;
+                if (newPass.length < 6) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Kata sandi baru minimal 6 karakter.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
+                if (newPass != confirmPass) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Konfirmasi kata sandi tidak cocok.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
+                _newPasswordController.clear();
+                _confirmPasswordController.clear();
+                _otpController.clear();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Kata sandi berhasil diperbarui. Silakan masuk.'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+                _goToStep(0);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.dark,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+              ),
+              child: const Text(
+                'SIMPAN KATA SANDI',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.6),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: () => _goToStep(0),
             child: const Text(
               '← Kembali ke halaman Masuk',
               style: TextStyle(
@@ -922,6 +1221,17 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             controller: _storeNameController,
             hintText: 'Nama Toko',
             prefixIcon: Icons.storefront_rounded,
+            keyName: 'input_reg_store_name',
+          ),
+
+          const SizedBox(height: 12),
+
+          // Field: Nama Pemilik
+          _buildGlassInputField(
+            controller: _ownerNameController,
+            hintText: 'Nama Pemilik',
+            prefixIcon: Icons.badge_rounded,
+            keyName: 'input_reg_owner_name',
           ),
 
           const SizedBox(height: 12),
@@ -941,7 +1251,8 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             index: 2,
             controller: _addressController,
             hintText: 'Alamat Lengkap',
-            prefixIcon: Icons.local_shipping_rounded,
+            prefixIcon: Icons.location_on_rounded,
+            keyName: 'input_reg_address',
           ),
 
           const SizedBox(height: 12),
@@ -951,7 +1262,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             index: 3,
             controller: _postalController,
             hintText: 'Kode Pos',
-            prefixIcon: Icons.account_balance_wallet_rounded,
+            prefixIcon: Icons.markunread_mailbox_rounded,
             keyboardType: TextInputType.number,
           ),
 
@@ -962,7 +1273,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             index: 4,
             controller: _countryController,
             hintText: 'Negara',
-            prefixIcon: Icons.shield_rounded,
+            prefixIcon: Icons.public_rounded,
           ),
 
           const SizedBox(height: 14),
@@ -1029,8 +1340,65 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             height: 44,
             child: ElevatedButton(
               onPressed: () {
+                final storeName = _storeNameController.text.trim();
+                final address = _addressController.text.trim();
+                final postal = _postalController.text.trim();
+                final country = _countryController.text.trim();
+                final messenger = ScaffoldMessenger.of(context);
+
+                if (storeName.isEmpty) {
+                  messenger.clearSnackBars();
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Nama Toko wajib diisi.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
+                if (address.isEmpty) {
+                  messenger.clearSnackBars();
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Alamat Lengkap wajib diisi.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
+                if (postal.isNotEmpty && !RegExp(r'^\d{5,}$').hasMatch(postal)) {
+                  messenger.clearSnackBars();
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Kode Pos harus minimal 5 digit angka.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
+                if (country.isEmpty) {
+                  messenger.clearSnackBars();
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Negara wajib diisi.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
+                if (_uploadedIndices.isEmpty) {
+                  messenger.clearSnackBars();
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Unggah minimal 1 foto/berkas verifikasi toko.'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                  return;
+                }
                 if (!_agreeTerms) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.clearSnackBars();
+                  messenger.showSnackBar(
                     const SnackBar(
                       content: Text('Harap setujui Syarat & Ketentuan terlebih dahulu.'),
                       backgroundColor: AppColors.primary,
@@ -1038,7 +1406,21 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
                   );
                   return;
                 }
-                setState(() => _currentStep = 4);
+
+                TokoState.storeName.value = storeName;
+                if (_ownerNameController.text.trim().isNotEmpty) {
+                  TokoState.ownerName.value = _ownerNameController.text.trim();
+                }
+                if (_storeDescController.text.trim().isNotEmpty) {
+                  TokoState.storeCategory.value = _storeDescController.text.trim();
+                }
+                TokoState.storeAddress.value = address;
+                if (postal.isNotEmpty) {
+                  TokoState.storePostal.value = postal;
+                }
+                TokoState.storeCountry.value = country;
+
+                _goToStep(4);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.dark,
@@ -1056,7 +1438,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
 
           // Footer link
           GestureDetector(
-            onTap: () => setState(() => _currentStep = 0),
+            onTap: () => _goToStep(0),
             child: RichText(
               text: TextSpan(
                 text: 'Sudah punya akun? ',
@@ -1089,6 +1471,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
     required TextEditingController controller,
     required String hintText,
     required IconData prefixIcon,
+    String? keyName,
     TextInputType keyboardType = TextInputType.text,
   }) {
     final isUploaded = _uploadedIndices.contains(index);
@@ -1100,8 +1483,10 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
           controller: controller,
           hintText: hintText,
           prefixIcon: prefixIcon,
+          keyName: keyName,
           keyboardType: keyboardType,
           suffixIcon: GestureDetector(
+            key: Key('btn_upload_doc_$index'),
             onTap: () => _showPhotoPickerSheet(index),
             behavior: HitTestBehavior.opaque,
             child: Padding(
@@ -1172,7 +1557,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
           const SizedBox(height: 16),
 
           Text(
-            'Tim operasional sedang memvalidasi Keaslian Berkas\nAnda. Proses aktivasi radar memakan waktu 1×24 jam.',
+            'Tim operasional sedang memvalidasi Keaslian Berkas\nAnda. Proses verifikasi berkas toko memakan waktu 1×24 jam.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 11.5,
@@ -1187,10 +1572,10 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             width: double.infinity,
             height: 44,
             child: ElevatedButton.icon(
-              onPressed: () => setState(() => _currentStep = 0),
+              onPressed: () => _goToStep(0),
               icon: const Icon(Icons.login_rounded, size: 18),
               label: const Text(
-                'CEK EMAIL SEKARANG',
+                'KEMBALI KE HALAMAN MASUK',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.5),
               ),
               style: ElevatedButton.styleFrom(
@@ -1236,6 +1621,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType keyboardType = TextInputType.text,
+    ValueChanged<String>? onChanged,
   }) {
     return Container(
       height: 44,
@@ -1277,6 +1663,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
               controller: controller,
               obscureText: obscureText,
               keyboardType: keyboardType,
+              onChanged: onChanged,
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w400,

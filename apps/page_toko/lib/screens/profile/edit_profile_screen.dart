@@ -6,12 +6,14 @@ import '../../widgets/app_image.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final String initialName;
+  final String initialStoreName;
   final String? initialAvatar;
   final ValueChanged<String>? onSave;
 
   const EditProfileScreen({
     super.key,
     this.initialName = 'Muhammad Taufiq',
+    this.initialStoreName = 'Warung Taufiq',
     this.initialAvatar,
     this.onSave,
   });
@@ -22,6 +24,7 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _nameController;
+  late final TextEditingController _storeNameController;
   File? _pickedImageFile;
   final ImagePicker _picker = ImagePicker();
 
@@ -29,11 +32,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.initialName);
+    _storeNameController = TextEditingController(text: widget.initialStoreName);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _storeNameController.dispose();
     super.dispose();
   }
 
@@ -225,7 +230,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   void _saveProfile() {
     final updatedName = _nameController.text.trim();
-    if (updatedName.isEmpty) return;
+    final updatedStoreName = _storeNameController.text.trim();
+    if (updatedStoreName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nama toko wajib diisi'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+    if (updatedName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nama lengkap wajib diisi'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
 
     widget.onSave?.call(updatedName);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -236,6 +259,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
     Navigator.pop(context, {
       'name': updatedName,
+      'storeName': updatedStoreName,
       'photoPath': _pickedImageFile?.path,
     });
   }
@@ -260,8 +284,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              children: [
               // Custom Header Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -347,27 +373,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ),
                             child: ClipOval(
                               child: _pickedImageFile != null
-                                  ? Image.file(
-                                      _pickedImageFile!,
+                                  ? AppImage(
+                                      assetPath: _pickedImageFile!.path,
                                       width: 124,
                                       height: 124,
                                       fit: BoxFit.cover,
                                     )
                                   : (widget.initialAvatar != null && widget.initialAvatar!.isNotEmpty)
-                                      ? (widget.initialAvatar!.startsWith('http') ||
-                                              widget.initialAvatar!.startsWith('assets/')
-                                          ? AppImage(
-                                              assetPath: widget.initialAvatar!,
-                                              width: 124,
-                                              height: 124,
-                                              fit: BoxFit.cover,
-                                            )
-                                          : Image.file(
-                                              File(widget.initialAvatar!),
-                                              width: 124,
-                                              height: 124,
-                                              fit: BoxFit.cover,
-                                            ))
+                                      ? AppImage(
+                                          assetPath: widget.initialAvatar!,
+                                          width: 124,
+                                          height: 124,
+                                          fit: BoxFit.cover,
+                                        )
                                       : Container(
                                           color: const Color(0xFF155DFC),
                                           child: Stack(
@@ -438,6 +456,46 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                       const SizedBox(height: 32),
 
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Nama Toko',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      Container(
+                        height: 52,
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDDD4FB),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Center(
+                          child: TextField(
+                            key: const Key('input_edit_store_name'),
+                            controller: _storeNameController,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
                       // Label: Nama Lengkap
                       const Align(
                         alignment: Alignment.centerLeft,
@@ -462,6 +520,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                         child: Center(
                           child: TextField(
+                            key: const Key('input_edit_owner_name'),
                             controller: _nameController,
                             style: const TextStyle(
                               fontSize: 15,
@@ -512,8 +571,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _CircuitPatternPainter extends CustomPainter {

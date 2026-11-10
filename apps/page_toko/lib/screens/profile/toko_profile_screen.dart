@@ -1,5 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../data/toko_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_image.dart';
 import 'edit_profile_screen.dart';
@@ -14,43 +14,28 @@ class TokoProfileScreen extends StatefulWidget {
 }
 
 class _TokoProfileScreenState extends State<TokoProfileScreen> {
-  bool _isStoreOpen = true;
-  String _ownerName = 'Muhammad Taufiq';
-  String _ownerAvatar = 'assets/images/avatar_owner.png';
-  String _storeName = 'Warung Taufiq Gateng';
-  final String _storeCategory = 'Katering & Masakan Nusantara';
-  String _operationalDays = 'Senin - Jumat';
-  String _openHour = '07.00';
-  String _closeHour = '20.00';
-  String _address = 'Meunasah Pinto, Kec. Muara Batu, Kabupaten Aceh Utara, Aceh';
-
   void _openEditProfileSheet() async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => EditProfileScreen(
-          initialName: _ownerName,
-          initialAvatar: _ownerAvatar,
-          onSave: (newName) {
-            setState(() {
-              _ownerName = newName;
-              _storeName = 'Warung $newName';
-            });
-          },
+          initialName: TokoState.ownerName.value,
+          initialStoreName: TokoState.storeName.value,
+          initialAvatar: TokoState.ownerAvatar.value,
         ),
       ),
     );
 
     if (result != null && result is Map<String, dynamic> && mounted) {
-      setState(() {
-        if (result['name'] != null) {
-          _ownerName = result['name'] as String;
-          _storeName = 'Warung $_ownerName';
-        }
-        if (result['photoPath'] != null) {
-          _ownerAvatar = result['photoPath'] as String;
-        }
-      });
+      if (result['name'] != null) {
+        TokoState.ownerName.value = result['name'] as String;
+      }
+      if (result['storeName'] != null) {
+        TokoState.storeName.value = result['storeName'] as String;
+      }
+      if (result['photoPath'] != null) {
+        TokoState.ownerAvatar.value = result['photoPath'] as String;
+      }
     }
   }
 
@@ -60,15 +45,13 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _OperationalHoursSheet(
-        days: _operationalDays,
-        openHour: _openHour,
-        closeHour: _closeHour,
+        days: TokoState.operationalDays.value,
+        openHour: TokoState.openHour.value,
+        closeHour: TokoState.closeHour.value,
         onSave: (d, o, c) {
-          setState(() {
-            _operationalDays = d;
-            _openHour = o;
-            _closeHour = c;
-          });
+          TokoState.operationalDays.value = d;
+          TokoState.openHour.value = o;
+          TokoState.closeHour.value = c;
         },
       ),
     );
@@ -80,9 +63,13 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _LocationSheet(
-        address: _address,
-        onSave: (newAddr) {
-          setState(() => _address = newAddr);
+        address: TokoState.storeAddress.value,
+        postal: TokoState.storePostal.value,
+        country: TokoState.storeCountry.value,
+        onSave: (newAddr, newPostal, newCountry) {
+          TokoState.storeAddress.value = newAddr;
+          TokoState.storePostal.value = newPostal;
+          TokoState.storeCountry.value = newCountry;
         },
       ),
     );
@@ -94,50 +81,67 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: ListenableBuilder(
+          listenable: Listenable.merge([
+            TokoState.isStoreOpen,
+            TokoState.storeName,
+            TokoState.ownerName,
+            TokoState.storeCategory,
+            TokoState.operationalDays,
+            TokoState.openHour,
+            TokoState.closeHour,
+            TokoState.storeAddress,
+            TokoState.storePostal,
+            TokoState.storeCountry,
+            TokoState.ownerAvatar,
+          ]),
+          builder: (context, _) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+              child: Column(
                 children: [
-                  const Expanded(
-                    child: Text(
-                      'Profil Toko',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Profil Toko',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Pusat Bantuan Mitra Toko')),
-                      );
-                    },
-                    child: const Text(
-                      'Bantuan',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Pusat Bantuan Mitra Toko')),
+                          );
+                        },
+                        child: const Text(
+                          'Bantuan',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
+                  const SizedBox(height: 20),
+                  _buildStoreHeroCard(),
+                  const SizedBox(height: 16),
+                  _buildAutoAcceptCard(),
+                  const SizedBox(height: 16),
+                  _buildSettingsListCard(),
                 ],
               ),
-              const SizedBox(height: 20),
-              _buildStoreHeroCard(),
-              const SizedBox(height: 16),
-              _buildAutoAcceptCard(),
-              const SizedBox(height: 16),
-              _buildSettingsListCard(),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -170,43 +174,46 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: AppColors.primaryLight, width: 2),
               ),
-              child: _ownerAvatar.startsWith('assets/')
-                  ? AppImage(
-                      assetPath: _ownerAvatar,
-                      width: 80,
-                      height: 80,
-                      borderRadius: const BorderRadius.all(Radius.circular(40)),
-                      fit: BoxFit.cover,
-                      placeholder: const DecoratedBox(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.primary,
-                        ),
-                        child: Center(
-                          child: Text(
-                            'WT',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                            ),
+              child: AppImage(
+                assetPath: TokoState.ownerAvatar.value,
+                width: 80,
+                height: 80,
+                borderRadius: const BorderRadius.all(Radius.circular(40)),
+                fit: BoxFit.cover,
+                placeholder: DecoratedBox(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primary,
+                  ),
+                  child: Center(
+                    child: Builder(
+                      builder: (_) {
+                        final parts = TokoState.storeName.value
+                            .trim()
+                            .split(RegExp(r'\s+'))
+                            .where((p) => p.isNotEmpty)
+                            .toList();
+                        final ini = parts.length > 1
+                            ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
+                            : (parts.isNotEmpty ? parts[0][0].toUpperCase() : 'T');
+                        return Text(
+                          ini,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
                           ),
-                        ),
-                      ),
-                    )
-                  : ClipOval(
-                      child: Image.file(
-                        File(_ownerAvatar),
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
-                      ),
+                        );
+                      },
                     ),
+                  ),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 14),
           Text(
-            _storeName,
+            TokoState.storeName.value,
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -215,7 +222,8 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            _storeCategory,
+            '${TokoState.storeCategory.value} • ${TokoState.ownerName.value}',
+            textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 13,
               color: AppColors.textSecondary,
@@ -225,15 +233,15 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             decoration: BoxDecoration(
-              color: _isStoreOpen ? AppColors.primarySoft : const Color(0xFFFEE2E2),
+              color: TokoState.isStoreOpen.value ? AppColors.primarySoft : const Color(0xFFFEE2E2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              _isStoreOpen ? 'BUKA' : 'TUTUP',
+              TokoState.isStoreOpen.value ? 'BUKA' : 'TUTUP',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: _isStoreOpen ? AppColors.primary : AppColors.danger,
+                color: TokoState.isStoreOpen.value ? AppColors.primary : AppColors.danger,
               ),
             ),
           ),
@@ -265,8 +273,8 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
+              children: [
+                const Text(
                   'Toko Buka / Tutup',
                   style: TextStyle(
                     fontSize: 14,
@@ -274,10 +282,12 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
                     color: AppColors.textPrimary,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                  'Terima pesanan secara otomatis',
-                  style: TextStyle(
+                  TokoState.isStoreOpen.value
+                      ? 'Toko aktif menerima pesanan masuk'
+                      : 'Toko tutup sementara, pesanan dijeda',
+                  style: const TextStyle(
                     fontSize: 11,
                     color: AppColors.textSecondary,
                   ),
@@ -286,8 +296,8 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
             ),
           ),
           Switch(
-            value: _isStoreOpen,
-            onChanged: (val) => setState(() => _isStoreOpen = val),
+            value: TokoState.isStoreOpen.value,
+            onChanged: (val) => TokoState.isStoreOpen.value = val,
             activeThumbColor: AppColors.primary,
           ),
         ],
@@ -314,7 +324,7 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
           _settingItem(
             icon: Icons.access_time_rounded,
             title: 'Jam Operasional',
-            subtitle: '$_operationalDays $_openHour - $_closeHour',
+            subtitle: '${TokoState.operationalDays.value} ${TokoState.openHour.value} - ${TokoState.closeHour.value}',
             onTap: _openOperationalHoursSheet,
           ),
           const Divider(height: 1, color: AppColors.borderLight),
@@ -437,101 +447,6 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
   }
 }
 
-class _EditProfileSheet extends StatefulWidget {
-  final String name;
-  final String category;
-  final Function(String, String) onSave;
-
-  const _EditProfileSheet({
-    required this.name,
-    required this.category,
-    required this.onSave,
-  });
-
-  @override
-  State<_EditProfileSheet> createState() => _EditProfileSheetState();
-}
-
-class _EditProfileSheetState extends State<_EditProfileSheet> {
-  late TextEditingController _nameController;
-  late TextEditingController _categoryController;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController(text: widget.name);
-    _categoryController = TextEditingController(text: widget.category);
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _categoryController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Edit Profil Toko', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Text('Nama Toko', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _nameController,
-            decoration: InputDecoration(
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Text('Kategori Masakan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _categoryController,
-            decoration: InputDecoration(
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                widget.onSave(_nameController.text.trim(), _categoryController.text.trim());
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              child: const Text('Simpan Perubahan', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _OperationalHoursSheet extends StatefulWidget {
   final String days;
   final String openHour;
@@ -578,84 +493,134 @@ class _OperationalHoursSheetState extends State<_OperationalHoursSheet> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Jam Operasional', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Hari Buka', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: _daysController,
-                  decoration: InputDecoration(
-                    suffixIcon: const Icon(Icons.calendar_today_rounded, size: 18, color: AppColors.textPrimary),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                const Expanded(
+                  child: Text(
+                    'Jam Operasional',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
-                const SizedBox(height: 14),
-                const Text('Jam Buka', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: _openController,
-                  decoration: InputDecoration(
-                    suffixIcon: const Icon(Icons.access_time_rounded, size: 18, color: AppColors.textPrimary),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text('Jam Tutup', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: _closeController,
-                  decoration: InputDecoration(
-                    suffixIcon: const Icon(Icons.access_time_rounded, size: 18, color: AppColors.textPrimary),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-                  ),
-                ),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
               ],
             ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                widget.onSave(_daysController.text.trim(), _openController.text.trim(), _closeController.text.trim());
-                Navigator.pop(context);
-              },
-              icon: const Icon(Icons.save_rounded, size: 18),
-              label: const Text('SIMPAN PERUBAHAN', style: TextStyle(fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.dark,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: AppColors.primarySoft.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Hari Buka', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    key: const Key('input_op_days'),
+                    controller: _daysController,
+                    decoration: InputDecoration(
+                      suffixIcon: const Icon(Icons.calendar_today_rounded, size: 18, color: AppColors.textPrimary),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Jam Buka', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    key: const Key('input_op_open'),
+                    controller: _openController,
+                    decoration: InputDecoration(
+                      suffixIcon: const Icon(Icons.access_time_rounded, size: 18, color: AppColors.textPrimary),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Jam Tutup', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    key: const Key('input_op_close'),
+                    controller: _closeController,
+                    decoration: InputDecoration(
+                      suffixIcon: const Icon(Icons.access_time_rounded, size: 18, color: AppColors.textPrimary),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  final days = _daysController.text.trim();
+                  final open = _openController.text.trim();
+                  final close = _closeController.text.trim();
+                  final messenger = ScaffoldMessenger.of(context);
+                  if (days.isEmpty || open.isEmpty || close.isEmpty) {
+                    messenger.clearSnackBars();
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Hari dan jam operasional wajib diisi'),
+                        backgroundColor: AppColors.danger,
+                      ),
+                    );
+                    return;
+                  }
+                  final timePattern = RegExp(r'^([01]\d|2[0-3])[:.]([0-5]\d)$');
+                  final openMatch = timePattern.firstMatch(open);
+                  final closeMatch = timePattern.firstMatch(close);
+                  if (openMatch == null || closeMatch == null) {
+                    messenger.clearSnackBars();
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Format jam harus HH.MM atau HH:MM (contoh: 08.00)'),
+                        backgroundColor: AppColors.danger,
+                      ),
+                    );
+                    return;
+                  }
+                  final openMinutes = int.parse(openMatch.group(1)!) * 60 + int.parse(openMatch.group(2)!);
+                  final closeMinutes = int.parse(closeMatch.group(1)!) * 60 + int.parse(closeMatch.group(2)!);
+                  if (openMinutes >= closeMinutes) {
+                    messenger.clearSnackBars();
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Jam tutup harus lebih besar dari jam buka'),
+                        backgroundColor: AppColors.danger,
+                      ),
+                    );
+                    return;
+                  }
+                  widget.onSave(days, open, close);
+                  Navigator.pop(context);
+                },
+                icon: const Icon(Icons.save_rounded, size: 18),
+                label: const Text('SIMPAN PERUBAHAN', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.dark,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -663,9 +628,16 @@ class _OperationalHoursSheetState extends State<_OperationalHoursSheet> {
 
 class _LocationSheet extends StatefulWidget {
   final String address;
-  final ValueChanged<String> onSave;
+  final String postal;
+  final String country;
+  final void Function(String address, String postal, String country) onSave;
 
-  const _LocationSheet({required this.address, required this.onSave});
+  const _LocationSheet({
+    required this.address,
+    required this.postal,
+    required this.country,
+    required this.onSave,
+  });
 
   @override
   State<_LocationSheet> createState() => _LocationSheetState();
@@ -673,13 +645,15 @@ class _LocationSheet extends StatefulWidget {
 
 class _LocationSheetState extends State<_LocationSheet> {
   late TextEditingController _addressController;
-  final TextEditingController _postalController = TextEditingController(text: '24374');
-  final TextEditingController _countryController = TextEditingController(text: 'Indonesia');
+  late TextEditingController _postalController;
+  late TextEditingController _countryController;
 
   @override
   void initState() {
     super.initState();
     _addressController = TextEditingController(text: widget.address);
+    _postalController = TextEditingController(text: widget.postal);
+    _countryController = TextEditingController(text: widget.country);
   }
 
   @override
@@ -714,24 +688,40 @@ class _LocationSheetState extends State<_LocationSheet> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-                    ),
-                    const SizedBox(width: 14),
-                    const Text('Lokasi Toko', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  ],
+                Expanded(
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Text(
+                          'Lokasi Toko',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const Text('Bantuan', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Pastikan alamat lengkap sesuai lokasi pengiriman')),
+                    );
+                  },
+                  child: const Text('Bantuan', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
+                ),
               ],
             ),
           ),
           const Divider(height: 1, color: AppColors.borderLight),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -790,6 +780,7 @@ class _LocationSheetState extends State<_LocationSheet> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: _postalController,
+                    keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: AppColors.primarySoft.withValues(alpha: 0.4),
@@ -812,7 +803,37 @@ class _LocationSheetState extends State<_LocationSheet> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        widget.onSave(_addressController.text.trim());
+                        final addr = _addressController.text.trim();
+                        final postal = _postalController.text.trim();
+                        final country = _countryController.text.trim();
+                        if (addr.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Alamat toko wajib diisi'),
+                              backgroundColor: AppColors.danger,
+                            ),
+                          );
+                          return;
+                        }
+                        if (postal.isNotEmpty && !RegExp(r'^\d{5,}$').hasMatch(postal)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Kode pos harus minimal 5 digit angka'),
+                              backgroundColor: AppColors.danger,
+                            ),
+                          );
+                          return;
+                        }
+                        if (country.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Negara wajib diisi'),
+                              backgroundColor: AppColors.danger,
+                            ),
+                          );
+                          return;
+                        }
+                        widget.onSave(addr, postal, country);
                         Navigator.pop(context);
                       },
                       icon: const Icon(Icons.save_rounded, size: 18),

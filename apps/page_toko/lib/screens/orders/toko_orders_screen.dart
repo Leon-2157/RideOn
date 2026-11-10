@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../data/toko_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_image.dart';
 
@@ -10,14 +12,7 @@ class TokoOrdersScreen extends StatefulWidget {
 }
 
 class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
-  int _selectedTabIndex = 1; // Default to 'Diproses (3)' as in screenshot
-
-  final List<String> _tabs = [
-    'Pesanan Baru (1)',
-    'Diproses (3)',
-    'Selesai',
-    'Batal',
-  ];
+  int _selectedTabIndex = 1; // Default to 'Diproses'
 
   void _openOrderDetail(Map<String, dynamic> order) {
     Navigator.of(context).push(
@@ -29,46 +24,94 @@ class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ponytail: unified order list with client-side filter; upgrade to paginated infinite scroll if volume grows
+    // ponytail: unified order list with TokoState listener; upgrade to paginated infinite scroll if volume grows
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 14),
-              child: Text(
-                'Pesanan',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+        child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+          valueListenable: TokoState.orders,
+          builder: (context, orders, _) {
+            final baruList = orders.where((o) => o['tab'] == 'baru').toList();
+            final diprosesList = orders.where((o) => o['tab'] == 'diproses').toList();
+            final selesaiList = orders.where((o) => o['tab'] == 'selesai').toList();
+            final batalList = orders.where((o) => o['tab'] == 'batal').toList();
+
+            final tabs = [
+              'Pesanan Baru (${baruList.length})',
+              'Diproses (${diprosesList.length})',
+              'Selesai (${selesaiList.length})',
+              'Batal (${batalList.length})',
+            ];
+
+            List<Map<String, dynamic>> activeList;
+            if (_selectedTabIndex == 0) {
+              activeList = baruList;
+            } else if (_selectedTabIndex == 1) {
+              activeList = diprosesList;
+            } else if (_selectedTabIndex == 2) {
+              activeList = selesaiList;
+            } else {
+              activeList = batalList;
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 16, 20, 14),
+                  child: Text(
+                    'Pesanan',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            _buildTabBar(),
-            const SizedBox(height: 12),
-            Expanded(
-              child: _buildOrderList(),
-            ),
-          ],
+                _buildTabBar(tabs),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: activeList.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.inventory_2_outlined, size: 48, color: AppColors.textMuted),
+                              SizedBox(height: 10),
+                              Text(
+                                'Tidak ada pesanan di kategori ini',
+                                style: TextStyle(color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(20, 6, 20, 100),
+                          itemCount: activeList.length,
+                          itemBuilder: (context, index) {
+                            return _buildOrderItem(order: activeList[index]);
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildTabBar(List<String> tabs) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
-        children: List.generate(_tabs.length, (index) {
+        children: List.generate(tabs.length, (index) {
           final isSelected = _selectedTabIndex == index;
           return Padding(
             padding: const EdgeInsets.only(right: 10),
             child: ChoiceChip(
-              label: Text(_tabs[index]),
+              label: Text(tabs[index]),
               selected: isSelected,
               onSelected: (selected) {
                 if (selected) {
@@ -99,92 +142,10 @@ class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
     );
   }
 
-  Widget _buildOrderList() {
-    final List<Map<String, dynamic>> orders = [
-      {
-        'id': '#FD-8821',
-        'status': 'Sedang Dimasak',
-        'statusColor': AppColors.primary,
-        'statusBg': AppColors.primarySoft,
-        'items': '1× Ayam Bakar Madu + Es Teh',
-        'price': 'Rp 36.000',
-        'driverStatus': 'Driver menunggu pesanan (5 mnt)',
-        'customerName': 'Ahmad Fauzi',
-        'pin': '8821',
-      },
-      {
-        'id': '#FD-8921',
-        'status': 'Perjalanan Ke Toko',
-        'statusColor': AppColors.info,
-        'statusBg': AppColors.infoLight,
-        'items': '1× Ayam Bakar Madu',
-        'price': 'Rp 30.000',
-        'driverStatus': 'Driver menuju resto (14 mnt)',
-        'customerName': 'Siti Rahma',
-        'pin': '8921',
-      },
-      {
-        'id': '#FD-7821',
-        'status': 'Sedang Dimasak',
-        'statusColor': AppColors.primary,
-        'statusBg': AppColors.primarySoft,
-        'items': 'Es Teh Manis',
-        'price': 'Rp 6.000',
-        'driverStatus': 'Driver menuju toko (9 mnt)',
-        'customerName': 'Budi Santoso',
-        'pin': '7821',
-      },
-    ];
-
-    if (_selectedTabIndex == 0) {
-      // Baru
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 6, 20, 100),
-        children: [
-          _buildOrderItem(
-            order: {
-              'id': '#FD-8822',
-              'status': 'Perlu Diterima',
-              'statusColor': const Color(0xFFC2410C),
-              'statusBg': const Color(0xFFFFEDD5),
-              'items': '2× Nasi Goreng Spesial + 1x Es Teh',
-              'price': 'Rp 55.000',
-              'driverStatus': 'Konfirmasi dalam 04:31',
-              'customerName': 'Rian Pratama',
-              'pin': '8822',
-            },
-          ),
-        ],
-      );
-    }
-
-    if (_selectedTabIndex == 1) {
-      // Diproses
-      return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 6, 20, 100),
-        itemCount: orders.length,
-        itemBuilder: (context, index) {
-          return _buildOrderItem(order: orders[index]);
-        },
-      );
-    }
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Icon(Icons.inventory_2_outlined, size: 48, color: AppColors.textMuted),
-          SizedBox(height: 10),
-          Text(
-            'Tidak ada pesanan di kategori ini',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildOrderItem({required Map<String, dynamic> order}) {
+    final statusColor = (order['statusColor'] as Color?) ?? AppColors.primary;
+    final statusBg = (order['statusBg'] as Color?) ?? AppColors.primarySoft;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
@@ -222,17 +183,17 @@ class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: order['statusBg'] as Color,
+                    color: statusBg,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
-                    order['status'] as String,
+                    order['status'] as String? ?? 'Pesanan',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: order['statusColor'] as Color,
+                      color: statusColor,
                     ),
                   ),
                 ),
@@ -245,7 +206,7 @@ class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
             children: [
               Expanded(
                 child: Text(
-                  order['items'] as String,
+                  order['items'] as String? ?? '',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -257,7 +218,7 @@ class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                order['price'] as String,
+                order['price'] as String? ?? '',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -272,7 +233,7 @@ class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
             children: [
               Expanded(
                 child: Text(
-                  order['driverStatus'] as String,
+                  order['driverStatus'] as String? ?? '',
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 12,
@@ -311,13 +272,40 @@ class OrderDetailScreen extends StatefulWidget {
 
 class _OrderDetailScreenState extends State<OrderDetailScreen> {
   int _selectedMinutes = 35;
+  Timer? _countdownTimer;
+  int _remainingSeconds = 271;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.order['tab'] == 'baru') {
+      _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        if (_remainingSeconds > 0) {
+          setState(() => _remainingSeconds--);
+        } else {
+          timer.cancel();
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
 
   void _showDriverCallDialog() {
+    final driverName = widget.order['driverName'] as String? ?? 'Kurir Mitra';
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (ctx) => _DriverCallOverlay(
-        driverName: 'Joni Utama (Driver)',
+        driverName: '$driverName (Driver)',
         onHangup: () => Navigator.pop(ctx),
       ),
     );
@@ -353,14 +341,20 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             _buildCustomerCard(),
             const SizedBox(height: 16),
             _buildBadgesRow(),
-            const SizedBox(height: 14),
-            _buildBuyerNote(),
+            if ((widget.order['buyerNote'] as String?)?.isNotEmpty ?? false) ...[
+              const SizedBox(height: 14),
+              _buildBuyerNote(),
+            ],
             const SizedBox(height: 22),
             _buildMenuItemsSection(),
-            const SizedBox(height: 22),
-            _buildCookingTimeEstimation(),
-            const SizedBox(height: 24),
-            _buildCourierCallCard(),
+            if (widget.order['tab'] == 'baru') ...[
+              const SizedBox(height: 22),
+              _buildCookingTimeEstimation(),
+            ],
+            if (widget.order['driverName'] != null) ...[
+              const SizedBox(height: 24),
+              _buildCourierCallCard(),
+            ],
             const SizedBox(height: 20),
             _buildActionButtons(),
           ],
@@ -370,6 +364,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildTimerBanner() {
+    final tab = widget.order['tab'] as String? ?? 'diproses';
+    final status = widget.order['status'] as String? ?? 'Diproses';
+    final statusBg = (widget.order['statusBg'] as Color?) ?? AppColors.primarySoft;
+    final statusColor = (widget.order['statusColor'] as Color?) ?? AppColors.primary;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -383,28 +382,40 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Text(
-                  'PERLU DITERIMA',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    status.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
               Row(
-                children: const [
-                  Icon(Icons.timer_outlined, size: 14, color: AppColors.textSecondary),
-                  SizedBox(width: 4),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    tab == 'baru' ? Icons.timer_outlined : Icons.info_outline_rounded,
+                    size: 14,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 4),
                   Text(
-                    'Batas Konfirmasi',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    tab == 'baru'
+                        ? 'Batas Konfirmasi'
+                        : (tab == 'diproses' ? 'Status Masak' : 'Status Akhir'),
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -414,45 +425,50 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Pesanan Masuk',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Konfirmasi sebelum waktu habis',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: const [
-                    Icon(Icons.alarm_rounded, size: 16, color: AppColors.textPrimary),
-                    SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      '04:31',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
+                      tab == 'baru'
+                          ? 'Pesanan Masuk'
+                          : (tab == 'diproses' ? 'Pesanan Diproses' : status),
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.order['driverStatus'] as String? ?? 'Status terkini pesanan',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
               ),
+              if (tab == 'baru')
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.alarm_rounded, size: 16, color: AppColors.textPrimary),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${(_remainingSeconds ~/ 60).toString().padLeft(2, '0')}:${(_remainingSeconds % 60).toString().padLeft(2, '0')}',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ],
@@ -461,6 +477,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildCustomerCard() {
+    final customerName = widget.order['customerName'] as String? ?? 'Pelanggan';
+    final parts = customerName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final initials = parts.length > 1
+        ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
+        : (parts.isNotEmpty ? parts[0][0].toUpperCase() : 'P');
+
     return Row(
       children: [
         Container(
@@ -471,9 +493,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             shape: BoxShape.circle,
           ),
           alignment: Alignment.center,
-          child: const Text(
-            'RP',
-            style: TextStyle(
+          child: Text(
+            initials,
+            style: const TextStyle(
               color: AppColors.primary,
               fontWeight: FontWeight.bold,
               fontSize: 16,
@@ -484,18 +506,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
-                'Rian Pratama',
-                style: TextStyle(
+                customerName,
+                style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
                 ),
               ),
-              SizedBox(height: 2),
-              Text(
-                'Pelanggan Reguler • 4 Pesanan',
+              const SizedBox(height: 2),
+              const Text(
+                'Pelanggan Mitra Toko',
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
             ],
@@ -509,7 +531,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             border: Border.all(color: AppColors.border),
           ),
           child: Text(
-            widget.order['id'] ?? '#FD-8822',
+            widget.order['id'] as String? ?? '#FD-0000',
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -522,6 +544,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildBadgesRow() {
+    final payment = widget.order['payment'] as String? ?? 'Tunai / COD';
     return Row(
       children: [
         Expanded(
@@ -532,15 +555,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
-              children: const [
-                Icon(Icons.payments_outlined, color: AppColors.primary, size: 20),
-                SizedBox(width: 8),
+              children: [
+                const Icon(Icons.payments_outlined, color: AppColors.primary, size: 20),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('PEMBAYARAN', style: TextStyle(fontSize: 9, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-                      Text('Tunai / COD', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      const Text('PEMBAYARAN', style: TextStyle(fontSize: 9, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                      Text(payment, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                     ],
                   ),
                 ),
@@ -578,6 +601,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildBuyerNote() {
+    final note = widget.order['buyerNote'] as String? ?? '';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -586,21 +610,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Icon(Icons.chat_bubble_outline_rounded, size: 18, color: AppColors.primary),
-          SizedBox(width: 10),
+        children: [
+          const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Catatan Pembeli:',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                  '"Sambal dipisah ya min"',
-                  style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: AppColors.textPrimary),
+                  '"$note"',
+                  style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: AppColors.textPrimary),
                 ),
               ],
             ),
@@ -611,37 +635,51 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildMenuItemsSection() {
+    final itemDetails = widget.order['itemDetails'] as List<dynamic>?;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: const [
-            Text(
-              'Rincian Menu (2 Menu)',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          children: [
+            Expanded(
+              child: Text(
+                'Rincian Menu (${itemDetails != null ? itemDetails.length : 1} Menu)',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              ),
             ),
+            const SizedBox(width: 8),
             Text(
-              '3 Total Porsi',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+              widget.order['price'] as String? ?? '',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primary),
             ),
           ],
         ),
         const SizedBox(height: 14),
-        _menuRow(
-          name: '2× Nasi Goreng Spesial',
-          price: 'Rp 50.000',
-          basePrice: 'Rp 25.000',
-          tags: ['Level: Sedang', 'Telur Dadar'],
-          imageAsset: 'assets/images/food_nasgor.png',
-        ),
-        const SizedBox(height: 14),
-        _menuRow(
-          name: '1× Es Teh Manis',
-          price: 'Rp 5.000',
-          basePrice: 'Rp 5.000',
-          tags: ['Gula Normal'],
-        ),
+        if (itemDetails != null && itemDetails.isNotEmpty)
+          ...itemDetails.map((it) {
+            final m = it as Map<String, dynamic>;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _menuRow(
+                name: m['name'] as String? ?? '',
+                price: m['price'] as String? ?? '',
+                basePrice: m['basePrice'] as String? ?? '',
+                tags: (m['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+                imageAsset: m['image'] as String?,
+              ),
+            );
+          })
+        else
+          _menuRow(
+            name: widget.order['items'] as String? ?? '',
+            price: widget.order['price'] as String? ?? '',
+            basePrice: widget.order['price'] as String? ?? '',
+            tags: const ['Menu Pesanan'],
+            imageAsset: 'assets/images/food_nasgor.png',
+          ),
       ],
     );
   }
@@ -702,6 +740,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             ],
           ),
         ),
+        const SizedBox(width: 8),
         Text(
           price,
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
@@ -718,10 +757,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: const [
-            Text(
-              'Estimasi Waktu Memasak',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            Expanded(
+              child: Text(
+                'Estimasi Waktu Memasak',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              ),
             ),
+            SizedBox(width: 8),
             Text(
               'Wajib Dipilih',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
@@ -779,6 +822,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildCourierCallCard() {
+    final driverName = widget.order['driverName'] as String? ?? 'Kurir Mitra';
+    final driverPlat = widget.order['driverPlat'] as String? ?? 'Plat Motor Driver';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -796,26 +842,20 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               shape: BoxShape.circle,
               border: Border.all(color: AppColors.borderLight),
             ),
-            child: const AppImage(
-              assetPath: 'assets/images/avatar_driver.png',
-              width: 44,
-              height: 44,
-              borderRadius: BorderRadius.all(Radius.circular(22)),
-              fit: BoxFit.cover,
-            ),
+            child: const Icon(Icons.delivery_dining_rounded, color: AppColors.primary, size: 24),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
-                  'Kurir: Joni Utama',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  'Kurir: $driverName',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                 ),
                 Text(
-                  'Plat B 1234 XYZ • Parkir Depan',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  driverPlat,
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -840,55 +880,103 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildActionButtons() {
-    return Row(
-      children: [
-        Expanded(
-          flex: 1,
-          child: OutlinedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Pesanan ditolak')),
-              );
-            },
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.danger,
-              side: const BorderSide(color: Color(0xFFFECDD3)),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-            child: const Text('Tolak Pesanan'),
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          flex: 2,
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Pesanan diterima! Waktu masak: $_selectedMinutes menit')),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-            child: const Text(
-              'Terima & Mulai Masak',
-              style: TextStyle(fontWeight: FontWeight.bold),
+    final tab = widget.order['tab'] as String? ?? 'diproses';
+    final orderId = widget.order['id'] as String? ?? '';
+
+    if (tab == 'baru') {
+      return Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: OutlinedButton(
+              onPressed: () {
+                TokoState.rejectOrder(orderId);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Pesanan $orderId telah ditolak')),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.danger,
+                side: const BorderSide(color: Color(0xFFFECDD3)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text('Tolak Pesanan'),
             ),
           ),
+          const SizedBox(width: 14),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
+              onPressed: () {
+                TokoState.acceptOrder(orderId, _selectedMinutes);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Pesanan $orderId diterima! Estimasi: $_selectedMinutes menit')),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text(
+                'Terima & Mulai Masak',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (tab == 'diproses') {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () {
+            TokoState.completeOrder(orderId);
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Pesanan $orderId selesai diserahkan ke kurir')),
+            );
+          },
+          icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
+          label: const Text('Tandai Pesanan Selesai', style: TextStyle(fontWeight: FontWeight.bold)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.success,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
         ),
-      ],
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: tab == 'selesai' ? AppColors.successLight : const Color(0xFFFEE2E2),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        tab == 'selesai' ? 'Pesanan Telah Selesai' : 'Pesanan Telah Dibatalkan',
+        style: TextStyle(
+          color: tab == 'selesai' ? AppColors.success : AppColors.danger,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }
 
-class _DriverCallOverlay extends StatelessWidget {
+class _DriverCallOverlay extends StatefulWidget {
   final String driverName;
   final VoidCallback onHangup;
 
@@ -898,7 +986,24 @@ class _DriverCallOverlay extends StatelessWidget {
   });
 
   @override
+  State<_DriverCallOverlay> createState() => _DriverCallOverlayState();
+}
+
+class _DriverCallOverlayState extends State<_DriverCallOverlay> {
+  bool _isSpeakerOn = false;
+  bool _isMuted = false;
+
+  @override
   Widget build(BuildContext context) {
+    String callStatus = 'Menghubungkan suara...';
+    if (_isMuted && _isSpeakerOn) {
+      callStatus = 'Speaker aktif • Mikrofon dibisukan';
+    } else if (_isMuted) {
+      callStatus = 'Mikrofon dibisukan';
+    } else if (_isSpeakerOn) {
+      callStatus = 'Speaker aktif';
+    }
+
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(20),
@@ -918,7 +1023,7 @@ class _DriverCallOverlay extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              driverName,
+              widget.driverName,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -926,50 +1031,45 @@ class _DriverCallOverlay extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Berdering...',
-              style: TextStyle(
+            Text(
+              callStatus,
+              style: const TextStyle(
                 color: AppColors.primaryLight,
                 fontSize: 13,
               ),
             ),
             const SizedBox(height: 28),
             Container(
-              width: 110,
-              height: 110,
+              width: 90,
+              height: 90,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
+                color: AppColors.primarySoft,
                 border: Border.all(color: Colors.white, width: 3),
               ),
-              child: const AppImage(
-                assetPath: 'assets/images/avatar_driver.png',
-                width: 110,
-                height: 110,
-                borderRadius: BorderRadius.all(Radius.circular(55)),
-                fit: BoxFit.cover,
-              ),
+              child: const Icon(Icons.delivery_dining_rounded, size: 48, color: AppColors.primary),
             ),
             const SizedBox(height: 36),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _callActionButton(
-                  icon: Icons.volume_up_rounded,
-                  color: Colors.white.withValues(alpha: 0.2),
+                  icon: _isSpeakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded,
+                  color: _isSpeakerOn ? AppColors.primary : Colors.white.withValues(alpha: 0.2),
                   iconColor: Colors.white,
-                  onTap: () {},
+                  onTap: () => setState(() => _isSpeakerOn = !_isSpeakerOn),
                 ),
                 _callActionButton(
-                  icon: Icons.mic_off_rounded,
-                  color: Colors.white.withValues(alpha: 0.2),
+                  icon: _isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                  color: _isMuted ? AppColors.danger : Colors.white.withValues(alpha: 0.2),
                   iconColor: Colors.white,
-                  onTap: () {},
+                  onTap: () => setState(() => _isMuted = !_isMuted),
                 ),
                 _callActionButton(
                   icon: Icons.call_end_rounded,
                   color: AppColors.danger,
                   iconColor: Colors.white,
-                  onTap: onHangup,
+                  onTap: widget.onHangup,
                 ),
               ],
             ),
