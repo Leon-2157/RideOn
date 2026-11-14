@@ -29,7 +29,35 @@ void main() {
         findsOneWidget,
       );
 
-      // Verifikasi tombol MASUK langsung masuk tanpa logika login yang memblokir
+      // Verifikasi tombol MASUK tidak langsung masuk jika kredensial belum diisi
+      await tester.tap(find.byKey(const Key('btn_masuk_login')));
+      await tester.pumpAndSettle();
+
+      // Memastikan tetap di LoginScreen dan menampilkan banner error
+      expect(find.byType(RadarScreen), findsNothing);
+      expect(
+        find.text('Email/WhatsApp atau kata sandi yang Anda masukkan salah.'),
+        findsOneWidget,
+      );
+
+      // Masukkan akun dan sandi yang valid: jutama937@gmail.com & Joni21...
+      await tester.enterText(
+        find.byKey(const Key('input_login_identifier')),
+        'jutama937@gmail.com',
+      );
+      await tester.enterText(
+        find.byKey(const Key('input_login_password')),
+        'Joni21...',
+      );
+      await tester.pumpAndSettle();
+
+      // Error banner hilang saat mengetik
+      expect(
+        find.text('Email/WhatsApp atau kata sandi yang Anda masukkan salah.'),
+        findsNothing,
+      );
+
+      // Tekan tombol MASUK dengan kredensial yang valid
       await tester.tap(find.byKey(const Key('btn_masuk_login')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
@@ -111,6 +139,63 @@ void main() {
 
       expect(find.text('Jutama937@gmail.com'), findsOneWidget);
       expect(find.text('1234Abcd'), findsOneWidget);
+    });
+
+    testWidgets(
+        'LoginScreen validates credentials jutama937@gmail.com & Joni21... strictly',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: LoginScreen(),
+        ),
+      );
+
+      // 1. Akun salah, sandi salah
+      await tester.enterText(
+        find.byKey(const Key('input_login_identifier')),
+        'other@gmail.com',
+      );
+      await tester.enterText(
+        find.byKey(const Key('input_login_password')),
+        'WrongPassword',
+      );
+      await tester.tap(find.byKey(const Key('btn_masuk_login')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RadarScreen), findsNothing);
+      expect(
+        find.text('Email/WhatsApp atau kata sandi yang Anda masukkan salah.'),
+        findsOneWidget,
+      );
+
+      // 2. Akun benar, sandi salah
+      await tester.enterText(
+        find.byKey(const Key('input_login_identifier')),
+        'jutama937@gmail.com',
+      );
+      await tester.enterText(
+        find.byKey(const Key('input_login_password')),
+        'WrongPassword',
+      );
+      await tester.tap(find.byKey(const Key('btn_masuk_login')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RadarScreen), findsNothing);
+      expect(
+        find.text('Email/WhatsApp atau kata sandi yang Anda masukkan salah.'),
+        findsOneWidget,
+      );
+
+      // 3. Akun benar & sandi Joni21... berhasil login
+      await tester.enterText(
+        find.byKey(const Key('input_login_password')),
+        'Joni21...',
+      );
+      await tester.tap(find.byKey(const Key('btn_masuk_login')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(RadarScreen), findsOneWidget);
     });
   });
 }

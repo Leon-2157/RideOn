@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:driver_app/constants/app_colors.dart';
 import 'package:driver_app/services/image_picker_service.dart';
+import 'package:driver_app/services/wallet_service.dart';
 import 'package:driver_app/screens/wallet/wallet_screen.dart';
 import 'package:driver_app/screens/wallet/withdraw_screen.dart';
 import 'package:driver_app/screens/wallet/claim_talangan_screen.dart';
@@ -55,6 +56,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Halaman Dompet Driver Tests (Figma Spesifikasi)', () {
+    setUp(() {
+      WalletService().reset();
+    });
+
     testWidgets('WalletScreen renders balance, stats, transactions, claim banner, and bottom navbar',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(400, 1200);
@@ -265,6 +270,81 @@ void main() {
       final dialogWidget = tester.widget<Dialog>(dialogFinder);
       expect(dialogWidget.backgroundColor, equals(AppColors.white));
       expect(dialogWidget.surfaceTintColor, equals(Colors.transparent));
+    });
+
+    testWidgets('Tapping Tarik Saldo in Claim flow navigates to WithdrawScreen and reduces balance in WalletScreen',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: WalletScreen(),
+        ),
+      );
+
+      expect(find.text('Rp 327.000'), findsOneWidget);
+
+      // Tap Klaim Dana
+      await tester.tap(find.text('Klaim Dana '));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ClaimTalanganScreen), findsOneWidget);
+
+      // Tap SELANJUTNYA
+      await tester.tap(find.text('SELANJUTNYA'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ClaimDonationScreen), findsOneWidget);
+
+      // Tap Kirim klaim anti rugi sekarang
+      await tester.tap(find.text('Kirim klaim anti rugi sekarang'));
+      await tester.pumpAndSettle();
+
+      // Dialog persetujuan klaim muncul
+      expect(find.text('Klaim talangan anda di setujui'), findsOneWidget);
+      expect(find.text('Tarik Saldo'), findsOneWidget);
+
+      // Tap Tarik Saldo dari dalam dialog klaim
+      await tester.tap(find.text('Tarik Saldo'));
+      await tester.pumpAndSettle();
+
+      // Berada di WithdrawScreen
+      expect(find.byType(WithdrawScreen), findsOneWidget);
+      expect(find.text('Tarik Semua'), findsOneWidget);
+
+      // Tap Tarik Semua (Rp 327.000)
+      await tester.tap(find.text('Tarik Semua'));
+      await tester.pumpAndSettle();
+
+      // Tap Konfirmasi & Masukkan PIN
+      await tester.tap(find.text('Konfirmasi & Masukkan PIN'));
+      await tester.pumpAndSettle();
+
+      // Kirim PIN
+      await tester.tap(find.text('KIRIM'));
+      await tester.pumpAndSettle();
+
+      // Dialog berhasil muncul
+      expect(find.text('Pengajuan Tarik Saldo Berhasil!'), findsOneWidget);
+
+      // Tap Selesai
+      await tester.tap(find.text('Selesai'));
+      await tester.pumpAndSettle();
+
+      // Kembali ke WalletScreen
+      expect(find.byType(WalletScreen), findsOneWidget);
+
+      // Saldo sekarang berkurang menjadi Rp 0 karena ditarik semua
+      expect(find.text('Rp 0'), findsOneWidget);
+
+      // Muncul notifikasi penarikan berhasil
+      expect(find.text('Penarikan Berhasil'), findsOneWidget);
+
+      // Riwayat penarikan tercatat
+      expect(find.text('Tarik Saldo ke Rekening BSI'), findsOneWidget);
+      expect(find.text('- Rp 327.000'), findsOneWidget);
     });
 
     testWidgets('Tapping transaction item opens Rincian Transaksi modal and closes cleanly',

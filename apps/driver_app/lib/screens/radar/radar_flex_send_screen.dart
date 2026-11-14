@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
 import '../account_settings/account_settings_screen.dart';
 import '../activity/activity_list_screen.dart';
@@ -53,6 +55,7 @@ class RadarFlexSendScreen extends StatefulWidget {
   final FlexSendOrderState initialOrderState;
   final bool enableRadarAnimation;
   final ValueChanged<int>? onTabSelected;
+  final Future<void> Function(String address)? onOpenMaps;
 
   const RadarFlexSendScreen({
     super.key,
@@ -62,6 +65,7 @@ class RadarFlexSendScreen extends StatefulWidget {
     this.initialOrderState = FlexSendOrderState.dashboard,
     this.enableRadarAnimation = true,
     this.onTabSelected,
+    this.onOpenMaps,
   });
 
   @override
@@ -844,22 +848,50 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
     );
   }
 
+  String _formatNominal(int value) {
+    final s = value.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(s[i]);
+    }
+    return buffer.toString();
+  }
+
   // ==========================================
   // MODAL ATUR MODAL KAS BELANJA (atur batas modal kas.png)
   // ==========================================
 
   void _showAturModalKasSheet() {
+    final String initialDigits = _cashLimit.replaceAll(RegExp(r'[^0-9]'), '');
+    final int initialInt = int.tryParse(initialDigits) ?? 200000;
+    final String initialFormatted = _formatNominal(initialInt);
+
+    final TextEditingController amountController =
+        TextEditingController(text: initialFormatted);
+    final FocusNode amountFocusNode = FocusNode();
+    String selectedAmount = 'Rp $initialFormatted';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        String selectedAmount = _cashLimit;
-
         return StatefulBuilder(
           builder: (context, setModalState) {
+            final bool is200k = selectedAmount == 'Rp 200.000';
+            final bool is300k = selectedAmount.contains('300.000');
+            final bool isManual = !is200k && !is300k;
+
             return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
@@ -872,198 +904,265 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Handle Bar
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Title
-                    const Text(
-                      'ATUR MODAL KAS',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Subtitle
-                    const Text(
-                      'Berapa uang tunai yang Anda bawa di saku hari ini untuk membelanjakan titipan customer ?',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Input Box Display Nominal
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        selectedAmount,
-                        style: const TextStyle(
-                          color: Color(0xFF17152B),
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Pilihan Cepat Nominal (Rp 200.000 & Rp 300.000 Maks)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: () {
-                              setModalState(() {
-                                selectedAmount = 'Rp 200.000';
-                              });
-                            },
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: selectedAmount == 'Rp 200.000'
-                                      ? const Color(0xFF6B48FC)
-                                      : Colors.transparent,
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Center(
-                                child: Text(
-                                  'Rp 200.000',
-                                  style: TextStyle(
-                                    color: Color(0xFF6B48FC),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Handle Bar
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: InkWell(
-                            onTap: () {
-                              setModalState(() {
-                                selectedAmount = 'Rp 300.000 (Maks)';
-                              });
-                            },
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: selectedAmount.contains('300.000')
-                                      ? const Color(0xFF6B48FC)
-                                      : Colors.transparent,
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Center(
-                                child: Text(
-                                  'Rp 300.000 (Maks)',
-                                  style: TextStyle(
-                                    color: Color(0xFF17152B),
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Info Pill Proteksi Saldo
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: const Text(
-                        'Pilih Proteksi Saldo Anda untuk menerima order dengan tidak melebihi talangan dana anda.',
-                        textAlign: TextAlign.center,
+                      const SizedBox(height: 18),
+
+                      // Title
+                      const Text(
+                        'ATUR MODAL KAS',
                         style: TextStyle(
-                          color: Color(0xFF6B48FC),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          height: 1.3,
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 8),
 
-                    // Tombol Simpan & Terapkan ke Radar
-                    InkWell(
-                      onTap: () {
-                        setState(() {
-                          _cashLimit = selectedAmount.replaceAll(' (Maks)', '');
-                        });
-                        Navigator.of(context).pop();
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
+                      // Subtitle
+                      const Text(
+                        'Berapa uang tunai yang Anda bawa di saku hari ini untuk membelanjakan titipan customer ?',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Input Box Display Nominal
+                      Container(
                         width: double.infinity,
-                        height: 52,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF17152B),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isManual
+                                ? const Color(0xFF6B48FC)
+                                : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Rp ',
+                              style: TextStyle(
+                                color: Color(0xFF17152B),
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Expanded(
+                              child: TextField(
+                                controller: amountController,
+                                focusNode: amountFocusNode,
+                                keyboardType: TextInputType.number,
+                                textInputAction: TextInputAction.done,
+                                style: const TextStyle(
+                                  color: Color(0xFF17152B),
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  border: InputBorder.none,
+                                  hintText: '0',
+                                  hintStyle: TextStyle(
+                                    color: Color(0xFF9E9E9E),
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                inputFormatters: [
+                                  _RupiahInputFormatter(),
+                                ],
+                                onChanged: (val) {
+                                  setModalState(() {
+                                    if (val.trim().isEmpty) {
+                                      selectedAmount = 'Rp 0';
+                                    } else {
+                                      selectedAmount = 'Rp $val';
+                                    }
+                                  });
+                                },
+                                onSubmitted: (_) {
+                                  amountFocusNode.unfocus();
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Pilihan Cepat Nominal (Rp 200.000 & Rp 300.000 Maks)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                setModalState(() {
+                                  selectedAmount = 'Rp 200.000';
+                                  amountController.text = '200.000';
+                                });
+                                amountFocusNode.unfocus();
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: is200k
+                                        ? const Color(0xFF6B48FC)
+                                        : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Rp 200.000',
+                                    style: TextStyle(
+                                      color: Color(0xFF6B48FC),
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                setModalState(() {
+                                  selectedAmount = 'Rp 300.000 (Maks)';
+                                  amountController.text = '300.000';
+                                });
+                                amountFocusNode.unfocus();
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: is300k
+                                        ? const Color(0xFF6B48FC)
+                                        : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Rp 300.000 (Maks)',
+                                    style: TextStyle(
+                                      color: Color(0xFF17152B),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Info Pill Proteksi Saldo
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Center(
-                          child: Text(
-                            'Simpan & Terapkan ke Radar',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
+                        child: const Text(
+                          'Pilih Proteksi Saldo Anda untuk menerima order dengan tidak melebihi talangan dana anda.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xFF6B48FC),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Tombol Simpan & Terapkan ke Radar
+                      InkWell(
+                        onTap: () {
+                          final cleanDigits = amountController.text
+                              .replaceAll(RegExp(r'[^0-9]'), '');
+                          final int val = int.tryParse(cleanDigits) ?? 0;
+                          final String finalAmount = val > 0
+                              ? 'Rp ${_formatNominal(val)}'
+                              : selectedAmount.replaceAll(' (Maks)', '');
+                          setState(() {
+                            _cashLimit = finalAmount;
+                          });
+                          Navigator.of(context).pop();
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          width: double.infinity,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF17152B),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Simpan & Terapkan ke Radar',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
           },
         );
       },
-    );
+    ).whenComplete(() {
+      amountController.dispose();
+      amountFocusNode.dispose();
+    });
   }
 
   // ==========================================
@@ -1508,14 +1607,28 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildRouteItem(
-                    'Pajak batuphat (4 Item)', 'Klik Maps', isStop: true),
+                  'Pajak batuphat (4 Item)',
+                  'Klik Maps',
+                  isStop: true,
+                  buttonKey: const Key('btn_maps_pajak_batuphat'),
+                  onTap: () => _openMaps('Pajak batuphat'),
+                ),
                 const SizedBox(height: 8),
                 _buildRouteItem(
-                    'Apotek Kimia Farma (1 Item)', 'Klik Maps', isStop: true),
+                  'Apotek Kimia Farma (1 Item)',
+                  'Klik Maps',
+                  isStop: true,
+                  buttonKey: const Key('btn_maps_kimia_farma'),
+                  onTap: () => _openMaps('Apotek Kimia Farma'),
+                ),
                 const SizedBox(height: 8),
                 _buildRouteItem(
-                    'Jl. Lauser, PIM No. 88 (Gufran)', 'Klik Maps',
-                    isStop: false),
+                  'Jl. Lauser, PIM No. 88 (Gufran)',
+                  'Klik Maps',
+                  isStop: false,
+                  buttonKey: const Key('btn_maps_destination_flex_send'),
+                  onTap: () => _openMaps('Jl. Lauser, PIM No. 88 (Gufran)'),
+                ),
                 const SizedBox(height: 10),
                 const Text(
                   'Total Jarak Tempuh: 4.2 km Estimasi: 10 menit',
@@ -1590,8 +1703,13 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
     );
   }
 
-  Widget _buildRouteItem(String title, String buttonLabel,
-      {required bool isStop}) {
+  Widget _buildRouteItem(
+    String title,
+    String buttonLabel, {
+    required bool isStop,
+    VoidCallback? onTap,
+    Key? buttonKey,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1605,23 +1723,71 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
             ),
           ),
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE8F8F0),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: buttonKey,
+            onTap: onTap,
             borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            buttonLabel,
-            style: const TextStyle(
-              color: Color(0xFF00A859),
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F8F0),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                buttonLabel,
+                style: const TextStyle(
+                  color: Color(0xFF00A859),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
         ),
       ],
     );
+  }
+
+  /// Buka aplikasi Google Maps atau peta eksternal langsung menuju alamat target
+  Future<void> _openMaps(String address) async {
+    if (widget.onOpenMaps != null) {
+      await widget.onOpenMaps!(address);
+      return;
+    }
+
+    final encoded = Uri.encodeComponent(address);
+    final geoUri = Uri.parse('geo:0,0?q=$encoded');
+    final googleMapsAppUri = Uri.parse('google.navigation:q=$encoded');
+    final googleMapsWebUri =
+        Uri.parse('https://www.google.com/maps/search/?api=1&query=$encoded');
+
+    try {
+      if (await canLaunchUrl(googleMapsAppUri)) {
+        await launchUrl(googleMapsAppUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      if (await canLaunchUrl(geoUri)) {
+        await launchUrl(geoUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      if (await canLaunchUrl(googleMapsWebUri)) {
+        await launchUrl(googleMapsWebUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      await launchUrl(googleMapsWebUri);
+    } catch (e) {
+      debugPrint('Tidak dapat membuka Google Maps: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Tidak dapat membuka Google Maps untuk: $address'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   // ==========================================
@@ -2717,14 +2883,28 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildRouteItem(
-                    'Pajak batuphat (4 Item)', 'Klik Maps', isStop: true),
+                  'Pajak batuphat (4 Item)',
+                  'Klik Maps',
+                  isStop: true,
+                  buttonKey: const Key('btn_maps_pajak_batuphat'),
+                  onTap: () => _openMaps('Pajak batuphat'),
+                ),
                 const SizedBox(height: 8),
                 _buildRouteItem(
-                    'Apotek Kimia Farma (1 Item)', 'Klik Maps', isStop: true),
+                  'Apotek Kimia Farma (1 Item)',
+                  'Klik Maps',
+                  isStop: true,
+                  buttonKey: const Key('btn_maps_kimia_farma'),
+                  onTap: () => _openMaps('Apotek Kimia Farma'),
+                ),
                 const SizedBox(height: 8),
                 _buildRouteItem(
-                    'Jl. Lauser, PIM No. 88 (Gufran)', 'Klik Maps',
-                    isStop: false),
+                  'Jl. Lauser, PIM No. 88 (Gufran)',
+                  'Klik Maps',
+                  isStop: false,
+                  buttonKey: const Key('btn_maps_destination_flex_send'),
+                  onTap: () => _openMaps('Jl. Lauser, PIM No. 88 (Gufran)'),
+                ),
                 const SizedBox(height: 10),
                 const Text(
                   'Total Jarak Tempuh: 4.2 km Estimasi: 10 menit',
@@ -3062,6 +3242,53 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Formatter untuk input mata uang Rupiah dengan pemisah ribuan titik
+class _RupiahInputFormatter extends TextInputFormatter {
+  final int maxDigits;
+
+  _RupiahInputFormatter({this.maxDigits = 9});
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    String digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitsOnly.length > maxDigits) {
+      digitsOnly = digitsOnly.substring(0, maxDigits);
+    }
+    if (digitsOnly.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final cleanDigits = digitsOnly.length > 1 && digitsOnly.startsWith('0')
+        ? digitsOnly.replaceFirst(RegExp(r'^0+'), '')
+        : digitsOnly;
+    final String useDigits = cleanDigits.isEmpty ? '0' : cleanDigits;
+
+    final buffer = StringBuffer();
+    for (int i = 0; i < useDigits.length; i++) {
+      if (i > 0 && (useDigits.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(useDigits[i]);
+    }
+    final formatted = buffer.toString();
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

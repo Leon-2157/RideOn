@@ -336,8 +336,9 @@ class _RadarScreenState extends State<RadarScreen>
     if (_currentOrder.serviceType == 'FLEXFOOD') {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => const RadarFlexFoodScreen(
+          builder: (context) => RadarFlexFoodScreen(
             initialOrderState: FlexFoodOrderState.pickupPin,
+            onOpenMaps: widget.onOpenMaps,
           ),
         ),
       ).then((_) {
@@ -355,8 +356,9 @@ class _RadarScreenState extends State<RadarScreen>
     if (_currentOrder.serviceType == 'FLEXSEND') {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => const RadarFlexSendScreen(
+          builder: (context) => RadarFlexSendScreen(
             initialOrderState: FlexSendOrderState.shoppingChecklist,
+            onOpenMaps: widget.onOpenMaps,
           ),
         ),
       ).then((_) {
@@ -1319,19 +1321,52 @@ class _RadarScreenState extends State<RadarScreen>
     );
   }
 
+  String _formatNominal(int value) {
+    final s = value.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(s[i]);
+    }
+    return buffer.toString();
+  }
+
   /// Modal Bottom Sheet Atur Modal Kas Belanja (Figma: atur batas modal kas.png)
   void _showAturModalKasSheet() {
+    final String initialDigits = _cashLimit.replaceAll(RegExp(r'[^0-9]'), '');
+    final int initialInt = int.tryParse(initialDigits) ?? 200000;
+    final String initialFormatted = _formatNominal(initialInt);
+
+    final TextEditingController amountController =
+        TextEditingController(text: initialFormatted);
+    final FocusNode amountFocusNode = FocusNode();
+    String selectedAmount = 'Rp $initialFormatted';
+    bool isManualMode =
+        selectedAmount != 'Rp 200.000' && selectedAmount != 'Rp 300.000';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        String selectedAmount = _cashLimit;
-
         return StatefulBuilder(
           builder: (context, setModalState) {
+            final bool is200k =
+                !isManualMode && selectedAmount == 'Rp 200.000';
+            final bool is300k = !isManualMode &&
+                (selectedAmount == 'Rp 300.000' ||
+                    selectedAmount == 'Rp 300.000 (Maks)');
+            final bool isManual = isManualMode || (!is200k && !is300k);
+
             return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
@@ -1344,202 +1379,294 @@ class _RadarScreenState extends State<RadarScreen>
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Handle Bar
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          borderRadius: BorderRadius.circular(2),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Handle Bar
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 18),
+                      const SizedBox(height: 18),
 
-                    // Title
-                    const Text(
-                      'ATUR MODAL KAS',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Subtitle
-                    const Text(
-                      'Berapa uang tunai yang Anda bawa di saku hari ini untuk membelanjakan titipan customer ?',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Input Box Display Nominal
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        selectedAmount,
-                        style: const TextStyle(
-                          color: Color(0xFF17152B),
-                          fontSize: 22,
+                      // Title
+                      const Text(
+                        'ATUR MODAL KAS',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
                           fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 8),
 
-                    // Pilihan Cepat Nominal (Rp 200.000 & Rp 300.000 Maks)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: () {
-                              setModalState(() {
-                                selectedAmount = 'Rp 200.000';
-                              });
-                            },
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: selectedAmount == 'Rp 200.000'
-                                      ? const Color(0xFF6B48FC)
-                                      : Colors.transparent,
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Center(
-                                child: Text(
-                                  'Rp 200.000',
-                                  style: TextStyle(
-                                    color: Color(0xFF6B48FC),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+                      // Subtitle
+                      const Text(
+                        'Berapa uang tunai yang Anda bawa di saku hari ini untuk membelanjakan titipan customer ?',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          height: 1.4,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: InkWell(
-                            onTap: () {
-                              setModalState(() {
-                                selectedAmount = 'Rp 300.000';
-                              });
-                            },
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: selectedAmount == 'Rp 300.000'
-                                      ? const Color(0xFF6B48FC)
-                                      : Colors.transparent,
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Center(
-                                child: Text(
-                                  'Rp 300.000 (Maks)',
-                                  style: TextStyle(
-                                    color: Color(0xFF6B48FC),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
+                      ),
+                      const SizedBox(height: 18),
 
-                    // Tombol Input Manual
-                    InkWell(
-                      onTap: () {},
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
+                      // Input Box Display Nominal
+                      Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isManual
+                                ? const Color(0xFF6B48FC)
+                                : Colors.transparent,
+                            width: 2,
+                          ),
                         ),
-                        child: const Center(
-                          child: Text(
-                            'Input Manual',
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Rp ',
+                              style: TextStyle(
+                                color: Color(0xFF17152B),
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Expanded(
+                              child: TextField(
+                                controller: amountController,
+                                focusNode: amountFocusNode,
+                                keyboardType: TextInputType.number,
+                                textInputAction: TextInputAction.done,
+                                style: const TextStyle(
+                                  color: Color(0xFF17152B),
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  border: InputBorder.none,
+                                  hintText: '0',
+                                  hintStyle: TextStyle(
+                                    color: Color(0xFF9E9E9E),
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                inputFormatters: [
+                                  _RupiahInputFormatter(),
+                                ],
+                                onTap: () {
+                                  setModalState(() {
+                                    isManualMode = true;
+                                  });
+                                },
+                                onChanged: (val) {
+                                  setModalState(() {
+                                    isManualMode = true;
+                                    if (val.trim().isEmpty) {
+                                      selectedAmount = 'Rp 0';
+                                    } else {
+                                      selectedAmount = 'Rp $val';
+                                    }
+                                  });
+                                },
+                                onSubmitted: (_) {
+                                  amountFocusNode.unfocus();
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Pilihan Cepat Nominal (Rp 200.000 & Rp 300.000 Maks)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                setModalState(() {
+                                  selectedAmount = 'Rp 200.000';
+                                  amountController.text = '200.000';
+                                  isManualMode = false;
+                                });
+                                amountFocusNode.unfocus();
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: is200k
+                                        ? const Color(0xFF6B48FC)
+                                        : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Rp 200.000',
+                                    style: TextStyle(
+                                      color: Color(0xFF6B48FC),
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                setModalState(() {
+                                  selectedAmount = 'Rp 300.000';
+                                  amountController.text = '300.000';
+                                  isManualMode = false;
+                                });
+                                amountFocusNode.unfocus();
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: is300k
+                                        ? const Color(0xFF6B48FC)
+                                        : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Rp 300.000 (Maks)',
+                                    style: TextStyle(
+                                      color: Color(0xFF6B48FC),
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Tombol Input Manual
+                      InkWell(
+                        onTap: () {
+                          setModalState(() {
+                            isManualMode = true;
+                          });
+                          amountFocusNode.requestFocus();
+                          amountController.selection = TextSelection(
+                            baseOffset: 0,
+                            extentOffset: amountController.text.length,
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isManual
+                                ? Colors.white.withValues(alpha: 0.35)
+                                : Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isManual
+                                  ? Colors.white
+                                  : Colors.transparent,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Input Manual',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Tombol Simpan Perubahan
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final cleanDigits = amountController.text
+                                .replaceAll(RegExp(r'[^0-9]'), '');
+                            final int val = int.tryParse(cleanDigits) ?? 0;
+                            final String finalAmount = val > 0
+                                ? 'Rp ${_formatNominal(val)}'
+                                : selectedAmount;
+                            setState(() {
+                              _cashLimit = finalAmount;
+                            });
+                            Navigator.pop(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF17152B),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Simpan Perubahan',
                             style: TextStyle(
                               color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Tombol Simpan Perubahan
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _cashLimit = selectedAmount;
-                          });
-                          Navigator.pop(context);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF17152B),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Simpan Perubahan',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                      const SizedBox(height: 12),
+                    ],
+                  ),
                 ),
               ),
             );
           },
         );
       },
-    );
+    ).whenComplete(() {
+      amountController.dispose();
+      amountFocusNode.dispose();
+    });
   }
 
   /// 5. Konten Bawah (Searching Pill / Incoming Order Sheet / Accepted Sheet)
@@ -3307,6 +3434,53 @@ class _SwipeActionButtonState extends State<SwipeActionButton>
           ),
         );
       },
+    );
+  }
+}
+
+/// Formatter untuk input mata uang Rupiah dengan pemisah ribuan titik
+class _RupiahInputFormatter extends TextInputFormatter {
+  final int maxDigits;
+
+  _RupiahInputFormatter({this.maxDigits = 9});
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    String digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitsOnly.length > maxDigits) {
+      digitsOnly = digitsOnly.substring(0, maxDigits);
+    }
+    if (digitsOnly.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final cleanDigits = digitsOnly.length > 1 && digitsOnly.startsWith('0')
+        ? digitsOnly.replaceFirst(RegExp(r'^0+'), '')
+        : digitsOnly;
+    final String useDigits = cleanDigits.isEmpty ? '0' : cleanDigits;
+
+    final buffer = StringBuffer();
+    for (int i = 0; i < useDigits.length; i++) {
+      if (i > 0 && (useDigits.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(useDigits[i]);
+    }
+    final formatted = buffer.toString();
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

@@ -22,6 +22,8 @@ class ClaimTalanganScreen extends StatefulWidget {
   final bool initialItemPhotoUploaded;
   final bool initialReceiptPhotoUploaded;
   final ImagePickerService? imagePickerService;
+  final int? currentBalance;
+  final ValueChanged<int>? onWithdrawSuccess;
 
   const ClaimTalanganScreen({
     super.key,
@@ -31,6 +33,8 @@ class ClaimTalanganScreen extends StatefulWidget {
     this.initialItemPhotoUploaded = true,
     this.initialReceiptPhotoUploaded = true,
     this.imagePickerService,
+    this.currentBalance,
+    this.onWithdrawSuccess,
   });
 
   @override
@@ -674,15 +678,22 @@ class _ClaimTalanganScreenState extends State<ClaimTalanganScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).push(
+                      onPressed: () async {
+                        final nav = Navigator.of(context);
+                        final result = await nav.push<int>(
                           MaterialPageRoute(
                             builder: (context) => ClaimDonationScreen(
                               orderId: widget.orderId,
                               totalAmount: widget.totalAmount,
+                              currentBalance: widget.currentBalance,
+                              onWithdrawSuccess: widget.onWithdrawSuccess,
                             ),
                           ),
                         );
+                        if (!mounted) return;
+                        if (result != null && result > 0) {
+                          nav.pop(result);
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF17152B),

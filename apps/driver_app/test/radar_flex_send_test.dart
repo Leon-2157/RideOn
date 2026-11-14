@@ -301,5 +301,42 @@ void main() {
       expect(find.byType(ChatDetailScreen), findsOneWidget);
       expect(find.byType(CallScreen), findsNothing);
     });
+
+    testWidgets('Tapping Klik Maps on route items in RadarFlexSendScreen triggers onOpenMaps',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final List<String> openedMaps = [];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RadarFlexSendScreen(
+            enableRadarAnimation: false,
+            initialOrderState: FlexSendOrderState.incoming,
+            onOpenMaps: (address) async {
+              openedMaps.add(address);
+            },
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('btn_maps_pajak_batuphat')), findsOneWidget);
+      expect(find.byKey(const Key('btn_maps_kimia_farma')), findsOneWidget);
+      expect(find.byKey(const Key('btn_maps_destination_flex_send')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('btn_maps_pajak_batuphat')));
+      await tester.pumpAndSettle();
+      expect(openedMaps, contains('Pajak batuphat'));
+
+      await tester.tap(find.byKey(const Key('btn_maps_kimia_farma')));
+      await tester.pumpAndSettle();
+      expect(openedMaps, contains('Apotek Kimia Farma'));
+
+      await tester.tap(find.byKey(const Key('btn_maps_destination_flex_send')));
+      await tester.pumpAndSettle();
+      expect(openedMaps, contains('Jl. Lauser, PIM No. 88 (Gufran)'));
+    });
   });
 }

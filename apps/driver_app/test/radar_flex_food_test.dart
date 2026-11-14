@@ -186,5 +186,59 @@ void main() {
       expect(find.text('Mencari orderan terbaik...'), findsOneWidget);
       expect(find.text('Radar'), findsOneWidget);
     });
+
+    testWidgets('Tapping Klik Maps on incoming and delivering state triggers onOpenMaps',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final List<String> openedMaps = [];
+
+      // 1. Test incoming order Klik Maps
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RadarFlexFoodScreen(
+            key: const Key('screen_incoming'),
+            enableRadarAnimation: false,
+            initialOrderState: FlexFoodOrderState.incoming,
+            onOpenMaps: (address) async {
+              openedMaps.add(address);
+            },
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('btn_maps_resto')), findsOneWidget);
+      expect(find.byKey(const Key('btn_maps_destination')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('btn_maps_resto')));
+      await tester.pumpAndSettle();
+      expect(openedMaps, contains('Waroeng Bamboe'));
+
+      await tester.tap(find.byKey(const Key('btn_maps_destination')));
+      await tester.pumpAndSettle();
+      expect(openedMaps, contains('Jl. Dumai, ARUN No. 101 (Fikri)'));
+
+      // 2. Test delivering state Klik Maps (sesuai screenshot user)
+      openedMaps.clear();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RadarFlexFoodScreen(
+            key: const Key('screen_delivering'),
+            enableRadarAnimation: false,
+            initialOrderState: FlexFoodOrderState.delivering,
+            onOpenMaps: (address) async {
+              openedMaps.add(address);
+            },
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('btn_maps_delivering')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('btn_maps_delivering')));
+      await tester.pumpAndSettle();
+      expect(openedMaps, contains('Jl. Dumai, ARUN No. 101 (Fikri)'));
+    });
   });
 }

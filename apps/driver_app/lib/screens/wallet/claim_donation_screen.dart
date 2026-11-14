@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../constants/app_colors.dart';
 import '../../services/image_picker_service.dart';
+import '../../services/wallet_service.dart';
 import 'widgets/dashed_border_container.dart';
 import 'withdraw_screen.dart';
 
@@ -18,6 +19,8 @@ class ClaimDonationScreen extends StatefulWidget {
   final String totalAmount;
   final bool initialPhotoUploaded;
   final ImagePickerService? imagePickerService;
+  final int? currentBalance;
+  final ValueChanged<int>? onWithdrawSuccess;
 
   const ClaimDonationScreen({
     super.key,
@@ -26,6 +29,8 @@ class ClaimDonationScreen extends StatefulWidget {
     this.totalAmount = 'Rp 177.000 (Nota+Parkir)',
     this.initialPhotoUploaded = true,
     this.imagePickerService,
+    this.currentBalance,
+    this.onWithdrawSuccess,
   });
 
   @override
@@ -378,13 +383,21 @@ class _ClaimDonationScreenState extends State<ClaimDonationScreen> {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop(); // Tutup dialog
-                        Navigator.of(context).pushReplacement(
+                      onPressed: () async {
+                        final nav = Navigator.of(context);
+                        nav.pop(); // Tutup dialog
+                        final result = await nav.push<int>(
                           MaterialPageRoute(
-                            builder: (context) => const WithdrawScreen(),
+                            builder: (context) => WithdrawScreen(
+                              initialBalance: widget.currentBalance ?? WalletService().balance,
+                              onWithdrawSuccess: widget.onWithdrawSuccess,
+                            ),
                           ),
                         );
+                        if (!mounted) return;
+                        if (result != null && result > 0) {
+                          nav.pop(result);
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF17152B),

@@ -72,19 +72,38 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _submitLogin() {
-    if (_hasLoginError) {
-      setState(() {
-        _hasLoginError = false;
-      });
-    }
-    if (widget.onLoginSuccess != null) {
-      widget.onLoginSuccess!();
+    final identifier = _identifierController.text.trim();
+    final rawPassword = _passwordController.text;
+    final trimmedPassword = rawPassword.trim();
+
+    // Validasi akun dan kata sandi Mitra Driver:
+    // Akun: jutama937@gmail.com
+    // Sandi: Joni21... (didukung juga variasi Joni21)
+    final isEmailValid = identifier.toLowerCase() == 'jutama937@gmail.com';
+    final isPasswordValid = trimmedPassword == 'Joni21...' ||
+        trimmedPassword == 'Joni21' ||
+        rawPassword == 'Joni21...' ||
+        rawPassword == 'Joni21';
+
+    if (isEmailValid && isPasswordValid) {
+      if (_hasLoginError) {
+        setState(() {
+          _hasLoginError = false;
+        });
+      }
+      if (widget.onLoginSuccess != null) {
+        widget.onLoginSuccess!();
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const RadarScreen(),
+          ),
+        );
+      }
     } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const RadarScreen(),
-        ),
-      );
+      setState(() {
+        _hasLoginError = true;
+      });
     }
   }
 

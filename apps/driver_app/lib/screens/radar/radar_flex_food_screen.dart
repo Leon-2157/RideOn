@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
 import '../account_settings/account_settings_screen.dart';
 import '../activity/activity_list_screen.dart';
@@ -31,6 +32,7 @@ class RadarFlexFoodScreen extends StatefulWidget {
   final FlexFoodOrderState initialOrderState;
   final bool enableRadarAnimation;
   final ValueChanged<int>? onTabSelected;
+  final Future<void> Function(String address)? onOpenMaps;
 
   const RadarFlexFoodScreen({
     super.key,
@@ -40,6 +42,7 @@ class RadarFlexFoodScreen extends StatefulWidget {
     this.initialOrderState = FlexFoodOrderState.searching,
     this.enableRadarAnimation = true,
     this.onTabSelected,
+    this.onOpenMaps,
   });
 
   @override
@@ -1014,7 +1017,10 @@ class _RadarFlexFoodScreenState extends State<RadarFlexFoodScreen>
                         ),
                       ),
                     ),
-                    _buildKlikMapsButton(),
+                    _buildKlikMapsButton(
+                      key: const Key('btn_maps_resto'),
+                      onTap: () => _openMaps(_storeName),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -1040,7 +1046,10 @@ class _RadarFlexFoodScreenState extends State<RadarFlexFoodScreen>
                         ),
                       ),
                     ),
-                    _buildKlikMapsButton(),
+                    _buildKlikMapsButton(
+                      key: const Key('btn_maps_destination'),
+                      onTap: () => _openMaps(_customerAddress),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -1124,22 +1133,73 @@ class _RadarFlexFoodScreenState extends State<RadarFlexFoodScreen>
   }
 
   /// Tombol Hijau "Klik Maps" Sesuai Desain Figma
-  Widget _buildKlikMapsButton() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFD5F5E3),
+  Widget _buildKlikMapsButton({
+    required VoidCallback onTap,
+    Key? key,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: key,
+        onTap: onTap,
         borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Text(
-        'Klik Maps',
-        style: TextStyle(
-          color: Color(0xFF008744),
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFD5F5E3),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Text(
+            'Klik Maps',
+            style: TextStyle(
+              color: Color(0xFF008744),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
       ),
     );
+  }
+
+  /// Buka aplikasi Google Maps atau peta eksternal langsung menuju alamat target
+  Future<void> _openMaps(String address) async {
+    if (widget.onOpenMaps != null) {
+      await widget.onOpenMaps!(address);
+      return;
+    }
+
+    final encoded = Uri.encodeComponent(address);
+    final geoUri = Uri.parse('geo:0,0?q=$encoded');
+    final googleMapsAppUri = Uri.parse('google.navigation:q=$encoded');
+    final googleMapsWebUri =
+        Uri.parse('https://www.google.com/maps/search/?api=1&query=$encoded');
+
+    try {
+      if (await canLaunchUrl(googleMapsAppUri)) {
+        await launchUrl(googleMapsAppUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      if (await canLaunchUrl(geoUri)) {
+        await launchUrl(geoUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      if (await canLaunchUrl(googleMapsWebUri)) {
+        await launchUrl(googleMapsWebUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      await launchUrl(googleMapsWebUri);
+    } catch (e) {
+      debugPrint('Tidak dapat membuka Google Maps: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Tidak dapat membuka Google Maps untuk: $address'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   /// State Pickup PIN: Modal Konfirmasi Kode Toko PIN 4092 (konfirmasi kode toko.png)
@@ -1376,7 +1436,10 @@ class _RadarFlexFoodScreenState extends State<RadarFlexFoodScreen>
                     ],
                   ),
                 ),
-                _buildKlikMapsButton(),
+                _buildKlikMapsButton(
+                  key: const Key('btn_maps_delivering'),
+                  onTap: () => _openMaps(_customerAddress),
+                ),
               ],
             ),
           ),

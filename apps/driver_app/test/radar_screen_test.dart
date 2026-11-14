@@ -618,5 +618,57 @@ void main() {
       // Card searching harus berada di atas navbar dan tidak tertutup / kepentok
       expect(searchingCardBottom, lessThan(navbarRadarTop));
     });
+
+    testWidgets(
+        'Atur Modal Kas bottom sheet supports Input Manual and saves custom amount',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: RadarScreen(
+            enableRadarAnimation: false,
+          ),
+        ),
+      );
+
+      // Switch to Offline/Dashboard where Modal Kas card is visible
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Atur Batas Modal Kas Belanja ->'), findsOneWidget);
+      expect(find.text('Rp 200.000'), findsOneWidget);
+
+      // Tap to open Atur Modal Kas sheet
+      await tester.tap(find.text('Atur Batas Modal Kas Belanja ->'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ATUR MODAL KAS'), findsOneWidget);
+      expect(find.text('Input Manual'), findsOneWidget);
+      expect(find.text('Simpan Perubahan'), findsOneWidget);
+
+      // Tap Input Manual button to focus and activate manual mode
+      await tester.tap(find.text('Input Manual'));
+      await tester.pumpAndSettle();
+
+      // Enter custom nominal 150000 into the TextField
+      final textFieldFinder = find.byType(TextField);
+      expect(textFieldFinder, findsOneWidget);
+      await tester.enterText(textFieldFinder, '150000');
+      await tester.pumpAndSettle();
+
+      // Verify formatted text in field
+      expect(find.text('150.000'), findsOneWidget);
+
+      // Tap Simpan Perubahan
+      await tester.tap(find.text('Simpan Perubahan'));
+      await tester.pumpAndSettle();
+
+      // Bottom sheet is closed, dashboard displays updated cash limit
+      expect(find.text('ATUR MODAL KAS'), findsNothing);
+      expect(find.text('Rp 150.000'), findsOneWidget);
+    });
   });
 }

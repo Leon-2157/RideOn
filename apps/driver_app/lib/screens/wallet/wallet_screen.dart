@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
+import '../../services/wallet_service.dart';
 import '../activity/activity_list_screen.dart';
 import '../chat/chat_history_screen.dart';
 import '../radar/radar_screen.dart';
@@ -76,6 +77,7 @@ class _WalletScreenState extends State<WalletScreen> {
   late List<WalletTransaction> _transactions;
   String _selectedFilter = 'Semua';
   OverlayEntry? _activeNotificationEntry;
+  late final WalletService _walletService;
 
   @override
   void dispose() {
@@ -123,74 +125,15 @@ class _WalletScreenState extends State<WalletScreen> {
   void initState() {
     super.initState();
     _currentTabIndex = widget.initialTabIndex;
-    _currentBalance = widget.initialBalance;
+    _walletService = WalletService();
+    if (widget.customTransactions != null) {
+      _walletService.setTransactions(widget.customTransactions!);
+    }
+    _walletService.setBalance(widget.initialBalance);
+    _currentBalance = _walletService.balance;
     _shippingEarnings = widget.initialShippingEarnings;
     _talanganRefund = widget.initialTalanganRefund;
-
-    _transactions = widget.customTransactions != null
-        ? List<WalletTransaction>.from(widget.customTransactions!)
-        : [
-            const WalletTransaction(
-              title: 'Fee admin',
-              orderId: 'ID : I2E4S68',
-              amount: '- Rp3.500',
-              isDebit: true,
-              date: '30 Okt 2026, 12:45 WIB',
-              category: 'Fee admin',
-              serviceType: 'FlexRide',
-              grossAmount: 35000,
-              adminFee: 3500,
-              netAmount: 31500,
-            ),
-            const WalletTransaction(
-              title: 'Ongkos Kirim',
-              orderId: 'ID : I2E4S68',
-              amount: '+ Rp 35.000',
-              isDebit: false,
-              date: '30 Okt 2026, 12:45 WIB',
-              category: 'Pendapatan',
-              serviceType: 'FlexRide',
-              grossAmount: 35000,
-              adminFee: 3500,
-              netAmount: 35000,
-            ),
-            const WalletTransaction(
-              title: 'Fee admin',
-              orderId: 'ID : I2E4S67',
-              amount: '- Rp 1.500',
-              isDebit: true,
-              date: '30 Okt 2026, 11:15 WIB',
-              category: 'Fee admin',
-              serviceType: 'FlexFood',
-              grossAmount: 15000,
-              adminFee: 1500,
-              netAmount: 13500,
-            ),
-            const WalletTransaction(
-              title: 'Fee admin',
-              orderId: 'ID : I2E4S67',
-              amount: '- Rp 1.500',
-              isDebit: true,
-              date: '30 Okt 2026, 11:15 WIB',
-              category: 'Fee admin',
-              serviceType: 'FlexFood',
-              grossAmount: 15000,
-              adminFee: 1500,
-              netAmount: 13500,
-            ),
-            const WalletTransaction(
-              title: 'Ongkos Kirim',
-              orderId: 'ID : I2E4S67',
-              amount: '+ Rp 15.000',
-              isDebit: false,
-              date: '30 Okt 2026, 11:15 WIB',
-              category: 'Pendapatan',
-              serviceType: 'FlexFood',
-              grossAmount: 15000,
-              adminFee: 1500,
-              netAmount: 15000,
-            ),
-          ];
+    _transactions = List<WalletTransaction>.from(_walletService.transactions);
   }
 
   void _onBottomNavTapped(int index) {
@@ -252,41 +195,32 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   void _navigateToWithdraw() async {
-    final result = await Navigator.of(context).push<int>(
+    final nav = Navigator.of(context);
+    bool alreadyHandled = false;
+    final result = await nav.push<int>(
       MaterialPageRoute(
         builder: (context) => WithdrawScreen(
           initialBalance: _currentBalance,
           onWithdrawSuccess: (amount) {
+            alreadyHandled = true;
             _handleWithdrawSuccess(amount);
           },
         ),
       ),
     );
 
-    if (result != null && result > 0) {
+    if (!mounted) return;
+    if (!alreadyHandled && result != null && result > 0) {
       _handleWithdrawSuccess(result);
     }
   }
 
   void _handleWithdrawSuccess(int amount) {
     if (amount <= 0) return;
+    _walletService.withdraw(amount);
     setState(() {
-      _currentBalance = (_currentBalance - amount).clamp(0, 999999999);
-      _transactions.insert(
-        0,
-        WalletTransaction(
-          title: 'Tarik Saldo ke Rekening BSI',
-          orderId: 'REF : #99401',
-          amount: '- Rp ${_formatNumber(amount)}',
-          isDebit: true,
-          date: 'Hari ini, ${TimeOfDay.now().format(context)}',
-          category: 'Penarikan',
-          serviceType: 'Bank',
-          grossAmount: amount,
-          adminFee: 2000,
-          netAmount: amount,
-        ),
-      );
+      _currentBalance = _walletService.balance;
+      _transactions = List<WalletTransaction>.from(_walletService.transactions);
     });
 
     if (mounted) {
@@ -426,21 +360,10 @@ class _WalletScreenState extends State<WalletScreen> {
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.of(context).pop();
+                          _walletService.topUp(selectedAmount);
                           setState(() {
-                            _currentBalance += selectedAmount;
-                            _transactions.insert(
-                              0,
-                              WalletTransaction(
-                                title: 'Top Up Saldo Driver',
-                                orderId: 'TOPUP-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}',
-                                amount: '+ Rp ${_formatNumber(selectedAmount)}',
-                                isDebit: false,
-                                date: 'Hari ini, ${TimeOfDay.now().format(context)}',
-                                category: 'Pendapatan',
-                                serviceType: 'Deposit',
-                                netAmount: selectedAmount,
-                              ),
-                            );
+                            _currentBalance = _walletService.balance;
+                            _transactions = List<WalletTransaction>.from(_walletService.transactions);
                           });
                           _showTopSuccessNotification(
                             title: 'Top Up Berhasil',
@@ -1081,12 +1004,24 @@ class _WalletScreenState extends State<WalletScreen> {
           ),
           const SizedBox(width: 8),
           InkWell(
-            onTap: () {
-              Navigator.of(context).push(
+            onTap: () async {
+              final nav = Navigator.of(context);
+              bool alreadyHandled = false;
+              final result = await nav.push<int>(
                 MaterialPageRoute(
-                  builder: (context) => const ClaimTalanganScreen(),
+                  builder: (context) => ClaimTalanganScreen(
+                    currentBalance: _currentBalance,
+                    onWithdrawSuccess: (amount) {
+                      alreadyHandled = true;
+                      _handleWithdrawSuccess(amount);
+                    },
+                  ),
                 ),
               );
+              if (!mounted) return;
+              if (!alreadyHandled && result != null && result > 0) {
+                _handleWithdrawSuccess(result);
+              }
             },
             borderRadius: BorderRadius.circular(10),
             child: Container(
