@@ -65,7 +65,10 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (context) => const RadarScreen(),
+          builder: (context) => const RadarScreen(
+            initialIsOnline: false,
+            initialOrderState: RadarOrderState.dashboard,
+          ),
         ),
       );
     }
@@ -96,7 +99,10 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => const RadarScreen(),
+            builder: (context) => const RadarScreen(
+              initialIsOnline: false,
+              initialOrderState: RadarOrderState.dashboard,
+            ),
           ),
         );
       }

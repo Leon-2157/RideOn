@@ -63,6 +63,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.byType(RadarScreen), findsOneWidget);
+      expect(find.text('Status: OFFLINE (Istirahat)'), findsOneWidget);
     });
 
     testWidgets(
@@ -93,6 +94,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.byType(RadarScreen), findsOneWidget);
+      expect(find.text('Status: OFFLINE (Istirahat)'), findsOneWidget);
     });
 
     testWidgets('LoginScreen toggles password visibility',
@@ -196,6 +198,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.byType(RadarScreen), findsOneWidget);
+      expect(find.text('Status: OFFLINE (Istirahat)'), findsOneWidget);
     });
   });
 }
