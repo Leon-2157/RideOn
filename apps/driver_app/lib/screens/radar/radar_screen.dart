@@ -3440,9 +3440,9 @@ class _SwipeActionButtonState extends State<SwipeActionButton>
 
 /// Formatter untuk input mata uang Rupiah dengan pemisah ribuan titik
 class _RupiahInputFormatter extends TextInputFormatter {
-  final int maxDigits;
+  static const int _maxDigits = 9;
 
-  _RupiahInputFormatter({this.maxDigits = 9});
+  _RupiahInputFormatter();
 
   @override
   TextEditingValue formatEditUpdate(
@@ -3454,8 +3454,8 @@ class _RupiahInputFormatter extends TextInputFormatter {
     }
 
     String digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digitsOnly.length > maxDigits) {
-      digitsOnly = digitsOnly.substring(0, maxDigits);
+    if (digitsOnly.length > _maxDigits) {
+      digitsOnly = digitsOnly.substring(0, _maxDigits);
     }
     if (digitsOnly.isEmpty) {
       return const TextEditingValue(

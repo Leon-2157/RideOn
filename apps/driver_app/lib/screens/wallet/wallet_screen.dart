@@ -1143,17 +1143,15 @@ class _WalletScreenState extends State<WalletScreen> {
 /// Banner notifikasi modern mengambang di bagian atas layar (Heads-up pill style)
 /// Menggantikan SnackBar bawah yang kaku dan flat dengan visual rounded, shadow, dan gradient.
 class _TopNotificationBanner extends StatefulWidget {
+  static const Duration _displayDuration = Duration(seconds: 3);
   final String title;
   final String message;
   final VoidCallback onDismiss;
-  final Duration duration;
 
   const _TopNotificationBanner({
-    super.key,
     required this.title,
     required this.message,
     required this.onDismiss,
-    this.duration = const Duration(seconds: 3),
   });
 
   @override
@@ -1193,7 +1191,7 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
 
     _controller.forward();
 
-    _autoDismissTimer = Timer(widget.duration, () {
+    _autoDismissTimer = Timer(_TopNotificationBanner._displayDuration, () {
       _dismiss();
     });
   }
@@ -1249,18 +1247,18 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
                       ),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.25),
+                        color: Colors.white.withValues(alpha: 0.25),
                         width: 1.2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.18),
+                          color: Colors.black.withValues(alpha: 0.18),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                           spreadRadius: -2,
                         ),
                         BoxShadow(
-                          color: const Color(0xFF00C853).withOpacity(0.35),
+                          color: const Color(0xFF00C853).withValues(alpha: 0.35),
                           blurRadius: 14,
                           offset: const Offset(0, 4),
                         ),
@@ -1277,7 +1275,7 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
+                                color: Colors.black.withValues(alpha: 0.1),
                                 blurRadius: 6,
                                 offset: const Offset(0, 2),
                               ),
@@ -1308,7 +1306,7 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
                               Text(
                                 widget.message,
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.95),
+                                  color: Colors.white.withValues(alpha: 0.95),
                                   fontWeight: FontWeight.w500,
                                   fontSize: 12,
                                   height: 1.3,
@@ -1324,7 +1322,7 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
                             width: 26,
                             height: 26,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
