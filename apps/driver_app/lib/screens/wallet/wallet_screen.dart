@@ -1140,6 +1140,7 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 }
 
+
 /// Banner notifikasi modern mengambang di bagian atas layar (Heads-up pill style)
 /// Menggantikan SnackBar bawah yang kaku dan flat dengan visual rounded, shadow, dan gradient.
 class _TopNotificationBanner extends StatefulWidget {

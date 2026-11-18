@@ -1,0 +1,3 @@
+@echo off
+echo Menjalankan Android Emulator Pixel 8a...
+start "" "D:\SDK-android-studio\emulator\emulator.exe" -avd Pixel_8a
