@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../../../core/services/customer_api_service.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../widgets/sub_header_widget.dart';
 import 'atur_posisi_foto_screen.dart';
@@ -101,6 +102,25 @@ class _UbahProfilScreenState extends State<UbahProfilScreen> {
     String? photoSizeKb;
 
     try {
+      final api = CustomerApiService();
+      if (api.hasSession) {
+        String? uploadedUrl;
+        if (_pickedImageFile != null && _pickedImageFile!.existsSync()) {
+          uploadedUrl = await api.uploadFile(
+            _pickedImageFile!.path,
+            category: 'customer_avatar',
+          );
+          updatedPhotoUrl = api.resolveUrl(uploadedUrl);
+        }
+        await api.updateProfile(name: newName, avatarUrl: uploadedUrl);
+        if (!mounted) return;
+        Navigator.of(context).pop({
+          'name': newName,
+          'photoUrl': updatedPhotoUrl,
+        });
+        return;
+      }
+
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         // 1. Upload atau simpan foto jika ada foto baru yang dipilih

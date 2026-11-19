@@ -20,8 +20,8 @@ void main() {
     // Header & Profile Card
     expect(find.text('Pengaturan Akun'), findsOneWidget);
     expect(find.text('Peter'), findsOneWidget);
-    expect(find.text('Verified'), findsOneWidget);
-    expect(find.text('0812-3456-7890'), findsOneWidget);
+    expect(find.text('Belum Terverifikasi'), findsOneWidget);
+    expect(find.text('Belum ditambahkan'), findsOneWidget);
 
     // Settings group
     expect(find.text('PENGATURAN AKUN'), findsOneWidget);
@@ -434,7 +434,7 @@ void main() {
 
     expect(find.text('Alamat Email'), findsOneWidget);
     expect(find.text('• Belum ditambahkan'), findsOneWidget);
-    expect(find.text('+Tambahkan'), findsOneWidget);
+    expect(find.text('+Tambahkan'), findsNWidgets(2));
   });
 
   testWidgets('KeamananAkunScreen renders all fields, hints, and Lupa kata sandi link', (WidgetTester tester) async {

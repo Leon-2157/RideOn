@@ -3,9 +3,17 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
+import 'package:rideon/core/services/webrtc_call_service.dart';
 
 class VoiceCallOverlay extends StatefulWidget {
-  const VoiceCallOverlay({super.key});
+  final String? orderId;
+  final String? peerName;
+
+  const VoiceCallOverlay({
+    super.key,
+    this.orderId,
+    this.peerName,
+  });
 
   @override
   State<VoiceCallOverlay> createState() => _VoiceCallOverlayState();
@@ -15,20 +23,41 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> {
   bool _isConnected = false;
   int _secondsElapsed = 0;
   Timer? _timer;
+  Timer? _connectTimer;
   bool _isMuted = false;
   bool _isSpeaker = false;
+  WebRtcCallService? _rtc;
+  String? _rtcStatus;
 
   @override
   void initState() {
     super.initState();
-    // Simulate connection after 2 seconds (matching TELEPON -> TELEPON angkat)
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
+    final oid = widget.orderId ?? '';
+    if (oid.isNotEmpty) {
+      _rtc = WebRtcCallService(
+        onStatusChanged: (status) {
+          if (!mounted) return;
+          setState(() {
+            _rtcStatus = status;
+            if (status == 'CONNECTED') {
+              _isConnected = true;
+              _timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+                if (mounted) setState(() => _secondsElapsed++);
+              });
+            }
+          });
+        },
+      );
+      _rtc!.startCall(orderId: oid);
+    }
+
+    _connectTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted && !_isConnected) {
         setState(() {
           _isConnected = true;
-          _secondsElapsed = 92; // 01:32 matching Figma TELEPON angkat
+          _secondsElapsed = oid.isNotEmpty ? 0 : 92;
         });
-        _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        _timer ??= Timer.periodic(const Duration(seconds: 1), (timer) {
           if (mounted) {
             setState(() {
               _secondsElapsed++;
@@ -41,7 +70,9 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> {
 
   @override
   void dispose() {
+    _connectTimer?.cancel();
     _timer?.cancel();
+    _rtc?.endCall();
     super.dispose();
   }
 
@@ -96,7 +127,9 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> {
                         child: Column(
                           children: [
                             Text(
-                              'Fikri haykal (Driver)',
+                              (widget.peerName ?? '').isNotEmpty
+                                  ? widget.peerName!
+                                  : 'Fikri haykal (Driver)',
                               style: GoogleFonts.poppins(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
@@ -107,7 +140,10 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> {
                             Text(
                               _isConnected
                                   ? _formatDuration(_secondsElapsed)
-                                  : 'Berdering...',
+                                  : (_rtcStatus == 'LOCAL_ONLY' ||
+                                          _rtcStatus == 'UNAVAILABLE')
+                                      ? 'Menghubungkan (${_rtcStatus!})...'
+                                      : 'Berdering...',
                               style: GoogleFonts.roboto(
                                 fontSize: 13,
                                 color: Colors.white.withValues(alpha: 0.8),
@@ -176,8 +212,10 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> {
                       children: [
                         // Speaker Toggle
                         GestureDetector(
-                          onTap: () =>
-                              setState(() => _isSpeaker = !_isSpeaker),
+                          onTap: () {
+                            setState(() => _isSpeaker = !_isSpeaker);
+                            _rtc?.toggleSpeaker();
+                          },
                           child: Container(
                             width: 52,
                             height: 52,
@@ -201,7 +239,10 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> {
 
                         // Mic / Mute Toggle
                         GestureDetector(
-                          onTap: () => setState(() => _isMuted = !_isMuted),
+                          onTap: () {
+                            setState(() => _isMuted = !_isMuted);
+                            _rtc?.toggleMute();
+                          },
                           child: Container(
                             width: 52,
                             height: 52,
@@ -225,7 +266,10 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> {
 
                         // End Call Red Button
                         GestureDetector(
-                          onTap: () => Navigator.of(context).pop(),
+                          onTap: () {
+                            _rtc?.endCall();
+                            Navigator.of(context).pop();
+                          },
                           child: Container(
                             width: 56,
                             height: 56,

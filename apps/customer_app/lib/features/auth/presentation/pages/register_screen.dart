@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/customer_api_service.dart';
 import '../../../main/presentation/pages/main_screen.dart';
 import '../../data/auth_service.dart';
 import '../../data/wa_gateway_service.dart';
@@ -535,12 +536,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _passwordController.text;
 
     try {
-      await _authService.registerCustomerAccount(
-        fullName: name,
-        email: email.isNotEmpty ? email : null,
-        phoneNumber: fullPhone,
-        password: password,
-      );
+      if (widget.authService != null) {
+        await _authService.registerCustomerAccount(
+          fullName: name,
+          email: email.isNotEmpty ? email : null,
+          phoneNumber: fullPhone,
+          password: password,
+        );
+      } else {
+        await CustomerApiService().registerCustomer(
+          name: name,
+          email: email.isNotEmpty ? email : null,
+          phone: fullPhone,
+          password: password,
+        );
+      }
 
       if (!mounted) return;
 

@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
+import '../../services/driver_api_service.dart';
 import '../../services/theme_service.dart';
+import '../../widgets/ai_cs_sheet.dart';
 
 /// Model item pilihan kendala perjalanan
 class TripIssueItem {
@@ -95,6 +99,20 @@ class TripHelpBottomSheet extends StatelessWidget {
       return;
     }
 
+    if (DriverApiService().hasSession) {
+      final cleanOrderId =
+          orderId.startsWith('ID') || orderId.startsWith('#') ? null : orderId;
+      unawaited(
+        DriverApiService()
+            .createSupportTicket(
+              orderId: cleanOrderId,
+              subject: '${issue.title} ($tripType)',
+              body: '${issue.subtitle} [$orderId]',
+            )
+            .catchError((_) => <String, dynamic>{}),
+      );
+    }
+
     Navigator.of(context).pop();
 
     // Tampilkan notifikasi konfirmasi laporan kendala
@@ -123,6 +141,12 @@ class TripHelpBottomSheet extends StatelessWidget {
   void _handleContactCs(BuildContext context) {
     if (onContactCs != null) {
       onContactCs!();
+      return;
+    }
+
+    if (DriverApiService().hasSession) {
+      Navigator.of(context).pop();
+      showAiCsSheet(context);
       return;
     }
 

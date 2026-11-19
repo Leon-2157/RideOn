@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../data/toko_state.dart';
+import '../../services/toko_api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_image.dart';
+import '../../widgets/toko_ai_cs_sheet.dart';
 import 'edit_profile_screen.dart';
 
 class TokoProfileScreen extends StatefulWidget {
@@ -83,6 +85,7 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
       body: SafeArea(
         child: ListenableBuilder(
           listenable: Listenable.merge([
+            TokoState.userStatus,
             TokoState.isStoreOpen,
             TokoState.storeName,
             TokoState.ownerName,
@@ -116,11 +119,7 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Pusat Bantuan Mitra Toko')),
-                          );
-                        },
+                        onTap: () => showTokoAiCsSheet(context),
                         child: const Text(
                           'Bantuan',
                           style: TextStyle(
@@ -251,6 +250,8 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
   }
 
   Widget _buildAutoAcceptCard() {
+    final isPending = TokoState.userStatus.value != 'ACTIVE';
+    final isOpen = !isPending && TokoState.isStoreOpen.value;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -284,9 +285,9 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  TokoState.isStoreOpen.value
-                      ? 'Toko aktif menerima pesanan masuk'
-                      : 'Toko tutup sementara, pesanan dijeda',
+                  isPending
+                      ? 'Dikunci sementara menunggu verifikasi Admin'
+                      : (isOpen ? 'Toko aktif menerima pesanan masuk' : 'Toko tutup sementara, pesanan dijeda'),
                   style: const TextStyle(
                     fontSize: 11,
                     color: AppColors.textSecondary,
@@ -296,8 +297,27 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
             ),
           ),
           Switch(
-            value: TokoState.isStoreOpen.value,
-            onChanged: (val) => TokoState.isStoreOpen.value = val,
+            value: isOpen,
+            onChanged: isPending
+                ? null
+                : (val) async {
+                    final prev = TokoState.isStoreOpen.value;
+                    TokoState.isStoreOpen.value = val;
+                    final api = TokoApiService();
+                    final sid = TokoState.storeId;
+                    if (api.hasSession && sid != null && sid.isNotEmpty) {
+                      try {
+                        await api.setStoreOpenStatus(sid, val);
+                      } catch (e) {
+                        TokoState.isStoreOpen.value = prev;
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Gagal mengubah status: $e'), backgroundColor: AppColors.danger),
+                          );
+                        }
+                      }
+                    }
+                  },
             activeThumbColor: AppColors.primary,
           ),
         ],
@@ -375,8 +395,9 @@ class _TokoProfileScreenState extends State<TokoProfileScreen> {
                               width: 90,
                               height: 38,
                               child: ElevatedButton(
-                                onPressed: () {
+                                onPressed: () async {
                                   Navigator.pop(ctx);
+                                  await TokoApiService().logout();
                                   widget.onLogout?.call();
                                 },
                                 style: ElevatedButton.styleFrom(

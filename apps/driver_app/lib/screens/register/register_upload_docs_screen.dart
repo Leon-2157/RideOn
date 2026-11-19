@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
+import '../../services/driver_api_service.dart';
 import 'photo_picker_sheet.dart';
 import 'terms_and_conditions_sheet.dart';
 import 'register_success_screen.dart';
@@ -33,6 +35,9 @@ class RegisterUploadDocsScreen extends StatefulWidget {
   final String? phone;
   final String? email;
   final String? password;
+  final String vehicleType;
+  final String vehicleBrand;
+  final String vehiclePlate;
 
   const RegisterUploadDocsScreen({
     super.key,
@@ -40,6 +45,9 @@ class RegisterUploadDocsScreen extends StatefulWidget {
     this.phone,
     this.email,
     this.password,
+    this.vehicleType = 'MOTOR',
+    this.vehicleBrand = 'Honda Beat',
+    this.vehiclePlate = 'BL 0000 XX',
   });
 
   @override
@@ -104,7 +112,7 @@ class _RegisterUploadDocsScreenState extends State<RegisterUploadDocsScreen> {
     }
   }
 
-  void _submitDocuments() {
+  Future<void> _submitDocuments() async {
     final allUploaded = _documents.every((d) => d.isUploaded);
 
     if (!allUploaded) {
@@ -126,6 +134,51 @@ class _RegisterUploadDocsScreenState extends State<RegisterUploadDocsScreen> {
       _errorMessage = null;
     });
 
+    if (!DriverApiService.enableLocalFallback &&
+        widget.email != null &&
+        widget.email!.trim().isNotEmpty) {
+      try {
+        Future<String?> uploadIfFile(String id) async {
+          final doc = _documents.firstWhere((d) => d.id == id);
+          final p = doc.uploadedFilePath;
+          if (p != null && p.isNotEmpty && File(p).existsSync()) {
+            return DriverApiService().uploadDocument(p, category: 'driver_$id');
+          }
+          return null;
+        }
+
+        final ktpUrl = await uploadIfFile('ktp');
+        final simUrl = await uploadIfFile('sim');
+        final stnkUrl = await uploadIfFile('stnk');
+
+        await DriverApiService().registerDriver(
+          name: widget.fullName?.trim() ?? 'Mitra Driver',
+          email: widget.email!.trim(),
+          phone: widget.phone?.trim() ?? '',
+          password: widget.password ?? '',
+          vehicleType: widget.vehicleType,
+          vehicleBrand: widget.vehicleBrand,
+          vehiclePlate: widget.vehiclePlate,
+          ktpPhotoUrl: ktpUrl,
+          simPhotoUrl: simUrl,
+          stnkPhotoUrl: stnkUrl,
+        );
+      } on ApiException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = e.message;
+        });
+        return;
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'Gagal mengirim pendaftaran ke server: $e';
+        });
+        return;
+      }
+    }
+
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const RegisterSuccessScreen(),

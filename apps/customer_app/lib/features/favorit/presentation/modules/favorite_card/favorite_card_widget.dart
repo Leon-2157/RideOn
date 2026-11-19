@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:rideon/core/constants/app_assets.dart';
 
 /// Kartu item favorit 3-kolom presisi Figma node [44:9160] (favorit.png):
 /// - Dimensi: lebar 119px, tinggi 156px, sudut bulat 15px, warna ungu solid #7254F0
@@ -97,10 +98,19 @@ class FavoriteCardWidget extends StatelessWidget {
                             horizontal: 4.0,
                             vertical: 2.0,
                           ),
-                          child: Image.asset(
-                            item['image'] as String,
-                            fit: BoxFit.contain,
-                          ),
+                          child: (item['image'] as String).startsWith('http')
+                              ? Image.network(
+                                  item['image'] as String,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, _, _) => Image.asset(
+                                    AppAssets.foodNasiGoreng,
+                                    fit: BoxFit.contain,
+                                  ),
+                                )
+                              : Image.asset(
+                                  item['image'] as String,
+                                  fit: BoxFit.contain,
+                                ),
                         ),
                       ),
                       Positioned(

@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'constants/app_colors.dart';
 import 'screens/splash_screen_login.dart';
+import 'services/driver_api_service.dart';
 import 'services/theme_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  // Graceful fallback: app works without google-services.json (unit/widget tests, local dev).
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {}
+  try {
+    await DriverApiService().restoreSession();
+  } catch (_) {}
   runApp(const RideOnDriverApp());
 }
 

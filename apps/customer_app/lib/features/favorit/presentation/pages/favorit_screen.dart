@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 import 'package:rideon/features/flexfood/presentation/pages/flexfood_screen.dart';
 import 'package:rideon/features/flexride/presentation/pages/flexride_screen.dart';
 import 'package:rideon/features/flexsend/presentation/pages/flexsend_screen.dart';
@@ -30,6 +32,76 @@ class _FavoritScreenState extends State<FavoritScreen> {
 
   // Sub-filter khusus FlexFood (0: Makanan, 1: Minuman, 2: Restoran)
   int _selectedFoodSubFilter = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLiveFavorites();
+  }
+
+  Future<void> _loadLiveFavorites() async {
+    final api = CustomerApiService();
+    if (!api.hasSession) return;
+    try {
+      final favs = await api.getFavorites();
+      if (favs.isEmpty || !mounted) return;
+      final menus = await api.getPublicMenus();
+      final stores = await api.getStores();
+      if (!mounted) return;
+      final menuById = {for (final m in menus) m.id: m};
+      final storeById = {for (final s in stores) s.id: s};
+
+      final liveFoods = <Map<String, dynamic>>[];
+      final liveRestos = <Map<String, dynamic>>[];
+      for (final f in favs) {
+        if (f.targetType == 'MENU' && menuById.containsKey(f.menuId)) {
+          final m = menuById[f.menuId]!;
+          liveFoods.add({
+            'favoriteId': f.id,
+            'menuId': m.id,
+            'storeId': m.storeId,
+            'title': m.name,
+            'desc': m.description,
+            'resto': m.storeName,
+            'price': 'Rp ${m.price}',
+            'image': m.photoUrl.isNotEmpty
+                ? api.resolveUrl(m.photoUrl)
+                : AppAssets.foodNasiGoreng,
+            'isFav': true,
+          });
+        } else if (f.targetType == 'STORE' &&
+            storeById.containsKey(f.storeId)) {
+          final s = storeById[f.storeId]!;
+          liveRestos.add({
+            'favoriteId': f.id,
+            'storeId': s.id,
+            'name': s.storeName,
+            'category': s.category,
+            'rating': s.ratingAvg.toStringAsFixed(1),
+            'distance': '1.2 km',
+            'duration': '15-20 mnt',
+            'image': s.bannerUrl.isNotEmpty
+                ? api.resolveUrl(s.bannerUrl)
+                : AppAssets.foodNasiGoreng,
+            'badge': s.isOpen ? 'Buka' : 'Tutup',
+            'isFav': true,
+          });
+        }
+      }
+      setState(() {
+        if (liveFoods.isNotEmpty) {
+          _favoriteFoodItems
+            ..clear()
+            ..addAll(liveFoods);
+        }
+        if (liveRestos.isNotEmpty) {
+          _favoriteRestaurants
+            ..clear()
+            ..addAll(liveRestos);
+        }
+      });
+    } catch (_) {}
+  }
 
   // 1. Data Menu Makanan Favorit FlexFood
   final List<Map<String, dynamic>> _favoriteFoodItems = [
@@ -356,12 +428,33 @@ class _FavoritScreenState extends State<FavoritScreen> {
       _confirmRemoveFavorite(
         itemName: item['title'] as String? ?? 'Item',
         onConfirm: () {
+          final favId = item['favoriteId']?.toString();
+          if (favId != null &&
+              favId.isNotEmpty &&
+              CustomerApiService().hasSession) {
+            unawaited(
+              CustomerApiService()
+                  .deleteFavorite(favId)
+                  .then<void>((_) {}, onError: (_) {}),
+            );
+          }
           setState(() {
             _favoriteFoodItems[index]['isFav'] = false;
           });
         },
       );
     } else {
+      final menuId = item['menuId']?.toString();
+      final storeId = item['storeId']?.toString();
+      if (menuId != null &&
+          menuId.isNotEmpty &&
+          CustomerApiService().hasSession) {
+        unawaited(
+          CustomerApiService()
+              .addFavorite(targetType: 'MENU', menuId: menuId, storeId: storeId)
+              .then<void>((_) {}, onError: (_) {}),
+        );
+      }
       setState(() {
         _favoriteFoodItems[index]['isFav'] = true;
       });
@@ -553,29 +646,33 @@ class _FavoritScreenState extends State<FavoritScreen> {
         // Sub-filter: Makanan | Minuman | Restoran
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
-          child: Row(
-            children: [
-              _buildSubFilterChip(
-                label: 'Makanan',
-                icon: Icons.lunch_dining_rounded,
-                isSelected: _selectedFoodSubFilter == 0,
-                onTap: () => setState(() => _selectedFoodSubFilter = 0),
-              ),
-              const SizedBox(width: 8),
-              _buildSubFilterChip(
-                label: 'Minuman',
-                icon: Icons.local_drink_rounded,
-                isSelected: _selectedFoodSubFilter == 1,
-                onTap: () => setState(() => _selectedFoodSubFilter = 1),
-              ),
-              const SizedBox(width: 8),
-              _buildSubFilterChip(
-                label: 'Restoran',
-                icon: Icons.storefront_rounded,
-                isSelected: _selectedFoodSubFilter == 2,
-                onTap: () => setState(() => _selectedFoodSubFilter = 2),
-              ),
-            ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                _buildSubFilterChip(
+                  label: 'Makanan',
+                  icon: Icons.lunch_dining_rounded,
+                  isSelected: _selectedFoodSubFilter == 0,
+                  onTap: () => setState(() => _selectedFoodSubFilter = 0),
+                ),
+                const SizedBox(width: 8),
+                _buildSubFilterChip(
+                  label: 'Minuman',
+                  icon: Icons.local_drink_rounded,
+                  isSelected: _selectedFoodSubFilter == 1,
+                  onTap: () => setState(() => _selectedFoodSubFilter = 1),
+                ),
+                const SizedBox(width: 8),
+                _buildSubFilterChip(
+                  label: 'Restoran',
+                  icon: Icons.storefront_rounded,
+                  isSelected: _selectedFoodSubFilter == 2,
+                  onTap: () => setState(() => _selectedFoodSubFilter = 2),
+                ),
+              ],
+            ),
           ),
         ),
 

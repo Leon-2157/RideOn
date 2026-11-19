@@ -5,11 +5,13 @@ import 'package:rideon/core/constants/app_colors.dart';
 
 class ChatInboxView extends StatelessWidget {
   final VoidCallback onOpenConversation;
+  final VoidCallback? onOpenCustomerService;
   final VoidCallback? onBack;
 
   const ChatInboxView({
     super.key,
     required this.onOpenConversation,
+    this.onOpenCustomerService,
     this.onBack,
   });
 
@@ -95,6 +97,8 @@ class ChatInboxView extends StatelessWidget {
               padding: const EdgeInsets.all(16.0),
               children: [
                 _buildConversationCard(),
+                const SizedBox(height: 12),
+                _buildCsAiCard(),
               ],
             ),
           ),
@@ -239,6 +243,77 @@ class ChatInboxView extends StatelessWidget {
                   Icons.arrow_forward_ios_rounded,
                   size: 18,
                   color: Color(0xFF17152B),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCsAiCard() {
+    return Container(
+      key: const ValueKey('card_cs_ai_inbox'),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F3FF),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF6B48FC).withValues(alpha: 0.25),
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onOpenCustomerService,
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF6B48FC),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.support_agent_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'CS AI RideOn 24/7',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF17152B),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Tanya promo, bantuan pesanan, atau buat tiket CS',
+                        style: GoogleFonts.roboto(
+                          fontSize: 11.5,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16,
+                  color: Color(0xFF6B48FC),
                 ),
               ],
             ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:rideon/core/constants/app_assets.dart';
 import 'food_item_model.dart';
 
 /// Kartu makanan tunggal — proporsional, padat rapi tanpa ruang kosong:
@@ -43,11 +44,10 @@ class FoodCardItem extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Kotak gambar makanan presisi Figma Rectangle 55 (radius 10)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(6.0, 6.0, 6.0, 0.0),
-              child: AspectRatio(
-                aspectRatio: 121 / 105,
+            // 1. Kotak gambar makanan
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(6.0, 6.0, 6.0, 0.0),
                 child: Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
@@ -90,10 +90,19 @@ class FoodCardItem extends StatelessWidget {
                       Center(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-                          child: Image.asset(
-                            item.imageAsset,
-                            fit: BoxFit.contain,
-                          ),
+                          child: item.imageAsset.startsWith('http')
+                              ? Image.network(
+                                  item.imageAsset,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, _, _) => Image.asset(
+                                    AppAssets.foodNasiGoreng,
+                                    fit: BoxFit.contain,
+                                  ),
+                                )
+                              : Image.asset(
+                                  item.imageAsset,
+                                  fit: BoxFit.contain,
+                                ),
                         ),
                       ),
                       Positioned(
@@ -120,9 +129,9 @@ class FoodCardItem extends StatelessWidget {
               ),
             ),
 
-            // 2. Detail Teks: Mengisi ruang secara proporsional dan padat tanpa ruang kosong menganga
+            // 2. Detail Teks
             Padding(
-              padding: const EdgeInsets.fromLTRB(7.0, 3.0, 8.0, 6.0),
+              padding: const EdgeInsets.fromLTRB(7.0, 2.0, 8.0, 5.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -138,7 +147,7 @@ class FoodCardItem extends StatelessWidget {
                       height: 1.15,
                     ),
                   ),
-                  const SizedBox(height: 1.5),
+                  const SizedBox(height: 1.0),
                   // Nama Toko dengan Icon Toko
                   Row(
                     children: [
@@ -187,13 +196,19 @@ class FoodCardItem extends StatelessWidget {
                           ),
                         ],
                       ),
-                      Text(
-                        item.price,
-                        style: GoogleFonts.roboto(
-                          fontSize: 12.0,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFFFFD700),
-                          height: 1.10,
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          item.price,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: GoogleFonts.roboto(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFFFD700),
+                            height: 1.10,
+                          ),
                         ),
                       ),
                     ],

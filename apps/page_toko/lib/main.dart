@@ -1,10 +1,28 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'data/toko_state.dart';
 import 'screens/auth/toko_login_screen.dart';
 import 'screens/main_toko_screen.dart';
+import 'services/toko_api_service.dart';
 import 'theme/app_colors.dart';
 
-void main() {
-  runApp(const TokoApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {}
+
+  bool restoredLogin = false;
+  try {
+    final api = TokoApiService();
+    if (await api.restoreSession()) {
+      final user = await api.getMe();
+      TokoState.hydrateFromUser(user);
+      restoredLogin = true;
+    }
+  } catch (_) {}
+
+  runApp(TokoApp(initialLoggedIn: restoredLogin));
 }
 
 class TokoApp extends StatefulWidget {
@@ -26,7 +44,6 @@ class _TokoAppState extends State<TokoApp> {
 
   @override
   Widget build(BuildContext context) {
-    // ponytail: single root widget handles authentication switch; upgrade to go_router if deep links needed
     return MaterialApp(
       title: 'Mitra Toko',
       debugShowCheckedModeBanner: false,
@@ -50,8 +67,11 @@ class _TokoAppState extends State<TokoApp> {
       ),
       home: _isLoggedIn
           ? MainTokoScreen(
-              onLogout: () {
-                setState(() => _isLoggedIn = false);
+              onLogout: () async {
+                await TokoApiService().logout();
+                if (mounted) {
+                  setState(() => _isLoggedIn = false);
+                }
               },
             )
           : TokoLoginScreen(

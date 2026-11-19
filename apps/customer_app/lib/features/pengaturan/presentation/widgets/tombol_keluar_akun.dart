@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 import '../../../auth/presentation/pages/login_screen.dart';
 
 /// Tombol "KELUAR AKUN" di bagian bawah layar Pengaturan Akun
@@ -53,6 +55,7 @@ class TombolKeluarAkun extends StatelessWidget {
                   // KELUAR Button (Red)
                   GestureDetector(
                     onTap: () {
+                      unawaited(CustomerApiService().logout());
                       try {
                         FirebaseAuth.instance.signOut();
                       } catch (_) {}

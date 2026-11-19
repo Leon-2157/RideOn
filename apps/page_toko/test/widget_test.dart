@@ -10,10 +10,15 @@ import 'package:page_toko/screens/menu/toko_menu_screen.dart';
 import 'package:page_toko/screens/orders/toko_orders_screen.dart';
 import 'package:page_toko/screens/profile/edit_profile_screen.dart';
 import 'package:page_toko/screens/profile/toko_profile_screen.dart';
+import 'package:page_toko/services/toko_api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  setUp(() {
+  setUp(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    await TokoApiService().logout();
+    TokoApiService.enableLocalFallback = true;
     TokoState.resetForTest();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       const MethodChannel('plugins.flutter.io/image_picker'),
@@ -24,6 +29,10 @@ void main() {
         return null;
       },
     );
+  });
+
+  tearDown(() {
+    TokoApiService.enableLocalFallback = false;
   });
 
   testWidgets('TokoApp smoke test starts at login screen', (WidgetTester tester) async {

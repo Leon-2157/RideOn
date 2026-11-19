@@ -66,7 +66,9 @@ class RestaurantView extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                'Banku City',
+                                restaurantName == 'Banku City Resto & Cafe'
+                                    ? 'Banku City'
+                                    : restaurantName,
                                 style: GoogleFonts.poppins(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../modules/receipt/activity_delivery_details.dart';
 import '../modules/receipt/activity_loyalty_card.dart';
@@ -28,6 +29,14 @@ class RangkumanAktivitasScreen extends StatefulWidget {
 class _RangkumanAktivitasScreenState extends State<RangkumanAktivitasScreen> {
   late int _foodRating;
   late int _driverRating;
+  bool _isSubmittingRating = false;
+  bool _ratingSent = false;
+
+  String get _orderId => (widget.activity['id'] ?? '').toString();
+  String get _orderCode =>
+      (widget.activity['orderCode'] ?? 'F-120707').toString();
+  String get _dateLabel =>
+      (widget.activity['date'] ?? '28 Sep, 08.13').toString();
 
   @override
   void initState() {
@@ -183,7 +192,7 @@ class _RangkumanAktivitasScreenState extends State<RangkumanAktivitasScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            '28 Sep, 08.13',
+                            _dateLabel,
                             style: GoogleFonts.roboto(
                               fontSize: 11,
                               color: const Color(0xFF17152B),
@@ -192,7 +201,7 @@ class _RangkumanAktivitasScreenState extends State<RangkumanAktivitasScreen> {
                           Row(
                             children: [
                               Text(
-                                'Transaksi F-120707',
+                                'Transaksi $_orderCode',
                                 style: GoogleFonts.roboto(
                                   fontSize: 11,
                                   color: const Color(0xFF17152B),
@@ -202,7 +211,7 @@ class _RangkumanAktivitasScreenState extends State<RangkumanAktivitasScreen> {
                               GestureDetector(
                                 onTap: () {
                                   Clipboard.setData(
-                                      const ClipboardData(text: 'F-120707'));
+                                      ClipboardData(text: _orderCode));
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content:
@@ -225,15 +234,72 @@ class _RangkumanAktivitasScreenState extends State<RangkumanAktivitasScreen> {
                   ),
                   const SizedBox(height: 18),
 
-                  // Rating Card (Fixed / Read-Only yang sudah dinilai sebelumnya)
+                  // Rating Card
                   ActivityRatingCard(
                     foodRating: _foodRating,
                     driverRating: _driverRating,
                     driverName: widget.activity['driver'] as String,
                     vehicleInfo: widget.activity['vehicle'] as String,
                     serviceType: widget.activity['service'] as String,
-                    isReadOnly: true,
+                    isReadOnly: _orderId.isEmpty || _ratingSent,
+                    onFoodRatingChanged: (v) => setState(() => _foodRating = v),
+                    onDriverRatingChanged: (v) =>
+                        setState(() => _driverRating = v),
                   ),
+                  if (_orderId.isNotEmpty &&
+                      !_ratingSent &&
+                      CustomerApiService().hasSession &&
+                      !CustomerApiService.enableLocalFallback) ...[
+                    const SizedBox(height: 10),
+                    ElevatedButton.icon(
+                      key: const ValueKey('btn_submit_activity_rating'),
+                      onPressed: _isSubmittingRating
+                          ? null
+                          : () async {
+                              setState(() => _isSubmittingRating = true);
+                              final isFood = (widget.activity['service'] ?? '')
+                                  .toString()
+                                  .toLowerCase()
+                                  .contains('food');
+                              try {
+                                await CustomerApiService().submitRating(
+                                  _orderId,
+                                  driverScore: _driverRating,
+                                  storeScore: isFood ? _foodRating : null,
+                                );
+                                if (!context.mounted) return;
+                                setState(() {
+                                  _ratingSent = true;
+                                  _isSubmittingRating = false;
+                                });
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Rating berhasil dikirim!'),
+                                  ),
+                                );
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                setState(() => _isSubmittingRating = false);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Gagal kirim rating: $e'),
+                                  ),
+                                );
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6B48FC),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.star_rounded, size: 18),
+                      label: Text(
+                        _isSubmittingRating ? 'Mengirim...' : 'Kirim Rating',
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 18),
 
                   // Loyalty Card

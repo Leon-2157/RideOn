@@ -12,6 +12,9 @@ class VehicleSelectionSheet extends StatefulWidget {
   final TextEditingController pickupNoteController;
   final Function(String vehicle, int price) onSelectVehicle;
   final VoidCallback onOrder;
+  final ValueChanged<String>? onSelectPaymentMethod;
+  final int? motorEstimate;
+  final int? carEstimate;
 
   const VehicleSelectionSheet({
     super.key,
@@ -22,6 +25,9 @@ class VehicleSelectionSheet extends StatefulWidget {
     required this.pickupNoteController,
     required this.onSelectVehicle,
     required this.onOrder,
+    this.onSelectPaymentMethod,
+    this.motorEstimate,
+    this.carEstimate,
   });
 
   @override
@@ -41,6 +47,7 @@ class _VehicleSelectionSheetState extends State<VehicleSelectionSheet> {
   }
 
   void _onSelectMethod(String method) {
+    widget.onSelectPaymentMethod?.call(method);
     if (method == 'tunai') {
       if (_isQrScannedAndPaid) return; // Terkunci jika QR sudah lunas
       _qrTimer?.cancel();
@@ -188,23 +195,34 @@ class _VehicleSelectionSheetState extends State<VehicleSelectionSheet> {
                 ),
 
                 // SECTION 2: PILIHAN KENDARAAN
-                VehicleOptionCard(
-                  name: 'Flex Motor',
-                  desc: 'Tercepat (1-2 mnt Penjemputan)',
-                  price: 'Rp 14.000',
-                  icon: Icons.two_wheeler_rounded,
-                  isSelected: widget.selectedVehicle == 'Flex Motor',
-                  onTap: () => widget.onSelectVehicle('Flex Motor', 14000),
-                ),
-                const SizedBox(height: 8),
-
-                VehicleOptionCard(
-                  name: 'Flex Mobil',
-                  desc: 'Nyaman & ber-AC dingin',
-                  price: 'Rp 30.000',
-                  icon: Icons.directions_car_rounded,
-                  isSelected: widget.selectedVehicle == 'Flex Mobil',
-                  onTap: () => widget.onSelectVehicle('Flex Mobil', 30000),
+                Builder(
+                  builder: (context) {
+                    final motorPrice = widget.motorEstimate ?? 14000;
+                    final carPrice = widget.carEstimate ?? 30000;
+                    return Column(
+                      children: [
+                        VehicleOptionCard(
+                          name: 'Flex Motor',
+                          desc: 'Tercepat (1-2 mnt Penjemputan)',
+                          price: 'Rp ${_formatPrice(motorPrice)}',
+                          icon: Icons.two_wheeler_rounded,
+                          isSelected: widget.selectedVehicle == 'Flex Motor',
+                          onTap: () =>
+                              widget.onSelectVehicle('Flex Motor', motorPrice),
+                        ),
+                        const SizedBox(height: 8),
+                        VehicleOptionCard(
+                          name: 'Flex Mobil',
+                          desc: 'Nyaman & ber-AC dingin',
+                          price: 'Rp ${_formatPrice(carPrice)}',
+                          icon: Icons.directions_car_rounded,
+                          isSelected: widget.selectedVehicle == 'Flex Mobil',
+                          onTap: () =>
+                              widget.onSelectVehicle('Flex Mobil', carPrice),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 8),
 
@@ -577,11 +595,15 @@ class _VehicleSelectionSheetState extends State<VehicleSelectionSheet> {
                             color: Colors.white,
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            'Pesan ${widget.selectedVehicle} Sekarang',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                          Flexible(
+                            child: Text(
+                              'Pesan ${widget.selectedVehicle} Sekarang',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],

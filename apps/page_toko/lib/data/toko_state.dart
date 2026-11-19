@@ -1,16 +1,26 @@
 import 'package:flutter/material.dart';
+import '../models/store_model.dart';
 import '../theme/app_colors.dart';
 
 class TokoState {
+  static final ValueNotifier<String> userStatus = ValueNotifier<String>('ACTIVE');
+  static String? userId;
+  static String? storeId;
+  static final ValueNotifier<double> storeLat = ValueNotifier<double>(5.2041);
+  static final ValueNotifier<double> storeLng = ValueNotifier<double>(97.0638);
+  static final ValueNotifier<double> ratingAvg = ValueNotifier<double>(4.8);
+
   static final ValueNotifier<bool> isStoreOpen = ValueNotifier<bool>(true);
   static final ValueNotifier<int> balance = ValueNotifier<int>(12450000);
-  static final ValueNotifier<String> activeBank = ValueNotifier<String>('BCA •••• 4912');
+  static final ValueNotifier<String> activeBank = ValueNotifier<String>('BSI •••• 4912');
+  static final ValueNotifier<String> bankName = ValueNotifier<String>('BSI');
+  static final ValueNotifier<String> bankAccountNumber = ValueNotifier<String>('7123454912');
   static final ValueNotifier<String> storeName = ValueNotifier<String>('Warung Taufiq');
   static final ValueNotifier<String> ownerName = ValueNotifier<String>('Muhammad Taufiq');
   static final ValueNotifier<String> storeCategory = ValueNotifier<String>('Katering & Masakan Nusantara');
-  static final ValueNotifier<String> operationalDays = ValueNotifier<String>('Senin - Jumat');
+  static final ValueNotifier<String> operationalDays = ValueNotifier<String>('Senin - Minggu');
   static final ValueNotifier<String> openHour = ValueNotifier<String>('08.00');
-  static final ValueNotifier<String> closeHour = ValueNotifier<String>('21.00');
+  static final ValueNotifier<String> closeHour = ValueNotifier<String>('22.00');
   static final ValueNotifier<String> storeAddress = ValueNotifier<String>('Meunasah Pinto, Kec. Muara Batu, Kabupaten Aceh Utara, Aceh');
   static final ValueNotifier<String> storePostal = ValueNotifier<String>('24374');
   static final ValueNotifier<String> storeCountry = ValueNotifier<String>('Indonesia');
@@ -151,10 +161,43 @@ class TokoState {
   static final ValueNotifier<List<Map<String, dynamic>>> transactions =
       ValueNotifier<List<Map<String, dynamic>>>(_defaultTransactions());
 
+  static void hydrateFromUser(StoreUser user) {
+    userId = user.id;
+    userStatus.value = user.status;
+    if (user.name.isNotEmpty) {
+      ownerName.value = user.name;
+    }
+    if (user.avatarUrl.isNotEmpty) {
+      ownerAvatar.value = user.avatarUrl;
+    }
+    final st = user.store;
+    if (st != null) {
+      storeId = st.id;
+      storeName.value = st.storeName;
+      storeCategory.value = st.category;
+      storeAddress.value = st.address;
+      storeLat.value = st.lat;
+      storeLng.value = st.lng;
+      openHour.value = st.openTime.replaceAll(':', '.');
+      closeHour.value = st.closeTime.replaceAll(':', '.');
+      ratingAvg.value = st.ratingAvg;
+      isStoreOpen.value = user.isActive ? st.isOpen : false;
+      balance.value = st.walletBalance;
+    }
+  }
+
   static void resetForTest() {
+    userStatus.value = 'ACTIVE';
+    userId = null;
+    storeId = null;
+    storeLat.value = 5.2041;
+    storeLng.value = 97.0638;
+    ratingAvg.value = 4.8;
     isStoreOpen.value = true;
     balance.value = 12450000;
     activeBank.value = 'BCA •••• 4912';
+    bankName.value = 'BCA';
+    bankAccountNumber.value = '1420019284912';
     storeName.value = 'Warung Taufiq';
     ownerName.value = 'Muhammad Taufiq';
     storeCategory.value = 'Katering & Masakan Nusantara';

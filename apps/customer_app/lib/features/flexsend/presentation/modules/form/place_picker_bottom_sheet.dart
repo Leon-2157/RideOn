@@ -1,15 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart';
+
+import 'package:rideon/core/services/osm_nominatim_service.dart';
 import '../../../../flexride/presentation/modules/map/simulated_map_view.dart';
 
 class PlacePickerBottomSheet extends StatefulWidget {
   final int locationIndex; // 1, 2, or 3
   final Function(String placeName, String address) onPlaceSelected;
+  final OsmNominatimService? nominatimService;
 
   const PlacePickerBottomSheet({
     super.key,
     required this.locationIndex,
     required this.onPlaceSelected,
+    this.nominatimService,
   });
 
   @override
@@ -18,6 +25,14 @@ class PlacePickerBottomSheet extends StatefulWidget {
 
 class _PlacePickerBottomSheetState extends State<PlacePickerBottomSheet> {
   final TextEditingController _searchController = TextEditingController();
+  late final OsmNominatimService _nominatim =
+      widget.nominatimService ?? OsmNominatimService.instance;
+
+  Timer? _debounceTimer;
+  int _searchGeneration = 0;
+  bool _isLoadingOsm = false;
+  List<OsmPlaceResult> _osmResults = const [];
+  LatLng? _userLatLng;
 
   final List<Map<String, String>> _suggestions = [
     {
@@ -53,7 +68,53 @@ class _PlacePickerBottomSheetState extends State<PlacePickerBottomSheet> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _initUserPosition();
+  }
+
+  Future<void> _initUserPosition() async {
+    final pos = await OsmNominatimService.tryGetKnownUserPosition();
+    if (pos != null && mounted) {
+      setState(() => _userLatLng = pos);
+    }
+  }
+
+  void _onSearchChanged(String rawValue) {
+    final query = rawValue.trim();
+    _debounceTimer?.cancel();
+    final currentGen = ++_searchGeneration;
+
+    if (query.length < 2) {
+      setState(() {
+        _isLoadingOsm = false;
+        _osmResults = const [];
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingOsm = true;
+    });
+
+    _debounceTimer = Timer(const Duration(milliseconds: 450), () async {
+      final results = await _nominatim.searchPlaces(
+        query,
+        nearLat: _userLatLng?.latitude,
+        nearLng: _userLatLng?.longitude,
+        limit: 6,
+      );
+      if (!mounted || currentGen != _searchGeneration) return;
+      setState(() {
+        _isLoadingOsm = false;
+        _osmResults = results;
+      });
+    });
+  }
+
+  @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -187,9 +248,9 @@ class _PlacePickerBottomSheetState extends State<PlacePickerBottomSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
               controller: _searchController,
-              onChanged: (_) => setState(() {}),
+              onChanged: _onSearchChanged,
               decoration: InputDecoration(
-                hintText: 'Ketik nama toko, pasar, apotek...',
+                hintText: 'Ketik nama toko, pasar, jalan...',
                 hintStyle: GoogleFonts.roboto(
                   fontSize: 12,
                   color: const Color(0xFF9CA3AF),
@@ -201,7 +262,7 @@ class _PlacePickerBottomSheetState extends State<PlacePickerBottomSheet> {
                         icon: const Icon(Icons.clear_rounded, size: 18),
                         onPressed: () {
                           _searchController.clear();
-                          setState(() {});
+                          _onSearchChanged('');
                         },
                       )
                     : null,
@@ -267,53 +328,158 @@ class _PlacePickerBottomSheetState extends State<PlacePickerBottomSheet> {
             const SizedBox(height: 8),
           ],
 
-          // Suggestions List
+          // Suggestions List (Lokal + OpenStreetMap Nominatim)
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              itemCount: filtered.length,
-              separatorBuilder: (_, _) =>
-                  const Divider(color: Color(0xFFF3F0FF), height: 1),
-              itemBuilder: (context, index) {
-                final place = filtered[index];
-                return ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  leading: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF2EFFF),
-                      borderRadius: BorderRadius.circular(10),
+            child: Material(
+              color: Colors.transparent,
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                children: [
+                ...filtered.map((place) {
+                  return Column(
+                    children: [
+                      ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 2),
+                        leading: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF2EFFF),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.storefront_rounded,
+                              color: Color(0xFF6B48FC), size: 20),
+                        ),
+                        title: Text(
+                          place['name']!,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF17152B),
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${place['category']} • ${place['distance']}',
+                          style: GoogleFonts.roboto(
+                            fontSize: 11,
+                            color: const Color(0xFF6B6680),
+                          ),
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded,
+                            color: Color(0xFFC6BCFF)),
+                        onTap: () {
+                          final selectedName = place['name']!;
+                          final selectedAddress = place['address']!;
+                          Navigator.of(context).pop();
+                          widget.onPlaceSelected(selectedName, selectedAddress);
+                        },
+                      ),
+                      const Divider(color: Color(0xFFF3F0FF), height: 1),
+                    ],
+                  );
+                }),
+                if (_searchController.text.trim().length >= 2) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10, bottom: 4, left: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.public_rounded,
+                            size: 14, color: Color(0xFF6B48FC)),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Hasil Peta OpenStreetMap',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF6B48FC),
+                          ),
+                        ),
+                        if (_isLoadingOsm) ...[
+                          const SizedBox(width: 8),
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.8,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  Color(0xFF6B48FC)),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    child: const Icon(Icons.storefront_rounded,
-                        color: Color(0xFF6B48FC), size: 20),
                   ),
-                  title: Text(
-                    place['name']!,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF17152B),
+                  if (!_isLoadingOsm && _osmResults.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 8),
+                      child: Text(
+                        'Tidak ada lokasi tambahan di peta untuk "${_searchController.text.trim()}".',
+                        style: GoogleFonts.roboto(
+                          fontSize: 11,
+                          color: const Color(0xFF6B6680),
+                        ),
+                      ),
                     ),
-                  ),
-                  subtitle: Text(
-                    '${place['category']} • ${place['distance']}',
-                    style: GoogleFonts.roboto(
-                      fontSize: 11,
-                      color: const Color(0xFF6B6680),
-                    ),
-                  ),
-                  trailing: const Icon(Icons.chevron_right_rounded,
-                      color: Color(0xFFC6BCFF)),
-                  onTap: () {
-                    final selectedName = place['name']!;
-                    final selectedAddress = place['address']!;
-                    Navigator.of(context).pop();
-                    widget.onPlaceSelected(selectedName, selectedAddress);
-                  },
-                );
-              },
+                  ..._osmResults.map((place) {
+                    final distLabel = place.formattedDistance;
+                    final subText = place.subtitle.isNotEmpty
+                        ? (distLabel != null
+                            ? '${place.subtitle} • $distLabel'
+                            : place.subtitle)
+                        : (distLabel ?? 'OpenStreetMap');
+                    return Column(
+                      children: [
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 2),
+                          leading: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F9EE),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.location_on_rounded,
+                                color: Color(0xFF16A34A), size: 20),
+                          ),
+                          title: Text(
+                            place.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF17152B),
+                            ),
+                          ),
+                          subtitle: Text(
+                            subText,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.roboto(
+                              fontSize: 11,
+                              color: const Color(0xFF6B6680),
+                            ),
+                          ),
+                          trailing: const Icon(Icons.chevron_right_rounded,
+                              color: Color(0xFFC6BCFF)),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            widget.onPlaceSelected(
+                              place.title,
+                              place.formattedAddress,
+                            );
+                          },
+                        ),
+                        const Divider(color: Color(0xFFF3F0FF), height: 1),
+                      ],
+                    );
+                  }),
+                ],
+              ],
+            ),
             ),
           ),
         ],

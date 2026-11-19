@@ -6,9 +6,18 @@ import 'package:driver_app/screens/register/register_upload_docs_screen.dart';
 import 'package:driver_app/screens/register/photo_picker_sheet.dart';
 import 'package:driver_app/screens/register/terms_and_conditions_sheet.dart';
 import 'package:driver_app/screens/register/register_success_screen.dart';
+import 'package:driver_app/services/driver_api_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    DriverApiService.enableLocalFallback = true;
+  });
+
+  tearDown(() {
+    DriverApiService.enableLocalFallback = false;
+  });
 
   group('Pendaftaran Mitra Driver (Daftar Sekarang) Tests', () {
     testWidgets('LoginScreen tapping Daftar Sekarang navigates to RegisterScreen',

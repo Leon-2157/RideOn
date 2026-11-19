@@ -147,12 +147,16 @@ class _DeliveringProgressViewState extends State<DeliveringProgressView> {
                                 children: [
                                   Row(
                                     children: [
-                                      Text(
-                                        'Driver Menuju Rumah Anda!',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: const Color(0xFF1E7E34),
+                                      Flexible(
+                                        child: Text(
+                                          'Driver Menuju Rumah Anda!',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF1E7E34),
+                                          ),
                                         ),
                                       ),
                                     ],

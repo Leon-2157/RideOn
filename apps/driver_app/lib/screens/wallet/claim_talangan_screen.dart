@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../constants/app_colors.dart';
+import '../../services/driver_api_service.dart';
 import '../../services/image_picker_service.dart';
 import 'widgets/dashed_border_container.dart';
 import 'claim_donation_screen.dart';
@@ -680,10 +682,58 @@ class _ClaimTalanganScreenState extends State<ClaimTalanganScreen> {
                     child: ElevatedButton(
                       onPressed: () async {
                         final nav = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(context);
+                        String? submittedClaimId;
+                        if (DriverApiService().hasSession) {
+                          final driverId =
+                              await DriverApiService().getSavedDriverId();
+                          if (driverId != null && driverId.isNotEmpty) {
+                            try {
+                              var goodsUrl = 'mock://goods.jpg';
+                              var receiptUrl = 'mock://receipt.jpg';
+                              if (_itemPhotoPath != null &&
+                                  File(_itemPhotoPath!).existsSync()) {
+                                goodsUrl = await DriverApiService()
+                                    .uploadDocument(_itemPhotoPath!,
+                                        category: 'talangan_goods');
+                              }
+                              if (_receiptPhotoPath != null &&
+                                  File(_receiptPhotoPath!).existsSync()) {
+                                receiptUrl = await DriverApiService()
+                                    .uploadDocument(_receiptPhotoPath!,
+                                        category: 'talangan_receipt');
+                              }
+                              final rawDigits = widget.totalAmount
+                                  .replaceAll(RegExp(r'[^0-9]'), '');
+                              final amt = int.tryParse(rawDigits) ?? 0;
+                              final cleanOrderId =
+                                  widget.orderId.replaceFirst('ID : ', '').trim();
+                              final res = await DriverApiService()
+                                  .submitTalanganClaim(
+                                orderId: cleanOrderId,
+                                driverId: driverId,
+                                claimedAmount: amt,
+                                goodsPhotoUrl: goodsUrl,
+                                receiptPhotoUrl: receiptUrl,
+                              );
+                              submittedClaimId = res['id']?.toString();
+                            } on ApiException catch (e) {
+                              if (!mounted) return;
+                              if (!widget.orderId.startsWith('ID')) {
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text(e.message)),
+                                );
+                                return;
+                              }
+                            } catch (_) {}
+                          }
+                        }
+                        if (!mounted) return;
                         final result = await nav.push<int>(
                           MaterialPageRoute(
                             builder: (context) => ClaimDonationScreen(
                               orderId: widget.orderId,
+                              claimId: submittedClaimId,
                               totalAmount: widget.totalAmount,
                               currentBalance: widget.currentBalance,
                               onWithdrawSuccess: widget.onWithdrawSuccess,

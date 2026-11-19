@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 import '../modules/call/voice_call_overlay.dart';
 import '../modules/conversation/chat_input_bar.dart';
 import '../modules/conversation/conversation_header.dart';
@@ -15,6 +16,7 @@ class ChatScreen extends StatefulWidget {
   final bool showBackButton;
   final bool initialShowDetail;
   final bool isCustomerService;
+  final String? orderId;
   final VoidCallback? onBack;
 
   const ChatScreen({
@@ -22,6 +24,7 @@ class ChatScreen extends StatefulWidget {
     this.showBackButton = false,
     this.initialShowDetail = true,
     this.isCustomerService = false,
+    this.orderId,
     this.onBack,
   });
 
@@ -35,7 +38,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   late final List<Map<String, dynamic>> _messages;
-  late final List<String> _quickReplies;
+  late List<String> _quickReplies;
+  bool _isWaitingAiReply = false;
+  bool _isEscalatingTicket = false;
+  bool _isLoadingQuickReplies = false;
 
   @override
   void initState() {
@@ -111,7 +117,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  void _sendMessage([String? customText]) {
+  Future<void> _sendMessage([String? customText]) async {
     final text = customText ?? _messageController.text.trim();
     if (text.isEmpty) return;
 
@@ -119,7 +125,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _messages.add({
         'sender': 'user',
         'text': text,
-        'time': '10.12',
+        'time': 'Sekarang',
       });
       _messageController.clear();
     });
@@ -133,6 +139,102 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     });
+
+    if (widget.isCustomerService &&
+        CustomerApiService().hasSession &&
+        !CustomerApiService.enableLocalFallback) {
+      setState(() => _isWaitingAiReply = true);
+      final api = CustomerApiService();
+      try {
+        final reply = await api.aiChat(
+          sessionId: 'cs_${api.cachedUserId ?? 'guest'}',
+          message: text,
+        );
+        if (!mounted) return;
+        setState(() {
+          _isWaitingAiReply = false;
+          _messages.add({
+            'sender': 'driver',
+            'text': reply.isNotEmpty
+                ? reply
+                : 'Baik kak, permintaan sudah kami catat. Ada detail order lagi?',
+            'time': 'Sekarang',
+          });
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isWaitingAiReply = false;
+          _messages.add({
+            'sender': 'driver',
+            'text':
+                'Asisten AI sedang sibuk. Kakak bisa tekan "Eskalasi ke Admin CS" untuk membuat tiket bantuan.',
+            'time': 'Sekarang',
+          });
+        });
+      }
+      if (mounted && _scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent + 120,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    }
+  }
+
+  Future<void> _escalateSupportTicket() async {
+    if (_isEscalatingTicket) return;
+    setState(() => _isEscalatingTicket = true);
+    final lastUserMsg = _messages.lastWhere(
+      (m) => m['sender'] == 'user',
+      orElse: () => {'text': 'Butuh bantuan Customer Service melalui chat app'},
+    )['text'].toString();
+    try {
+      await CustomerApiService().createSupportTicket(
+        orderId: widget.orderId,
+        subject: 'Bantuan CS In-App',
+        bodyText: lastUserMsg,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tiket eskalasi ke Admin CS berhasil dibuat!'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membuat tiket CS: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isEscalatingTicket = false);
+    }
+  }
+
+  Future<void> _fetchAiQuickReplies() async {
+    if (_isLoadingQuickReplies) return;
+    setState(() => _isLoadingQuickReplies = true);
+    try {
+      final api = CustomerApiService();
+      final reply = await api.aiChat(
+        sessionId: 'qr_${api.cachedUserId ?? 'guest'}',
+        message:
+            'Berikan 3 balasan singkat Bahasa Indonesia (pisahkan dengan |) untuk customer menjawab driver ojol/kurir.',
+      );
+      final parsed = reply
+          .split('|')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty && s.length <= 45)
+          .take(3)
+          .toList();
+      if (mounted && parsed.isNotEmpty) {
+        setState(() => _quickReplies = parsed);
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _isLoadingQuickReplies = false);
+    }
   }
 
   void _showCallModal() {
@@ -143,7 +245,7 @@ class _ChatScreenState extends State<ChatScreen> {
       barrierColor: Colors.black.withValues(alpha: 0.35),
       transitionDuration: const Duration(milliseconds: 300),
       pageBuilder: (dialogContext, anim1, anim2) {
-        return const VoiceCallOverlay();
+        return VoiceCallOverlay(orderId: widget.orderId);
       },
     );
   }
@@ -156,9 +258,22 @@ class _ChatScreenState extends State<ChatScreen> {
         onOpenConversation: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => const ChatScreen(
+              builder: (context) => ChatScreen(
                 showBackButton: true,
                 initialShowDetail: true,
+                orderId: widget.orderId,
+              ),
+            ),
+          );
+        },
+        onOpenCustomerService: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => ChatScreen(
+                showBackButton: true,
+                initialShowDetail: true,
+                isCustomerService: true,
+                orderId: widget.orderId,
               ),
             ),
           );
@@ -212,9 +327,73 @@ class _ChatScreenState extends State<ChatScreen> {
 
                 // Messages list
                 ..._messages.map((msg) => MessageBubble(msg: msg)),
+                if (_isWaitingAiReply)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text(
+                      'CS AI sedang mengetik...',
+                      style: GoogleFonts.roboto(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: const Color(0xFF6B6680),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
+
+          if (widget.isCustomerService &&
+              CustomerApiService().hasSession &&
+              !CustomerApiService.enableLocalFallback)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: ActionChip(
+                  key: const ValueKey('btn_escalate_cs_ticket'),
+                  onPressed:
+                      _isEscalatingTicket ? null : _escalateSupportTicket,
+                  avatar: const Icon(
+                    Icons.support_agent_rounded,
+                    size: 16,
+                    color: Color(0xFF6B48FC),
+                  ),
+                  label: Text(
+                    _isEscalatingTicket
+                        ? 'Membuat Tiket...'
+                        : 'Eskalasi ke Admin CS',
+                    style: GoogleFonts.roboto(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF6B48FC),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          if (!widget.isCustomerService &&
+              CustomerApiService().hasSession &&
+              !CustomerApiService.enableLocalFallback)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  key: const ValueKey('btn_ai_quick_replies'),
+                  onPressed:
+                      _isLoadingQuickReplies ? null : _fetchAiQuickReplies,
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 14),
+                  label: Text(
+                    _isLoadingQuickReplies
+                        ? 'Menyiapkan Saran...'
+                        : 'Saran Balasan AI',
+                    style: GoogleFonts.roboto(fontSize: 11),
+                  ),
+                ),
+              ),
+            ),
 
           // Quick replies
           QuickRepliesBar(

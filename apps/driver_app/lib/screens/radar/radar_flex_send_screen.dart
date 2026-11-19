@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
+import '../../models/order_model.dart';
+import '../../services/driver_api_service.dart';
 import '../account_settings/account_settings_screen.dart';
 import '../activity/activity_list_screen.dart';
 import '../chat/call_screen.dart';
@@ -51,6 +53,8 @@ class ShoppingItem {
 class RadarFlexSendScreen extends StatefulWidget {
   final String driverName;
   final String plateNumber;
+  final String? orderId;
+  final OrderModel? liveOrder;
   final bool initialIsOnline;
   final FlexSendOrderState initialOrderState;
   final bool enableRadarAnimation;
@@ -61,6 +65,8 @@ class RadarFlexSendScreen extends StatefulWidget {
     super.key,
     this.driverName = 'Joni utama',
     this.plateNumber = 'BK 4892 ABC',
+    this.orderId,
+    this.liveOrder,
     this.initialIsOnline = true,
     this.initialOrderState = FlexSendOrderState.dashboard,
     this.enableRadarAnimation = true,
@@ -99,6 +105,50 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
       TextEditingController(text: 'Rp 2.000');
   final TextEditingController _parking2Controller =
       TextEditingController(text: 'Rp 2.000');
+  bool _aiSummarizing = false;
+
+  int _parseDigits(String raw) =>
+      int.tryParse(raw.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+  Future<void> _aiSummarizeShopping() async {
+    if (_aiSummarizing) return;
+    setState(() => _aiSummarizing = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final itemsDesc = [
+        ..._lokasi1Items.map((e) => '${e.name} (${e.priceText})'),
+        ..._lokasi2Items.map((e) => '${e.name} (${e.priceText})'),
+      ].join(', ');
+      final reply = await DriverApiService().aiChat(
+        sessionId: 'flexsend-${widget.orderId ?? "local"}',
+        message:
+            'Ringkas daftar belanja titipan & retribusi parkir agar jelas dibacakan ke pelanggan: $itemsDesc. Parkir 1: ${_parking1Controller.text}, Parkir 2: ${_parking2Controller.text}.',
+        systemPrompt:
+            'Kamu asisten driver RideOn. Buat ringkasan belanja singkat, ramah, 2-3 kalimat Bahasa Indonesia.',
+      );
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Ringkasan Belanja AI'),
+          content: Text(reply),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Tutup'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Ringkasan AI tidak tersedia: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _aiSummarizing = false);
+    }
+  }
 
   @override
   void initState() {
@@ -2368,6 +2418,37 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
                   ),
                   const SizedBox(height: 16),
 
+                  // AI Shopping Summary Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      key: const Key('btn_ai_flexsend_summary'),
+                      onPressed: _aiSummarizing ? null : _aiSummarizeShopping,
+                      icon: _aiSummarizing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.auto_awesome,
+                              size: 18, color: Color(0xFF6B48FC)),
+                      label: Text(
+                        _aiSummarizing
+                            ? 'Meringkas Belanja...'
+                            : 'Ringkas Belanja dengan AI',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF6B48FC),
+                        side: const BorderSide(color: Color(0xFFC6BCFF)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
                   // Total Box
                   Container(
                     padding: const EdgeInsets.all(18),
@@ -2558,20 +2639,28 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
 
           Row(
             children: [
-              Container(
+              SizedBox(
                 width: 110,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Text(
-                  parkingController.text,
+                child: TextField(
+                  controller: parkingController,
+                  keyboardType: TextInputType.text,
                   style: const TextStyle(
                     color: Color(0xFF17152B),
                     fontWeight: FontWeight.w700,
                     fontSize: 12,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
                   ),
                 ),
               ),
@@ -2786,8 +2875,30 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
 
                 // Tombol Direct ke Maps Pengantaran
                 InkWell(
-                  onTap: () {
+                  onTap: () async {
                     Navigator.of(context).pop();
+                    if (widget.orderId != null && DriverApiService().hasSession) {
+                      final p1 = _parseDigits(_parking1Controller.text);
+                      final p2 = _parseDigits(_parking2Controller.text);
+                      final itemsTotal = [..._lokasi1Items, ..._lokasi2Items]
+                          .fold<int>(0, (s, item) => s + _parseDigits(item.priceText));
+                      final actualTalangan =
+                          (widget.liveOrder?.talanganEstAmount ?? 0) > 0
+                              ? widget.liveOrder!.talanganEstAmount
+                              : itemsTotal;
+                      try {
+                        await DriverApiService().submitFlexSendReceipt(
+                          widget.orderId!,
+                          talanganActualAmount: actualTalangan,
+                          parkingFee: p1 + p2,
+                        );
+                        await DriverApiService().updateOrderStatus(
+                          widget.orderId!,
+                          'IN_TRANSIT',
+                        );
+                      } catch (_) {}
+                      if (!mounted) return;
+                    }
                     setState(() {
                       _orderState = FlexSendOrderState.delivering;
                     });
@@ -2921,7 +3032,17 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
 
           // Tombol SELESAIKAN PENGANTARAN
           InkWell(
-            onTap: () {
+            onTap: () async {
+              if (widget.orderId != null && DriverApiService().hasSession) {
+                try {
+                  await DriverApiService()
+                      .updateOrderStatus(widget.orderId!, 'DELIVERED');
+                } catch (_) {}
+                try {
+                  await DriverApiService().completeOrder(widget.orderId!);
+                } catch (_) {}
+                if (!mounted) return;
+              }
               setState(() {
                 _orderState = FlexSendOrderState.completed;
               });
@@ -3139,6 +3260,7 @@ class _RadarFlexSendScreenState extends State<RadarFlexSendScreen>
             builder: (context) => CallScreen(
               customerName: customerName,
               avatarInitials: customerName.isNotEmpty ? customerName[0] : 'C',
+              orderId: widget.orderId,
             ),
           ),
         );

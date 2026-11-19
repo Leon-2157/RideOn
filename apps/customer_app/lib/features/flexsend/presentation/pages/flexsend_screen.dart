@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:rideon/core/models/customer_models.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 import '../modules/form/add_item_sheet.dart';
 import '../modules/form/place_picker_bottom_sheet.dart';
 import '../modules/form/shopping_form_view.dart';
@@ -48,6 +52,14 @@ class _FlexSendScreenState extends State<FlexSendScreen>
 
   late AnimationController _radarController;
   Timer? _searchTimer;
+  Timer? _pollTimer;
+  StreamSubscription<DatabaseEvent>? _rtdbSub;
+  String? _activeOrderId;
+  int? _talanganActualAmount;
+  int? _parkingFee;
+
+  bool get _isLiveMode =>
+      CustomerApiService().hasSession && !CustomerApiService.enableLocalFallback;
 
   @override
   void initState() {
@@ -108,6 +120,8 @@ class _FlexSendScreenState extends State<FlexSendScreen>
   @override
   void dispose() {
     _searchTimer?.cancel();
+    _pollTimer?.cancel();
+    _rtdbSub?.cancel();
     _radarController.dispose();
     super.dispose();
   }
@@ -130,11 +144,51 @@ class _FlexSendScreenState extends State<FlexSendScreen>
 
   int get _totalBayar => _totalTalangan + _totalOngkir;
 
-  void _startSearching() {
+  Future<void> _startSearching() async {
     setState(() {
       _currentState = FlexSendState.searching;
       _radarController.repeat();
     });
+
+    if (_isLiveMode) {
+      final api = CustomerApiService();
+      final pickupText = _locations.isNotEmpty
+          ? _locations.map((e) => e.name).join(' -> ')
+          : 'Pasar Inpres Lhokseumawe';
+      final items = _locations
+          .expand((loc) => loc.items.map(
+                (it) => CustomerOrderItem(
+                  itemName: '${it.name} (${loc.name})',
+                  unitPrice: it.price > 0 ? it.price : 10000,
+                  qty: it.qty > 0 ? it.qty : 1,
+                  notes: it.notes ?? '',
+                ),
+              ))
+          .toList();
+      try {
+        final order = await api.createOrder(
+          serviceType: 'FLEX_SEND',
+          vehicleType: 'MOTOR',
+          paymentMethod: 'CASH',
+          pickupAddress: pickupText,
+          dropoffAddress: 'Alamat Customer (Lhokseumawe)',
+          talanganEstAmount: _totalTalangan,
+          items: items,
+        );
+        _activeOrderId = order.id;
+        _subscribeFlexSendOrder(order.id);
+        return;
+      } catch (e) {
+        if (mounted) {
+          _radarController.stop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal membuat order FlexSend: $e')),
+          );
+          setState(() => _currentState = FlexSendState.form);
+        }
+        return;
+      }
+    }
 
     _searchTimer?.cancel();
     _searchTimer = Timer(const Duration(milliseconds: 2500), () {
@@ -145,6 +199,66 @@ class _FlexSendScreenState extends State<FlexSendScreen>
         });
       }
     });
+  }
+
+  void _subscribeFlexSendOrder(String orderId) {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _fetchFlexSendSnapshot(orderId),
+    );
+    _fetchFlexSendSnapshot(orderId);
+    if (Firebase.apps.isEmpty) return;
+    _rtdbSub?.cancel();
+    _rtdbSub = FirebaseDatabase.instance
+        .ref('live_orders/$orderId')
+        .onValue
+        .listen((event) {
+      final raw = event.snapshot.value;
+      if (raw is Map && mounted) {
+        final status = (raw['status'] ?? '').toString();
+        final talangan = (raw['talangan_actual_amount'] as num?)?.toInt();
+        final parking = (raw['parking_fee'] as num?)?.toInt();
+        setState(() {
+          if (talangan != null && talangan > 0) {
+            _talanganActualAmount = talangan;
+          }
+          if (parking != null && parking >= 0) _parkingFee = parking;
+          if (status.isNotEmpty) _applyFlexSendStatus(status);
+        });
+      }
+    }, onError: (_) {});
+  }
+
+  Future<void> _fetchFlexSendSnapshot(String orderId) async {
+    try {
+      final order = await CustomerApiService().getOrder(orderId);
+      if (!mounted) return;
+      setState(() {
+        if (order.talanganActualAmount > 0) {
+          _talanganActualAmount = order.talanganActualAmount;
+        }
+        if (order.parkingFee >= 0) _parkingFee = order.parkingFee;
+        _applyFlexSendStatus(order.status);
+      });
+    } catch (_) {}
+  }
+
+  void _applyFlexSendStatus(String status) {
+    final up = status.toUpperCase();
+    if (up == 'DRIVER_ASSIGNED') {
+      _radarController.stop();
+      _currentState = FlexSendState.driverFound;
+    } else if (up == 'SHOPPING') {
+      _radarController.stop();
+      _currentState = FlexSendState.shopping;
+    } else if (up == 'ON_THE_WAY' || up == 'PICKED_UP') {
+      _radarController.stop();
+      _currentState = FlexSendState.delivering;
+    } else if (up == 'ARRIVED_AT_DROPOFF' || up == 'COMPLETED') {
+      _radarController.stop();
+      _currentState = FlexSendState.arrived;
+    }
   }
 
   void _cancelSearching() {
@@ -299,6 +413,9 @@ class _FlexSendScreenState extends State<FlexSendScreen>
           totalOngkir: _totalOngkir,
           totalTalangan: _totalTalangan,
           totalBayar: _totalBayar,
+          orderId: _activeOrderId,
+          talanganActualOverride: _talanganActualAmount,
+          parkingFeeOverride: _parkingFee,
           onFinish: () => Navigator.of(context).maybePop(),
         );
     }

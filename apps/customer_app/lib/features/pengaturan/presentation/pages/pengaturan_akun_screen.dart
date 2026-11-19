@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 
 // Sub-Screens Import
 import 'ubah_profil_screen.dart';
@@ -59,6 +60,25 @@ class _PengaturanAkunScreenState extends State<PengaturanAkunScreen> {
   }
 
   void _loadCurrentUserData() {
+    final api = CustomerApiService();
+    if (api.hasSession) {
+      api.getMe().then<void>((u) {
+        if (!mounted) return;
+        setState(() {
+          _userName = u.name.isNotEmpty ? u.name : _userName;
+          _phoneNumber = u.phone;
+          _isPhoneAdded = u.phone.isNotEmpty;
+          _email = u.email.isNotEmpty ? u.email : 'Belum ditambahkan';
+          _isEmailAdded = u.email.isNotEmpty;
+          _isEmailVerified = u.email.isNotEmpty;
+          if (u.avatarUrl.isNotEmpty) {
+            _photoUrl = api.resolveUrl(u.avatarUrl);
+          }
+        });
+      }).catchError((_) {});
+      return;
+    }
+
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {

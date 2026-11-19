@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../services/driver_service.dart';
+import '../services/driver_api_service.dart';
 import 'radar/radar_screen.dart';
 import 'register/register_screen.dart';
 import 'forgot_password/forgot_password_screen.dart';
@@ -39,8 +40,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _obscurePassword = true;
   late bool _hasLoginError;
-  final bool _isLoading = false;
-
+  bool _isLoading = false;
+  String _errorMessage = 'Email/WhatsApp atau kata sandi yang Anda masukkan salah.';
   @override
   void initState() {
     super.initState();
@@ -76,39 +77,61 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _submitLogin() {
     final identifier = _identifierController.text.trim();
-    final rawPassword = _passwordController.text;
-    final trimmedPassword = rawPassword.trim();
-
-    // Validasi akun dan kata sandi Mitra Driver:
-    // Akun: jutama937@gmail.com
-    // Sandi: Joni21... (didukung juga variasi Joni21)
-    final isEmailValid = identifier.toLowerCase() == 'jutama937@gmail.com';
-    final isPasswordValid = trimmedPassword == 'Joni21...' ||
-        trimmedPassword == 'Joni21' ||
-        rawPassword == 'Joni21...' ||
-        rawPassword == 'Joni21';
-
-    if (isEmailValid && isPasswordValid) {
-      if (_hasLoginError) {
+    final password = _passwordController.text;
+    if (identifier.isEmpty || password.isEmpty) {
+      setState(() {
+        _hasLoginError = true;
+        _errorMessage = 'Email/WhatsApp atau kata sandi yang Anda masukkan salah.';
+      });
+      return;
+    }
+    _doLogin(identifier, password);
+  }
+  Future<void> _doLogin(String identifier, String password) async {
+    setState(() { _isLoading = true; _hasLoginError = false; });
+    try {
+      final result = await DriverApiService().login(identifier, password);
+      if (!mounted) return;
+      if (result.user.status == 'REJECTED' ||
+          result.user.status == 'SUSPENDED') {
         setState(() {
-          _hasLoginError = false;
+          _hasLoginError = true;
+          _errorMessage = 'Akun Anda ditangguhkan atau ditolak admin.';
+          _isLoading = false;
         });
+        return;
       }
       if (widget.onLoginSuccess != null) {
         widget.onLoginSuccess!();
       } else {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => const RadarScreen(
+            builder: (context) => RadarScreen(
+              driverName: result.user.name,
+              plateNumber: result.user.driver?.vehiclePlate ?? '',
+              driverId: result.user.driver?.id,
+              userStatus: result.user.status,
               initialIsOnline: false,
               initialOrderState: RadarOrderState.dashboard,
             ),
           ),
         );
       }
-    } else {
+    } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() {
         _hasLoginError = true;
+        _errorMessage = e.statusCode == 401
+            ? 'Email/WhatsApp atau kata sandi yang Anda masukkan salah.'
+            : e.message;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _hasLoginError = true;
+        _errorMessage = 'Email/WhatsApp atau kata sandi yang Anda masukkan salah.';
+        _isLoading = false;
       });
     }
   }
@@ -247,18 +270,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFFE83535), width: 1),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.error_outline_rounded,
                         color: Color(0xFFE83535),
                         size: 18,
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Email/WhatsApp atau kata sandi yang Anda masukkan salah.',
-                          style: TextStyle(
+                          _errorMessage,
+                          style: const TextStyle(
                             fontSize: 10.5,
                             fontWeight: FontWeight.w600,
                             color: Color(0xFFE83535),

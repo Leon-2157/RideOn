@@ -1,7 +1,15 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:rideon/core/constants/app_assets.dart';
 import 'package:rideon/core/constants/app_colors.dart';
+import 'package:rideon/core/services/osm_nominatim_service.dart';
 
 class LocationPickerModule extends StatefulWidget {
   final TextEditingController pickupController;
@@ -9,6 +17,9 @@ class LocationPickerModule extends StatefulWidget {
   final Function(String address) onSelectSavedAddress;
   final VoidCallback onPickViaMap;
   final VoidCallback onProceedToVehicles;
+  final OsmNominatimService? nominatimService;
+  final FirebaseAuth? auth;
+  final FirebaseFirestore? firestore;
 
   const LocationPickerModule({
     super.key,
@@ -17,6 +28,9 @@ class LocationPickerModule extends StatefulWidget {
     required this.onSelectSavedAddress,
     required this.onPickViaMap,
     required this.onProceedToVehicles,
+    this.nominatimService,
+    this.auth,
+    this.firestore,
   });
 
   @override
@@ -28,6 +42,17 @@ class _LocationPickerModuleState extends State<LocationPickerModule> {
   final FocusNode _destinationFocusNode = FocusNode();
   bool _isSearchingPickup = false;
   bool _isSearchingDestination = false;
+
+  late final OsmNominatimService _nominatim =
+      widget.nominatimService ?? OsmNominatimService.instance;
+  Timer? _debounceTimer;
+  int _searchGeneration = 0;
+  bool _isLoadingOsm = false;
+  bool _isLoadingGps = false;
+  String _lastOsmQuery = '';
+  List<OsmPlaceResult> _osmResults = const [];
+  List<Map<String, dynamic>> _firestoreSavedAddresses = const [];
+  LatLng? _userLatLng;
 
   static const List<Map<String, dynamic>> savedAddresses = [
     {
@@ -53,43 +78,223 @@ class _LocationPickerModuleState extends State<LocationPickerModule> {
     },
   ];
 
-  static const List<String> pickupSuggestions = [
-    'Jl. Brawl No. 77, Land of down II',
-    'Jl. Brawl No. 12, Land of down II',
-    'Jl. Brawl No. 1, Land of down',
-  ];
-
-  static const List<String> destinationSuggestions = [
-    'Jl.Ranked No. 133, Land of down IV',
-    'Jl.Ranked No. 100, Land of down I',
-    'Jl.Ranked No. 1, Land of down',
-  ];
-
   @override
   void initState() {
     super.initState();
-    _pickupFocusNode.addListener(() {
-      setState(() {
-        _isSearchingPickup = _pickupFocusNode.hasFocus;
-      });
-    });
-    _destinationFocusNode.addListener(() {
-      setState(() {
-        _isSearchingDestination = _destinationFocusNode.hasFocus;
-      });
-    });
+    _pickupFocusNode.addListener(_onFocusChanged);
+    _destinationFocusNode.addListener(_onFocusChanged);
     widget.pickupController.addListener(_onTextChanged);
     widget.destinationController.addListener(_onTextChanged);
+    _loadInitialContext();
+  }
+
+  Future<void> _loadInitialContext() async {
+    final pos = await OsmNominatimService.tryGetKnownUserPosition();
+    final saved = await OsmNominatimService.loadSavedAddresses(
+      auth: widget.auth,
+      firestore: widget.firestore,
+    );
+    if (!mounted) return;
+    setState(() {
+      if (pos != null) _userLatLng = pos;
+      _firestoreSavedAddresses = saved;
+    });
+  }
+
+  void _onFocusChanged() {
+    if (!mounted) return;
+    setState(() {
+      _isSearchingPickup = _pickupFocusNode.hasFocus;
+      _isSearchingDestination = _destinationFocusNode.hasFocus;
+    });
+    final activeQuery = _activeQuery;
+    if (activeQuery.length >= 2 && activeQuery != _lastOsmQuery) {
+      _scheduleOsmSearch(activeQuery);
+    }
   }
 
   void _onTextChanged() {
-    if (mounted) {
-      setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    final activeQuery = _activeQuery;
+    if (activeQuery != _lastOsmQuery) {
+      _scheduleOsmSearch(activeQuery);
+    }
+  }
+
+  String get _activeQuery {
+    if (_isSearchingPickup) return widget.pickupController.text.trim();
+    if (_isSearchingDestination) {
+      return widget.destinationController.text.trim();
+    }
+    return '';
+  }
+
+  void _scheduleOsmSearch(String query) {
+    _debounceTimer?.cancel();
+    final gen = ++_searchGeneration;
+
+    if (query.length < 2) {
+      setState(() {
+        _lastOsmQuery = query;
+        _isLoadingOsm = false;
+        _osmResults = const [];
+      });
+      return;
+    }
+
+    setState(() {
+      _lastOsmQuery = query;
+      _isLoadingOsm = true;
+    });
+
+    _debounceTimer = Timer(const Duration(milliseconds: 450), () async {
+      final results = await _nominatim.searchPlaces(
+        query,
+        nearLat: _userLatLng?.latitude,
+        nearLng: _userLatLng?.longitude,
+        limit: 6,
+      );
+      if (!mounted || gen != _searchGeneration) return;
+      setState(() {
+        _isLoadingOsm = false;
+        _osmResults = results;
+      });
+    });
+  }
+
+  Future<void> _fillPickupFromGps() async {
+    setState(() => _isLoadingGps = true);
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Layanan GPS perangkat belum aktif.')),
+        );
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Izin akses lokasi ditolak.')),
+        );
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+      _userLatLng = LatLng(position.latitude, position.longitude);
+
+      String detectedAddress =
+          'Koordinat ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}';
+      try {
+        final placemarks = await Geocoding().placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          final parts = <String>[
+            if ((p.street ?? '').isNotEmpty && !p.street!.contains('+'))
+              p.street!,
+            if ((p.subLocality ?? '').isNotEmpty) p.subLocality!,
+            if ((p.locality ?? '').isNotEmpty) p.locality!,
+            if ((p.subAdministrativeArea ?? '').isNotEmpty)
+              p.subAdministrativeArea!,
+          ];
+          if (parts.isNotEmpty) {
+            detectedAddress = parts.toSet().join(', ');
+          }
+        }
+      } catch (_) {}
+
+      if (!mounted) return;
+      widget.pickupController.text = detectedAddress;
+      _pickupFocusNode.unfocus();
+      setState(() => _isSearchingPickup = false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membaca GPS: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoadingGps = false);
+    }
+  }
+
+  List<Map<String, dynamic>> _matchingSavedAddresses(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+
+    final source = _firestoreSavedAddresses.isNotEmpty
+        ? _firestoreSavedAddresses
+        : savedAddresses;
+
+    bool matchesPrefix(String text) {
+      if (text.isEmpty) return false;
+      final words = text.toLowerCase().split(RegExp(r'[\s,\.-]+'));
+      return words.any((w) => w.startsWith(q));
+    }
+
+    final matches = <Map<String, dynamic>>[];
+    for (final item in source) {
+      final label = (item['label'] as String? ?? '').trim();
+      final address = (item['address'] as String? ??
+              item['addr'] as String? ??
+              '')
+          .trim();
+      if (matchesPrefix(label) || matchesPrefix(address)) {
+        matches.add({
+          'label': label.isNotEmpty ? label : 'Alamat Tersimpan',
+          'addr': address,
+          'asset': item['asset'] ?? _assetForLabel(label),
+          'icon': item['icon'] ?? _iconForLabel(label),
+        });
+      }
+    }
+    return matches;
+  }
+
+  String _assetForLabel(String label) {
+    switch (label.toLowerCase()) {
+      case 'kantor':
+        return 'assets/icons/places/ic_place_kantor.png';
+      case 'mall centre':
+        return 'assets/icons/places/ic_place_mall.png';
+      default:
+        return 'assets/icons/places/ic_place_rumah.png';
+    }
+  }
+
+  IconData _iconForLabel(String label) {
+    switch (label.toLowerCase()) {
+      case 'kantor':
+        return Icons.business_center_rounded;
+      case 'kost':
+        return Icons.apartment_rounded;
+      case 'mall centre':
+        return Icons.shopping_bag_rounded;
+      default:
+        return Icons.home_rounded;
     }
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
+    _pickupFocusNode.removeListener(_onFocusChanged);
+    _destinationFocusNode.removeListener(_onFocusChanged);
     widget.pickupController.removeListener(_onTextChanged);
     widget.destinationController.removeListener(_onTextChanged);
     _pickupFocusNode.dispose();
@@ -171,7 +376,7 @@ class _LocationPickerModuleState extends State<LocationPickerModule> {
             ),
             child: Column(
               children: [
-                // Pickup Input
+                // Pickup Input + Tombol GPS Otomatis
                 Row(
                   children: [
                     Container(
@@ -224,6 +429,41 @@ class _LocationPickerModuleState extends State<LocationPickerModule> {
                               ),
                             ),
                           ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      key: const Key('btn_flexride_gps'),
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _isLoadingGps ? null : _fillPickupFromGps,
+                      child: Container(
+                        height: 48,
+                        width: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFF6B48FC).withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Center(
+                          child: _isLoadingGps
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Color(0xFF6B48FC),
+                                    ),
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.my_location_rounded,
+                                  size: 20,
+                                  color: Color(0xFF6B48FC),
+                                ),
                         ),
                       ),
                     ),
@@ -359,108 +599,308 @@ class _LocationPickerModuleState extends State<LocationPickerModule> {
           ),
           const SizedBox(height: 16),
 
-          // Tampilan Suggestion saat mengetik Lokasi Jemput
-          if (_isSearchingPickup) ...[
-            ...pickupSuggestions.map((sugg) {
-              return Column(
-                children: [
-                  InkWell(
-                    onTap: () {
-                      widget.pickupController.text = sugg;
-                      _pickupFocusNode.unfocus();
-                      setState(() {
-                        _isSearchingPickup = false;
-                      });
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12.0, horizontal: 4.0),
-                      child: Row(
+          // Tampilan Suggestion hanya muncul saat user mengetik (query tidak kosong)
+          if ((_isSearchingPickup || _isSearchingDestination) &&
+              _activeQuery.isNotEmpty) ...[
+            Builder(
+              builder: (context) {
+                final query = _activeQuery;
+                final isPickup = _isSearchingPickup;
+                final savedMatches = _matchingSavedAddresses(query);
+
+                void applyChoice(String value) {
+                  if (isPickup) {
+                    widget.pickupController.text = value;
+                    _pickupFocusNode.unfocus();
+                    setState(() => _isSearchingPickup = false);
+                  } else {
+                    widget.destinationController.text = value;
+                    _destinationFocusNode.unfocus();
+                    setState(() => _isSearchingDestination = false);
+                  }
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1. Alamat Tersimpan yang Cocok (Prioritas #1)
+                    ...savedMatches.map((saved) {
+                      final title = saved['label'] as String? ?? 'Alamat';
+                      final addr = saved['addr'] as String? ?? '';
+                      final asset = saved['asset'] as String?;
+                      return Column(
                         children: [
-                          const Icon(
-                            Icons.location_on_rounded,
-                            color: Color(0xFF22C55E),
-                            size: 22,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: RichText(
-                              text: TextSpan(
-                                style: GoogleFonts.roboto(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF17152B),
-                                ),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () =>
+                                applyChoice(addr.isNotEmpty ? addr : title),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 10.0, horizontal: 6.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  TextSpan(
-                                    text: sugg.substring(0, 8),
-                                    style: const TextStyle(
-                                        color: Color(0xFF22C55E)),
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2.0),
+                                    child: asset != null
+                                        ? Image.asset(
+                                            asset,
+                                            width: 20,
+                                            height: 20,
+                                            errorBuilder: (_, _, _) => Icon(
+                                              saved['icon'] as IconData? ??
+                                                  Icons.home_rounded,
+                                              color: const Color(0xFF6B48FC),
+                                              size: 20,
+                                            ),
+                                          )
+                                        : Icon(
+                                            saved['icon'] as IconData? ??
+                                                Icons.home_rounded,
+                                            color: const Color(0xFF6B48FC),
+                                            size: 20,
+                                          ),
                                   ),
-                                  TextSpan(text: sugg.substring(8)),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                title,
+                                                style: GoogleFonts.roboto(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  color:
+                                                      const Color(0xFF17152B),
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF3EFFF),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                                border: Border.all(
+                                                  color:
+                                                      const Color(0xFFC6BCFF),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                'Alamat Tersimpan',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 9.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  color:
+                                                      const Color(0xFF6B48FC),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        if (addr.isNotEmpty) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            addr,
+                                            style: GoogleFonts.roboto(
+                                              fontSize: 11,
+                                              color: const Color(0xFF6B6680),
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                           ),
+                          const Divider(height: 1, color: Color(0xFFF1F0F5)),
                         ],
-                      ),
-                    ),
-                  ),
-                  const Divider(height: 1, color: Color(0xFFF1F0F5)),
-                ],
-              );
-            }),
-          ] else if (_isSearchingDestination) ...[
-            // Tampilan Suggestion saat mengetik tujuan (masuk flex ride-1.png)
-            ...destinationSuggestions.map((sugg) {
-              return Column(
-                children: [
-                  InkWell(
-                    onTap: () {
-                      widget.destinationController.text = sugg;
-                      _destinationFocusNode.unfocus();
-                      setState(() {
-                        _isSearchingDestination = false;
-                      });
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12.0, horizontal: 4.0),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.location_on_rounded,
-                            color: Color(0xFFE83535),
-                            size: 22,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: RichText(
-                              text: TextSpan(
-                                style: GoogleFonts.roboto(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF17152B),
+                      );
+                    }),
+
+                    // 2. Indikator Loading & Hasil OpenStreetMap Nominatim
+                    if (query.length >= 2) ...[
+                      if (_isLoadingOsm)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 10.0, horizontal: 6.0),
+                          child: Row(
+                            children: [
+                              const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Color(0xFF6B48FC)),
                                 ),
-                                children: [
-                                  TextSpan(
-                                    text: sugg.substring(0, 10),
-                                    style: const TextStyle(
-                                        color: Color(0xFF22C55E)),
-                                  ),
-                                  TextSpan(text: sugg.substring(10)),
-                                ],
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Mencari lokasi di OpenStreetMap...',
+                                style: GoogleFonts.roboto(
+                                  fontSize: 11.5,
+                                  color: const Color(0xFF6B6680),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ..._osmResults.map((place) {
+                        final distLabel = place.formattedDistance;
+                        return Column(
+                          children: [
+                            InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => applyChoice(place.formattedAddress),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 10.0, horizontal: 6.0),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2.0),
+                                      child: Icon(
+                                        Icons.location_on_rounded,
+                                        color: isPickup
+                                            ? const Color(0xFF22C55E)
+                                            : const Color(0xFF6B48FC),
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  place.title,
+                                                  style: GoogleFonts.roboto(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w700,
+                                                    color:
+                                                        const Color(0xFF17152B),
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              if (distLabel != null) ...[
+                                                const SizedBox(width: 8),
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        const Color(0xFFF0FDF4),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            6),
+                                                    border: Border.all(
+                                                      color: const Color(
+                                                          0xFF86EFAC),
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    distLabel,
+                                                    style: GoogleFonts.roboto(
+                                                      fontSize: 9.5,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: const Color(
+                                                          0xFF16A34A),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                          if (place.subtitle.isNotEmpty) ...[
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              place.subtitle,
+                                              style: GoogleFonts.roboto(
+                                                fontSize: 11,
+                                                color: const Color(0xFF6B6680),
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
+                            const Divider(height: 1, color: Color(0xFFF1F0F5)),
+                          ],
+                        );
+                      }),
+                    ],
+
+                    // 3. Fallback Manual (Jika pengguna ingin pakai alamat persis yg diketik)
+                    if (!_isLoadingOsm &&
+                        savedMatches.isEmpty &&
+                        _osmResults.isEmpty)
+                      InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () => applyChoice(query),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 10.0, horizontal: 6.0),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.edit_location_alt_rounded,
+                                color: isPickup
+                                    ? const Color(0xFF22C55E)
+                                    : const Color(0xFF6B48FC),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Gunakan alamat "$query"',
+                                  style: GoogleFonts.roboto(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF17152B),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                  const Divider(height: 1, color: Color(0xFFF1F0F5)),
-                ],
-              );
-            }),
+                  ],
+                );
+              },
+            ),
           ] else ...[
             // Section Title
             Text(

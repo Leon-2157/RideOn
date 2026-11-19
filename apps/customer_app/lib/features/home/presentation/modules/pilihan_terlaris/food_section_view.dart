@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 
 import 'food_card_item.dart';
 import 'food_item_model.dart';
@@ -33,6 +34,35 @@ class _PilihanTerlarisSectionState extends State<PilihanTerlarisSection> {
     _items = List<FoodItemModel>.from(
       widget.items ?? FoodSectionLogic.defaultItems,
     );
+    _loadLiveMenus();
+  }
+
+  Future<void> _loadLiveMenus() async {
+    if (widget.items != null || !CustomerApiService().hasSession) return;
+    try {
+      final api = CustomerApiService();
+      final menus = await api.getPublicMenus();
+      if (!mounted || menus.isEmpty) return;
+      final defaultAssets = FoodSectionLogic.defaultItems;
+      setState(() {
+        _items = List.generate(menus.length.clamp(0, 12), (i) {
+          final m = menus[i];
+          final formatted = m.price
+              .toString()
+              .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (x) => '${x[1]}.');
+          return FoodItemModel(
+            title: m.name,
+            description: m.storeName.isNotEmpty ? m.storeName : m.description,
+            price: 'Rp $formatted',
+            imageAsset: m.photoUrl.isNotEmpty
+                ? api.resolveUrl(m.photoUrl)
+                : defaultAssets[i % defaultAssets.length].imageAsset,
+            rating: m.ratingAvg.toStringAsFixed(1),
+            isFavorite: false,
+          );
+        });
+      });
+    } catch (_) {}
   }
 
   @override
@@ -110,9 +140,9 @@ class _PilihanTerlarisSectionState extends State<PilihanTerlarisSection> {
           ),
         ),
 
-        // List horizontal kartu makanan dengan ruang shadow dan jarak presisi 14px Figma
+        // List horizontal kartu makanan
         SizedBox(
-          height: 160,
+          height: 176,
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             scrollDirection: Axis.horizontal,

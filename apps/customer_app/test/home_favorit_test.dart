@@ -43,7 +43,7 @@ void main() {
     );
 
     expect(find.text('Cari Kembali favorit Mu!'), findsOneWidget);
-    expect(find.text('Makanan Favoritmu ❤️'), findsOneWidget);
+    expect(find.text('Makanan Favoritmu'), findsOneWidget);
     expect(find.text('Daftar Favorit Tersimpan'), findsOneWidget);
   });
 

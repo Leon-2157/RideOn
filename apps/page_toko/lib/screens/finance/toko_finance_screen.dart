@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../data/toko_state.dart';
+import '../../services/toko_api_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/toko_ai_cs_sheet.dart';
 
 class TokoFinanceScreen extends StatefulWidget {
   const TokoFinanceScreen({super.key});
@@ -11,6 +13,53 @@ class TokoFinanceScreen extends StatefulWidget {
 
 class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
   String _activeFilter = 'Semua';
+  bool _loadingInsight = false;
+  String? _aiSalesInsight;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWallet();
+  }
+
+  Future<void> _loadWallet() async {
+    final api = TokoApiService();
+    final storeId = TokoState.storeId;
+    if (!api.hasSession || storeId == null || storeId.isEmpty) return;
+    try {
+      final w = await api.getStoreWallet(storeId);
+      if (!mounted) return;
+      TokoState.balance.value = w.balance;
+      if (w.bankName.isNotEmpty) {
+        TokoState.bankName.value = w.bankName;
+        if (w.bankAccountNumber.length >= 4) {
+          TokoState.bankAccountNumber.value = w.bankAccountNumber;
+          TokoState.activeBank.value =
+              '${w.bankName} •••• ${w.bankAccountNumber.substring(w.bankAccountNumber.length - 4)}';
+        }
+      }
+      TokoState.transactions.value = w.transactions.map((t) => t.toScreenMap()).toList();
+    } catch (_) {}
+  }
+
+  Future<void> _generateAiSalesInsight() async {
+    setState(() => _loadingInsight = true);
+    try {
+      final reply = await TokoApiService().aiChat(
+        sessionId: 'toko-insight-${DateTime.now().millisecondsSinceEpoch}',
+        message: 'Berikan 3 poin singkat insight penjualan dan rekomendasi promo untuk meningkatkan omzet warung saya hari ini berdasarkan data toko aktual.',
+      );
+      if (!mounted) return;
+      setState(() => _aiSalesInsight = reply);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memuat AI Sales Insight: $e'), backgroundColor: AppColors.danger),
+      );
+    } finally {
+      if (mounted) setState(() => _loadingInsight = false);
+    }
+  }
 
   String _formatRp(int amount) {
     return amount.toString().replaceAllMapped(
@@ -39,7 +88,27 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
       context: context,
       barrierDismissible: true,
       builder: (dialogCtx) => _PinVerificationDialog(
-        onVerified: () {
+        onVerified: (pin) async {
+          final api = TokoApiService();
+          final storeId = TokoState.storeId;
+          if (api.hasSession && storeId != null && storeId.isNotEmpty) {
+            await api.requestWithdrawal(
+              storeId: storeId,
+              amount: amount,
+              bankName: TokoState.bankName.value,
+              accountNumber: TokoState.bankAccountNumber.value,
+              accountName: TokoState.ownerName.value,
+              pin: pin,
+            );
+            await _loadWallet();
+            if (!dialogCtx.mounted) return;
+            Navigator.pop(dialogCtx);
+            final now = DateTime.now();
+            final timeStr = 'Hari ini, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} WIB';
+            if (mounted) _showTarikSuccessDialog(amount, '#WD-LIVE', timeStr);
+            return;
+          }
+
           Navigator.pop(dialogCtx);
           if (amount <= 0 || amount > TokoState.balance.value) return;
 
@@ -255,6 +324,22 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
                           border: Border.all(color: AppColors.border),
                         ),
                         child: IconButton(
+                          key: const Key('btn_toko_cs_ai'),
+                          tooltip: 'CS AI Mitra Toko',
+                          icon: const Icon(Icons.support_agent_rounded, size: 20, color: AppColors.primary),
+                          onPressed: () => showTokoAiCsSheet(context),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: IconButton(
                           icon: const Icon(Icons.settings_outlined, size: 20, color: AppColors.textPrimary),
                           onPressed: _showFinanceSettingsDialog,
                         ),
@@ -263,7 +348,9 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
                   ),
                   const SizedBox(height: 18),
                   _buildBalanceCard(formattedBalance),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 14),
+                  _buildAiInsightCard(),
+                  const SizedBox(height: 22),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -313,6 +400,52 @@ class _TokoFinanceScreenState extends State<TokoFinanceScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _buildAiInsightCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primaryLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Expanded(
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.primary),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'AI Sales Insight',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                key: const Key('btn_toko_ai_insight'),
+                onPressed: _loadingInsight ? null : _generateAiSalesInsight,
+                child: Text(_loadingInsight ? 'Menganalisis...' : 'Analisis AI'),
+              ),
+            ],
+          ),
+          Text(
+            _aiSalesInsight ?? 'Dapatkan ringkasan performa penjualan & rekomendasi promo harian untuk toko Anda.',
+            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+          ),
+        ],
       ),
     );
   }
@@ -673,7 +806,7 @@ class _TarikSaldoSheetState extends State<_TarikSaldoSheet> {
 }
 
 class _PinVerificationDialog extends StatefulWidget {
-  final VoidCallback onVerified;
+  final Future<void> Function(String pin) onVerified;
 
   const _PinVerificationDialog({required this.onVerified});
 
@@ -684,6 +817,7 @@ class _PinVerificationDialog extends StatefulWidget {
 class _PinVerificationDialogState extends State<_PinVerificationDialog> {
   final TextEditingController _pinController = TextEditingController();
   String? _pinError;
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -691,17 +825,31 @@ class _PinVerificationDialogState extends State<_PinVerificationDialog> {
     super.dispose();
   }
 
-  void _verify() {
+  Future<void> _verify() async {
     final pin = _pinController.text.trim();
     if (!RegExp(r'^\d{6}$').hasMatch(pin)) {
       setState(() => _pinError = 'PIN keamanan harus 6 digit angka');
       return;
     }
-    if (pin != TokoState.securityPin) {
+    if (!TokoApiService().hasSession && pin != TokoState.securityPin) {
       setState(() => _pinError = 'PIN keamanan salah (default: ${TokoState.securityPin})');
       return;
     }
-    widget.onVerified();
+    setState(() {
+      _submitting = true;
+      _pinError = null;
+    });
+    try {
+      await widget.onVerified(pin);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _pinError = e.toString();
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
@@ -763,9 +911,9 @@ class _PinVerificationDialogState extends State<_PinVerificationDialog> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _verify,
+                onPressed: _submitting ? null : _verify,
                 icon: const Icon(Icons.verified_user_rounded, size: 16),
-                label: const Text('VERIFIKASI', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: Text(_submitting ? 'MEMPROSES...' : 'VERIFIKASI', style: const TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.dark,
                   foregroundColor: Colors.white,

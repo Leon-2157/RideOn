@@ -1,8 +1,13 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:rideon/core/models/customer_models.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 
 import '../header/flexsend_header.dart';
 import '../models/flexsend_item_model.dart';
@@ -16,6 +21,9 @@ class ShoppingReceiptView extends StatefulWidget {
   final int totalOngkir;
   final int totalTalangan;
   final int totalBayar;
+  final String? orderId;
+  final int? talanganActualOverride;
+  final int? parkingFeeOverride;
   final VoidCallback onFinish;
 
   const ShoppingReceiptView({
@@ -27,6 +35,9 @@ class ShoppingReceiptView extends StatefulWidget {
     this.totalOngkir = 12000,
     this.totalTalangan = 0,
     this.totalBayar = 12000,
+    this.orderId,
+    this.talanganActualOverride,
+    this.parkingFeeOverride,
     required this.onFinish,
   });
 
@@ -39,6 +50,11 @@ class _ShoppingReceiptViewState extends State<ShoppingReceiptView> {
   String? _selectedPaymentMethod;
   bool _isQrScannedAndPaid = false;
   Timer? _qrVerificationTimer;
+  Timer? _qrisPollTimer;
+  StreamSubscription<DatabaseEvent>? _rtdbSub;
+  QrisPaymentResult? _qrisPayment;
+  bool _isCheckingQris = false;
+  String? _qrisError;
 
   // Struk riil belanja yang diinput driver (realistis saat barang dibeli)
   late final Map<int, int> _driverActualReceiptPrices;
@@ -62,15 +78,94 @@ class _ShoppingReceiptViewState extends State<ShoppingReceiptView> {
   @override
   void dispose() {
     _qrVerificationTimer?.cancel();
+    _qrisPollTimer?.cancel();
+    _rtdbSub?.cancel();
     super.dispose();
   }
 
   int get _actualTotalTalangan {
+    if ((widget.talanganActualOverride ?? 0) > 0) {
+      return widget.talanganActualOverride!;
+    }
     if (widget.locations.isEmpty) return 35000;
     return _driverActualReceiptPrices.values.fold(0, (sum, val) => sum + val);
   }
 
-  int get _actualGrandTotal => _actualTotalTalangan + widget.totalOngkir;
+  int get _actualGrandTotal =>
+      _actualTotalTalangan +
+      widget.totalOngkir +
+      (widget.parkingFeeOverride ?? 0);
+
+  Future<void> _prepareLiveQris() async {
+    final oid = widget.orderId ?? '';
+    if (oid.isEmpty) return;
+    setState(() => _qrisError = null);
+    try {
+      final res = await CustomerApiService().generateOrderQris(
+        orderId: oid,
+        baseAmount: _actualGrandTotal,
+      );
+      if (!mounted) return;
+      setState(() {
+        _qrisPayment = res;
+        _isQrScannedAndPaid = res.isPaid;
+      });
+      if (Firebase.apps.isNotEmpty) {
+        _rtdbSub?.cancel();
+        _rtdbSub = FirebaseDatabase.instance
+            .ref('live_orders/$oid')
+            .onValue
+            .listen((event) {
+          final raw = event.snapshot.value;
+          if (raw is Map && mounted) {
+            final pay = (raw['payment_status'] ?? '').toString().toUpperCase();
+            if (pay == 'PAID' || pay == 'SETTLEMENT') {
+              _qrisPollTimer?.cancel();
+              setState(() => _isQrScannedAndPaid = true);
+            }
+          }
+        }, onError: (_) {});
+      }
+      _qrisPollTimer?.cancel();
+      _qrisPollTimer = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _checkLiveQris(silent: true),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _qrisError = e.toString());
+      }
+    }
+  }
+
+  Future<void> _checkLiveQris({bool silent = false}) async {
+    final ref = _qrisPayment?.referenceId ?? '';
+    if (ref.isEmpty) return;
+    if (!silent && mounted) setState(() => _isCheckingQris = true);
+    try {
+      final res = await CustomerApiService().getQrisStatus(ref);
+      if (!mounted) return;
+      setState(() {
+        _qrisPayment = res;
+        _isCheckingQris = false;
+        if (res.isPaid) {
+          _isQrScannedAndPaid = true;
+          _qrisPollTimer?.cancel();
+        }
+      });
+      if (!silent && !res.isPaid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Status QRIS: ${res.status}. Transfer tepat Rp ${_formatRupiah(res.payableAmount)}.',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isCheckingQris = false);
+    }
+  }
 
   String _formatRupiah(int amount) {
     return amount.toString().replaceAllMapped(
@@ -493,12 +588,16 @@ class _ShoppingReceiptViewState extends State<ShoppingReceiptView> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              'Talangan Riil Driver',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF17152B),
+                            Expanded(
+                              child: Text(
+                                'Talangan Riil Driver',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF17152B),
+                                ),
                               ),
                             ),
                           ],
@@ -583,12 +682,16 @@ class _ShoppingReceiptViewState extends State<ShoppingReceiptView> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              'Ongkos Kirim Aplikasi',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF17152B),
+                            Expanded(
+                              child: Text(
+                                'Ongkos Kirim Aplikasi',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF17152B),
+                                ),
                               ),
                             ),
                           ],
@@ -639,33 +742,40 @@ class _ShoppingReceiptViewState extends State<ShoppingReceiptView> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'TOTAL PELUNASAN',
-                              style: GoogleFonts.roboto(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white.withValues(alpha: 0.8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'TOTAL PELUNASAN',
+                                style: GoogleFonts.roboto(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Talangan Riil + Ongkir',
-                              style: GoogleFonts.roboto(
-                                fontSize: 11,
-                                color: Colors.white.withValues(alpha: 0.9),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Talangan Riil + Ongkir',
+                                style: GoogleFonts.roboto(
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                        Text(
-                          'Rp ${_formatRupiah(_actualGrandTotal)}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Rp ${_formatRupiah(_actualGrandTotal)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ],
@@ -790,24 +900,31 @@ class _ShoppingReceiptViewState extends State<ShoppingReceiptView> {
                         GestureDetector(
                           behavior: HitTestBehavior.opaque,
                           onTap: () {
+                            _qrVerificationTimer?.cancel();
+                            _qrisPollTimer?.cancel();
+                            _rtdbSub?.cancel();
                             setState(() {
                               _selectedPaymentMethod = 'qris';
                               _isQrScannedAndPaid = false;
                             });
 
-                            // Sistem otomatis mengecek saldo masuk secara background (jeda 5 detik untuk testing)
-                            _qrVerificationTimer?.cancel();
-                            _qrVerificationTimer = Timer(
-                              const Duration(seconds: 5),
-                              () {
-                                if (mounted &&
-                                    _selectedPaymentMethod == 'qris') {
-                                  setState(() {
-                                    _isQrScannedAndPaid = true;
-                                  });
-                                }
-                              },
-                            );
+                            if ((widget.orderId ?? '').isNotEmpty &&
+                                CustomerApiService().hasSession &&
+                                !CustomerApiService.enableLocalFallback) {
+                              _prepareLiveQris();
+                            } else {
+                              _qrVerificationTimer = Timer(
+                                const Duration(seconds: 5),
+                                () {
+                                  if (mounted &&
+                                      _selectedPaymentMethod == 'qris') {
+                                    setState(() {
+                                      _isQrScannedAndPaid = true;
+                                    });
+                                  }
+                                },
+                              );
+                            }
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(
@@ -904,13 +1021,48 @@ class _ShoppingReceiptViewState extends State<ShoppingReceiptView> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Nominal: Rp ${_formatRupiah(_actualGrandTotal)}',
+                                  'Nominal: Rp ${_formatRupiah(_qrisPayment?.payableAmount ?? _actualGrandTotal)}',
                                   style: GoogleFonts.poppins(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                     color: const Color(0xFF6B48FC),
                                   ),
                                 ),
+                                if (_qrisPayment != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Base: Rp ${_formatRupiah(_qrisPayment!.baseAmount)} + Kode Unik: ${_qrisPayment!.uniqueCode}',
+                                    style: GoogleFonts.roboto(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF4B4763),
+                                    ),
+                                  ),
+                                  if (_qrisPayment!.qrisPayload.isNotEmpty)
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        Clipboard.setData(ClipboardData(
+                                            text: _qrisPayment!.qrisPayload));
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                                content: Text(
+                                                    'Payload QRIS disalin')));
+                                      },
+                                      icon: const Icon(Icons.copy_rounded,
+                                          size: 14),
+                                      label: const Text('Salin Payload QRIS',
+                                          style: TextStyle(fontSize: 11)),
+                                    ),
+                                ],
+                                if (_qrisError != null)
+                                  Text(
+                                    _qrisError!,
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.roboto(
+                                      fontSize: 10,
+                                      color: const Color(0xFFDC2626),
+                                    ),
+                                  ),
                                 const SizedBox(height: 12),
 
                                 // Kotak QR Code Mockup
@@ -1026,10 +1178,27 @@ class _ShoppingReceiptViewState extends State<ShoppingReceiptView> {
                                     ),
                                   ),
                                 if (!_isQrScannedAndPaid) ...[
-                                  const SizedBox(height: 10),
+                                  const SizedBox(height: 8),
+                                  if (_qrisPayment != null) ...[
+                                    OutlinedButton.icon(
+                                      key: const ValueKey(
+                                          'btn_check_flexsend_qris'),
+                                      onPressed: _isCheckingQris
+                                          ? null
+                                          : () => _checkLiveQris(silent: false),
+                                      icon: const Icon(Icons.refresh_rounded,
+                                          size: 14),
+                                      label: const Text(
+                                        'Cek Status QRIS',
+                                        style: TextStyle(fontSize: 11),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                  ],
                                   GestureDetector(
                                     onTap: () {
                                       _qrVerificationTimer?.cancel();
+                                      _qrisPollTimer?.cancel();
                                       setState(() {
                                         _selectedPaymentMethod = 'tunai';
                                       });
@@ -1105,11 +1274,15 @@ class _ShoppingReceiptViewState extends State<ShoppingReceiptView> {
                               color: Colors.white,
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              'Pembayaran Selesai',
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                            Flexible(
+                              child: Text(
+                                'Pembayaran Selesai',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ],

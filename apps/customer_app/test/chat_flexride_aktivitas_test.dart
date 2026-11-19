@@ -13,7 +13,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Riwayat Aktivitas'), findsOneWidget);
+    expect(find.text('Semua'), findsOneWidget);
+    expect(find.text('FlexRide'), findsWidgets);
     expect(find.text('Nasi Goreng Mas Fuad'), findsOneWidget);
     expect(find.text('Perjalanan Ojek Motor'), findsOneWidget);
 
@@ -31,8 +32,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Pikri Haykal'), findsOneWidget);
-    expect(find.text('Honda Vario 160 Hitam • BG 4563 R'), findsOneWidget);
+    expect(find.text('Fikri haykal (Driver)'), findsOneWidget);
+    expect(find.text('Online ( Sedang di Toko )'), findsOneWidget);
     expect(find.text('Ketik pesan untuk driver...'), findsOneWidget);
 
     // Tap quick reply
@@ -41,16 +42,26 @@ void main() {
   });
 
   testWidgets('FlexRideScreen performs location input and vehicle selection', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.5;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       const MaterialApp(
-        home: FlexRideScreen(),
+        home: FlexRideScreen(
+          initialPickup: 'Kampus Unimal',
+          initialDestination: 'Pasar Inpres',
+        ),
       ),
     );
 
-    expect(find.text('Pesan FlexRide'), findsOneWidget);
+    expect(find.text('LOKASI JEMPUT'), findsOneWidget);
+    expect(find.text('TUJUAN PERJALANAN'), findsOneWidget);
     expect(find.text('Alamat Favorit & Riwayat Cepat'), findsOneWidget);
 
     // Tap proceed to vehicles
+    await tester.ensureVisible(find.text('Lanjut Pilih Kendaraan'));
     await tester.tap(find.text('Lanjut Pilih Kendaraan'));
     await tester.pumpAndSettle();
 

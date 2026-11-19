@@ -1,0 +1,402 @@
+{
+  "info": {
+    "_postman_id": "rideon-ecosystem-collection-2026",
+    "name": "RideOn Ecosystem API (Lhokseumawe & Aceh Utara)",
+    "description": "Single Source of Truth Postman Collection untuk seluruh ekosistem RideOn: rideon-api (/v1/*), payg (/pay/*), ai-service (/ai/*), dan wa-gateway (/wa/*).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8088",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payg_secret",
+      "value": "rideon-payg-internal-secret",
+      "type": "string"
+    },
+    {
+      "key": "order_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "qris_ref_id",
+      "value": "QRIS-DEMO-001",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth & OTP (/v1/auth/*)",
+      "item": [
+        {
+          "name": "Login Admin (admin@rideons.app)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@rideons.app\",\n  \"password\": \"RideOnAdmin2026!\"\n}"
+            },
+            "url": "{{base_url}}/v1/auth/login"
+          }
+        },
+        {
+          "name": "Login Customer Demo",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"cut.meutia@mhs.unimal.ac.id\",\n  \"password\": \"RideOnDemo2026!\"\n}"
+            },
+            "url": "{{base_url}}/v1/auth/login"
+          }
+        },
+        {
+          "name": "Send OTP (EMAIL / WHATSAPP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target\": \"085260000101\",\n  \"channel\": \"WHATSAPP\",\n  \"purpose\": \"REGISTER\"\n}"
+            },
+            "url": "{{base_url}}/v1/auth/otp/send"
+          }
+        },
+        {
+          "name": "Get Current User (/v1/auth/me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{base_url}}/v1/auth/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Stores, Menus & Promotions (/v1/stores, /v1/promotions)",
+      "item": [
+        {
+          "name": "List Active Stores",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/stores"
+          }
+        },
+        {
+          "name": "Get Store Detail & Menus (Mie Aceh Bukit Indah)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/stores/20000000-0000-4000-8000-000000000301"
+          }
+        },
+        {
+          "name": "List Promotions",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/promotions"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Orders, Atomic Driver Lock & FlexSend (/v1/orders/*)",
+      "item": [
+        {
+          "name": "Estimate Order Fare (OSRM + Promo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"service_type\": \"FLEX_FOOD\",\n  \"vehicle_type\": \"MOTOR\",\n  \"pickup_lat\": 5.2041,\n  \"pickup_lng\": 97.0638,\n  \"dropoff_lat\": 5.2015,\n  \"dropoff_lng\": 97.0619,\n  \"items_subtotal\": 37000,\n  \"promo_code\": \"UNIMALHEMAT\"\n}"
+            },
+            "url": "{{base_url}}/v1/orders/estimate"
+          }
+        },
+        {
+          "name": "Create Order (FlexRide / FlexFood / FlexSend)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"service_type\": \"RIDE_MOTOR\",\n  \"customer_id\": \"00000000-0000-4000-8000-000000000101\",\n  \"vehicle_type\": \"MOTOR\",\n  \"payment_method\": \"CASH\",\n  \"pickup_address\": \"Kampus Unimal Bukit Indah\",\n  \"pickup_lat\": 5.2041,\n  \"pickup_lng\": 97.0638,\n  \"dropoff_address\": \"Gampong Blang Pulo\",\n  \"dropoff_lat\": 5.2015,\n  \"dropoff_lng\": 97.0619\n}"
+            },
+            "url": "{{base_url}}/v1/orders"
+          }
+        },
+        {
+          "name": "Get Available Searching Orders (Driver Polling)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{base_url}}/v1/orders?status=SEARCHING_DRIVER&available=true"
+          }
+        },
+        {
+          "name": "Update Driver Status & Modal Kas (PATCH /v1/drivers/:id/status)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_online\": true,\n  \"cash_float_amount\": 150000,\n  \"last_lat\": 5.2039,\n  \"last_lng\": 97.0642\n}"
+            },
+            "url": "{{base_url}}/v1/drivers/10000000-0000-4000-8000-000000000201/status"
+          }
+        },
+        {
+          "name": "Accept Order by Driver (Atomic Conditional UPDATE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"10000000-0000-4000-8000-000000000201\"\n}"
+            },
+            "url": "{{base_url}}/v1/orders/{{order_id}}/accept-driver"
+          }
+        },
+        {
+          "name": "Reject Order by Driver (Keep Searching for Other Drivers)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"10000000-0000-4000-8000-000000000201\"\n}"
+            },
+            "url": "{{base_url}}/v1/orders/{{order_id}}/driver-reject"
+          }
+        },
+        {
+          "name": "Update Order Status (POST / PATCH)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_TRANSIT\"\n}"
+            },
+            "url": "{{base_url}}/v1/orders/{{order_id}}/status"
+          }
+        },
+        {
+          "name": "Submit FlexSend Receipt & Parking Fee",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"talangan_actual_amount\": 52000,\n  \"parking_fee\": 2000,\n  \"receipt_photo_url\": \"/uploads/talangan/nota.jpg\"\n}"
+            },
+            "url": "{{base_url}}/v1/orders/{{order_id}}/flexsend-receipt"
+          }
+        },
+        {
+          "name": "Complete Order (5%:5% Commission Split)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{base_url}}/v1/orders/{{order_id}}/complete"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. PayG Dynamic QRIS & MacroDroid Webhook (/pay/*)",
+      "item": [
+        {
+          "name": "Generate Dynamic QRIS (Unique Code + SVG)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"purpose\": \"DRIVER_TOPUP\",\n  \"user_id\": \"00000000-0000-4000-8000-000000000201\",\n  \"base_amount\": 50000,\n  \"reference_id\": \"{{qris_ref_id}}\"\n}"
+            },
+            "url": "{{base_url}}/pay/qris/generate"
+          }
+        },
+        {
+          "name": "Check QRIS Payment Status",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/pay/qris/{{qris_ref_id}}/status"
+          }
+        },
+        {
+          "name": "Simulate MacroDroid / Manual QRIS Settlement Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-PayG-Secret", "value": "{{payg_secret}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference_id\": \"{{qris_ref_id}}\",\n  \"notification_text\": \"Kamu menerima pembayaran QRIS sebesar Rp50.123\",\n  \"verified_by\": \"postman-simulation\"\n}"
+            },
+            "url": "{{base_url}}/pay/webhook/macrodroid"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Universal AI Service & WhatsApp Webhook (/ai/*, /v1/webhooks/wa)",
+      "item": [
+        {
+          "name": "List AI Providers",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/ai/providers"
+          }
+        },
+        {
+          "name": "Send AI Chat Message (ADMIN / STORE / DRIVER / CUSTOMER)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"sess-postman-01\",\n  \"user_id\": \"00000000-0000-4000-8000-000000000001\",\n  \"app_role\": \"ADMIN\",\n  \"message\": \"Buatkan ringkasan eksekutif operasional RideOn hari ini.\"\n}"
+            },
+            "url": "{{base_url}}/ai/chat"
+          }
+        },
+        {
+          "name": "WhatsApp Auto-Reply Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender\": \"6285260000101\",\n  \"name\": \"Cut Meutia\",\n  \"message\": \"Halo admin, saya mau komplain pesanan saya gagal\"\n}"
+            },
+            "url": "{{base_url}}/v1/webhooks/wa"
+          }
+        },
+        {
+          "name": "Create Support Ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel\": \"IN_APP\",\n  \"subject\": \"Pelanggan Tidak Bisa Dihubungi\",\n  \"body\": \"Sudah menunggu 10 menit di lokasi tujuan.\"\n}"
+            },
+            "url": "{{base_url}}/v1/support-tickets"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Web Admin Management (/v1/admin/*)",
+      "item": [
+        {
+          "name": "Admin Overview Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{base_url}}/v1/admin/overview"
+          }
+        },
+        {
+          "name": "Admin Active Map Points",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{base_url}}/v1/admin/map"
+          }
+        },
+        {
+          "name": "Admin Pending Registrations",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{base_url}}/v1/admin/registrations"
+          }
+        },
+        {
+          "name": "Admin Finance & QRIS Ledger",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{base_url}}/v1/admin/finance"
+          }
+        },
+        {
+          "name": "Admin Pricing Rules & System Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{base_url}}/v1/admin/pricing-rules"
+          }
+        }
+      ]
+    }
+  ]
+}
+

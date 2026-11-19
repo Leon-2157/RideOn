@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../data/toko_state.dart';
+import '../../services/toko_api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_image.dart';
 
@@ -13,6 +15,32 @@ class TokoMenuScreen extends StatefulWidget {
 class _TokoMenuScreenState extends State<TokoMenuScreen> {
   int _selectedCategoryIndex = 0;
   final TextEditingController _searchController = TextEditingController();
+  bool _loadingMenus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMenusFromApi();
+  }
+
+  Future<void> _loadMenusFromApi() async {
+    final api = TokoApiService();
+    final storeId = TokoState.storeId;
+    if (!api.hasSession || storeId == null || storeId.isEmpty) return;
+    setState(() => _loadingMenus = true);
+    try {
+      final list = await api.getMenus(storeId);
+      if (!mounted) return;
+      setState(() {
+        _menuItems
+          ..clear()
+          ..addAll(list.map((m) => m.toScreenMap()));
+      });
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loadingMenus = false);
+    }
+  }
 
   final List<Map<String, dynamic>> _menuItems = [
     {
@@ -65,7 +93,54 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => _AddEditMenuSheet(
         item: item,
-        onSave: (newItem) {
+        onSave: (newItem) async {
+          final api = TokoApiService();
+          final storeId = TokoState.storeId;
+          if (api.hasSession && storeId != null && storeId.isNotEmpty) {
+            try {
+              var photoUrl = (newItem['image'] ?? '').toString();
+              if (photoUrl.isNotEmpty && !photoUrl.startsWith('http') && !photoUrl.startsWith('/uploads') && !photoUrl.startsWith('assets/')) {
+                photoUrl = await api.uploadFile(photoUrl, category: 'menu');
+              }
+              if (item != null) {
+                final updated = await api.updateMenu(
+                  storeId,
+                  item['id'].toString(),
+                  name: newItem['name'] as String?,
+                  category: newItem['category'] as String?,
+                  price: newItem['price'] as int?,
+                  description: newItem['desc'] as String?,
+                  photoUrl: photoUrl.isNotEmpty ? photoUrl : null,
+                );
+                if (!mounted) return;
+                setState(() {
+                  final idx = _menuItems.indexWhere((m) => m['id'] == item['id']);
+                  if (idx != -1) _menuItems[idx] = updated.toScreenMap();
+                });
+              } else {
+                final created = await api.createMenu(
+                  storeId,
+                  name: newItem['name'] as String,
+                  category: newItem['category'] as String,
+                  price: newItem['price'] as int,
+                  description: (newItem['desc'] ?? '').toString(),
+                  photoUrl: photoUrl.isNotEmpty ? photoUrl : null,
+                );
+                if (!mounted) return;
+                setState(() {
+                  _menuItems.insert(0, created.toScreenMap());
+                });
+              }
+              return;
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Gagal menyimpan menu: $e'), backgroundColor: AppColors.danger),
+                );
+              }
+              return;
+            }
+          }
           setState(() {
             if (item != null) {
               final idx = _menuItems.indexWhere((m) => m['id'] == item['id']);
@@ -92,8 +167,23 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
             child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
+              final api = TokoApiService();
+              final storeId = TokoState.storeId;
+              if (api.hasSession && storeId != null && storeId.isNotEmpty) {
+                try {
+                  await api.deleteMenu(storeId, id);
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Gagal menghapus menu: $e'), backgroundColor: AppColors.danger),
+                    );
+                  }
+                  return;
+                }
+              }
+              if (!mounted) return;
               setState(() {
                 _menuItems.removeWhere((m) => m['id'] == id);
               });
@@ -114,10 +204,27 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
     );
   }
 
-  void _toggleAvailability(int index) {
+  Future<void> _toggleAvailability(int index) async {
+    final nextVal = !(_menuItems[index]['isAvailable'] as bool);
+    final menuId = _menuItems[index]['id'].toString();
     setState(() {
-      _menuItems[index]['isAvailable'] = !(_menuItems[index]['isAvailable'] as bool);
+      _menuItems[index]['isAvailable'] = nextVal;
     });
+    final api = TokoApiService();
+    final storeId = TokoState.storeId;
+    if (api.hasSession && storeId != null && storeId.isNotEmpty) {
+      try {
+        await api.updateMenu(storeId, menuId, isAvailable: nextVal);
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _menuItems[index]['isAvailable'] = !nextVal;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui ketersediaan: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+    }
   }
 
   @override
@@ -249,6 +356,7 @@ class _TokoMenuScreenState extends State<TokoMenuScreen> {
               ),
             ),
             const SizedBox(height: 14),
+            if (_loadingMenus) const LinearProgressIndicator(minHeight: 2),
             Expanded(
               child: filtered.isEmpty
                   ? Center(
@@ -441,7 +549,35 @@ class _AddEditMenuSheetState extends State<_AddEditMenuSheet> {
   String? _imageError;
   String? _nameError;
   String? _priceError;
+  bool _generatingAiDesc = false;
   final ImagePicker _picker = ImagePicker();
+
+  Future<void> _generateAiDescription() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _nameError = 'Isi nama menu terlebih dahulu untuk membuat deskripsi AI');
+      return;
+    }
+    setState(() => _generatingAiDesc = true);
+    try {
+      final price = _priceController.text.trim();
+      final reply = await TokoApiService().aiChat(
+        sessionId: 'toko-copywriter-${DateTime.now().millisecondsSinceEpoch}',
+        message: 'Buatkan 1 paragraf deskripsi menu kuliner yang menggugah selera untuk "$name" (kategori: $_selectedCategory${price.isNotEmpty ? ", harga Rp $price" : ""}) maksimal 2 kalimat dalam Bahasa Indonesia.',
+      );
+      if (!mounted) return;
+      if (reply.isNotEmpty) {
+        setState(() => _descController.text = reply);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('AI Copywriter gagal: $e'), backgroundColor: AppColors.danger),
+      );
+    } finally {
+      if (mounted) setState(() => _generatingAiDesc = false);
+    }
+  }
 
   @override
   void initState() {
@@ -889,7 +1025,31 @@ class _AddEditMenuSheetState extends State<_AddEditMenuSheet> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text('Deskripsi Menu (Opsional)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    children: [
+                      const Text(
+                        'Deskripsi Menu (Opsional)',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      ),
+                      TextButton.icon(
+                        key: const Key('btn_ai_menu_description'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: _generatingAiDesc ? null : _generateAiDescription,
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 15),
+                        label: Text(
+                          _generatingAiDesc ? 'Menyusun...' : 'Buat Deskripsi dengan AI',
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _descController,

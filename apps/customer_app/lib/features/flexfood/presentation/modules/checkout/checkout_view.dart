@@ -1,9 +1,14 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_colors.dart';
+import 'package:rideon/core/models/customer_models.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 import '../header/flexfood_header.dart';
 
 class CheckoutView extends StatefulWidget {
@@ -24,6 +29,9 @@ class CheckoutView extends StatefulWidget {
   final int deliveryFee;
   final int serviceFee;
   final int totalPrice;
+  final String? storeId;
+  final String? menuId;
+  final ValueChanged<String>? onOrderCreated;
 
   const CheckoutView({
     super.key,
@@ -44,6 +52,9 @@ class CheckoutView extends StatefulWidget {
     required this.deliveryFee,
     required this.serviceFee,
     required this.totalPrice,
+    this.storeId,
+    this.menuId,
+    this.onOrderCreated,
   });
 
   @override
@@ -55,10 +66,20 @@ class _CheckoutViewState extends State<CheckoutView> {
   String _selectedPaymentMethod = 'tunai';
   bool _isQrScannedAndPaid = false;
   Timer? _qrVerificationTimer;
+  Timer? _qrisPollTimer;
+  StreamSubscription<DatabaseEvent>? _rtdbOrderSub;
+  String? _createdOrderId;
+  QrisPaymentResult? _qrisPayment;
+  bool _isPreparingQris = false;
+  bool _isCheckingQris = false;
+  bool _isSubmittingOrder = false;
+  String? _paymentError;
 
   @override
   void dispose() {
     _qrVerificationTimer?.cancel();
+    _qrisPollTimer?.cancel();
+    _rtdbOrderSub?.cancel();
     super.dispose();
   }
 
@@ -66,25 +87,209 @@ class _CheckoutViewState extends State<CheckoutView> {
     if (method == 'tunai') {
       if (_isQrScannedAndPaid) return; // Terkunci jika QR sudah terbayar
       _qrVerificationTimer?.cancel();
+      _qrisPollTimer?.cancel();
+      _rtdbOrderSub?.cancel();
       setState(() {
         _selectedPaymentMethod = 'tunai';
+        _paymentError = null;
       });
     } else if (method == 'qris') {
       _qrVerificationTimer?.cancel();
+      _qrisPollTimer?.cancel();
+      _rtdbOrderSub?.cancel();
       setState(() {
         _selectedPaymentMethod = 'qris';
         _isQrScannedAndPaid = false;
+        _paymentError = null;
       });
 
-      // Sistem otomatis mengecek saldo masuk (jeda 5 detik untuk testing)
-      _qrVerificationTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted && _selectedPaymentMethod == 'qris') {
+      if (CustomerApiService().hasSession &&
+          !CustomerApiService.enableLocalFallback) {
+        _prepareLiveQrisOrder();
+      } else {
+        _qrVerificationTimer = Timer(const Duration(seconds: 5), () {
+          if (mounted && _selectedPaymentMethod == 'qris') {
+            setState(() {
+              _isQrScannedAndPaid = true;
+            });
+          }
+        });
+      }
+    }
+  }
+
+  Future<CustomerOrder> _createFoodOrder(String paymentMethod) async {
+    final api = CustomerApiService();
+    var targetStoreId = widget.storeId ?? '';
+    if (targetStoreId.isEmpty) {
+      final stores = await api.getStores();
+      if (stores.isNotEmpty) {
+        targetStoreId = stores.first.id;
+      }
+    }
+    final unitPrice = widget.cartQuantity > 0
+        ? (widget.subtotalPrice / widget.cartQuantity).round()
+        : widget.subtotalPrice;
+    final notesParts = <String>[
+      if (widget.spicyLevel > 0) 'Level pedas ${widget.spicyLevel}',
+      if (widget.extraEgg) 'Tambah telur',
+      if (widget.kitchenNotes.trim().isNotEmpty) widget.kitchenNotes.trim(),
+    ];
+    final order = await api.createOrder(
+      serviceType: 'FLEX_FOOD',
+      vehicleType: 'MOTOR',
+      paymentMethod: paymentMethod,
+      storeId: targetStoreId.isNotEmpty ? targetStoreId : null,
+      pickupAddress: widget.restaurantName,
+      dropoffAddress: widget.deliveryAddress,
+      itemsSubtotal: widget.subtotalPrice,
+      notes: notesParts.join(' • '),
+      items: [
+        CustomerOrderItem(
+          menuId: widget.menuId ?? '',
+          itemName: widget.foodTitle,
+          unitPrice: unitPrice,
+          qty: widget.cartQuantity > 0 ? widget.cartQuantity : 1,
+          notes: widget.kitchenNotes,
+        ),
+      ],
+    );
+    _createdOrderId = order.id;
+    widget.onOrderCreated?.call(order.id);
+    return order;
+  }
+
+  Future<void> _prepareLiveQrisOrder() async {
+    setState(() {
+      _isPreparingQris = true;
+      _paymentError = null;
+    });
+    try {
+      final api = CustomerApiService();
+      late final CustomerOrder order;
+      if (_createdOrderId != null && _createdOrderId!.isNotEmpty) {
+        order = await api.getOrder(_createdOrderId!);
+      } else {
+        order = await _createFoodOrder('QRIS');
+      }
+      final base = order.totalCustomerPay > 0
+          ? order.totalCustomerPay
+          : widget.totalPrice;
+      final qris = await api.generateOrderQris(
+        orderId: order.id,
+        baseAmount: base,
+      );
+      if (!mounted) return;
+      setState(() {
+        _qrisPayment = qris;
+        _isQrScannedAndPaid = qris.isPaid;
+        _isPreparingQris = false;
+      });
+      _subscribeOrderPayment(order.id);
+      _qrisPollTimer?.cancel();
+      _qrisPollTimer = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _checkQrisStatus(silent: true),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isPreparingQris = false;
+        _paymentError = e.toString().replaceFirst('CustomerApiException', '');
+      });
+    }
+  }
+
+  void _subscribeOrderPayment(String orderId) {
+    if (Firebase.apps.isEmpty || orderId.isEmpty) return;
+    _rtdbOrderSub?.cancel();
+    _rtdbOrderSub = FirebaseDatabase.instance
+        .ref('live_orders/$orderId')
+        .onValue
+        .listen((event) {
+      final raw = event.snapshot.value;
+      if (raw is Map) {
+        final payStatus = (raw['payment_status'] ?? '').toString().toUpperCase();
+        if ((payStatus == 'PAID' || payStatus == 'SETTLEMENT') && mounted) {
+          _qrisPollTimer?.cancel();
           setState(() {
             _isQrScannedAndPaid = true;
           });
         }
-      });
+      }
+    }, onError: (_) {});
+  }
+
+  Future<void> _checkQrisStatus({bool silent = false}) async {
+    final refId = _qrisPayment?.referenceId ?? '';
+    if (refId.isEmpty) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Menyiapkan QRIS pembayaran...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+      return;
     }
+    if (!silent && mounted) {
+      setState(() => _isCheckingQris = true);
+    }
+    try {
+      final updated = await CustomerApiService().getQrisStatus(refId);
+      if (!mounted) return;
+      setState(() {
+        _qrisPayment = updated;
+        _isCheckingQris = false;
+        if (updated.isPaid) {
+          _isQrScannedAndPaid = true;
+          _qrisPollTimer?.cancel();
+        }
+      });
+      if (!silent && !updated.isPaid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Status QRIS (${updated.referenceId}): ${updated.status}. Transfer tepat Rp ${updated.payableAmount}.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isCheckingQris = false);
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memeriksa QRIS: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handlePlaceOrderPressed() async {
+    if (_isSubmittingOrder) return;
+    if (CustomerApiService().hasSession &&
+        !CustomerApiService.enableLocalFallback &&
+        _selectedPaymentMethod == 'tunai' &&
+        (_createdOrderId == null || _createdOrderId!.isEmpty)) {
+      setState(() => _isSubmittingOrder = true);
+      try {
+        await _createFoodOrder('CASH');
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal membuat pesanan: $e')),
+          );
+          setState(() => _isSubmittingOrder = false);
+        }
+        return;
+      }
+      if (mounted) {
+        setState(() => _isSubmittingOrder = false);
+      }
+    }
+    widget.onPlaceOrder();
   }
 
   void _showChangeAddressSheet(BuildContext context) {
@@ -649,12 +854,15 @@ class _CheckoutViewState extends State<CheckoutView> {
                                   color: Color(0xFF6B48FC),
                                 ),
                                 const SizedBox(width: 6),
-                                Text(
-                                  'Tambah menu lain dari restoran ini',
-                                  style: GoogleFonts.roboto(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF6B48FC),
+                                Flexible(
+                                  child: Text(
+                                    'Tambah menu lain dari restoran ini',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.roboto(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF6B48FC),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -870,16 +1078,138 @@ class _CheckoutViewState extends State<CheckoutView> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Nominal: Rp ${widget.totalPrice}',
+                                  'Nominal: Rp ${_qrisPayment?.payableAmount ?? widget.totalPrice}',
                                   style: GoogleFonts.poppins(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w700,
                                     color: const Color(0xFF6B48FC),
                                   ),
                                 ),
+                                if (_qrisPayment != null) ...[
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: const Color(0xFFE2DCFE),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Base: Rp ${_qrisPayment!.baseAmount} • Kode Unik: +${_qrisPayment!.uniqueCode}',
+                                          style: GoogleFonts.roboto(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: const Color(0xFF4B4763),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Transfer Tepat: Rp ${_qrisPayment!.payableAmount}',
+                                          style: GoogleFonts.roboto(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF6B48FC),
+                                          ),
+                                        ),
+                                        if (_qrisPayment!.qrisPayload.isNotEmpty)
+                                          Padding(
+                                            padding:
+                                                const EdgeInsets.only(top: 6),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    _qrisPayment!.qrisPayload,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: GoogleFonts.roboto(
+                                                      fontSize: 9.5,
+                                                      color: const Color(
+                                                          0xFF6B6680),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                InkWell(
+                                                  key: const ValueKey(
+                                                      'btn_copy_qris_payload'),
+                                                  onTap: () {
+                                                    Clipboard.setData(
+                                                      ClipboardData(
+                                                        text: _qrisPayment!
+                                                            .qrisPayload,
+                                                      ),
+                                                    );
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text(
+                                                          'Payload QRIS disalin!',
+                                                        ),
+                                                        duration: Duration(
+                                                            seconds: 1),
+                                                      ),
+                                                    );
+                                                  },
+                                                  child: const Padding(
+                                                    padding:
+                                                        EdgeInsets.all(4),
+                                                    child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        Icon(
+                                                          Icons.copy_rounded,
+                                                          size: 13,
+                                                          color:
+                                                              Color(0xFF6B48FC),
+                                                        ),
+                                                        SizedBox(width: 2),
+                                                        Text(
+                                                          'Salin',
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color: Color(
+                                                                0xFF6B48FC),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                if (_paymentError != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _paymentError!,
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.roboto(
+                                      fontSize: 10.5,
+                                      color: const Color(0xFFDC2626),
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(height: 10),
 
-                                // Box QR Code Mockup
+                                // Box QR Code
                                 Container(
                                   width: 130,
                                   height: 130,
@@ -895,7 +1225,15 @@ class _CheckoutViewState extends State<CheckoutView> {
                                     ),
                                   ),
                                   child: Center(
-                                    child: _isQrScannedAndPaid
+                                    child: _isPreparingQris
+                                        ? const CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF6B48FC),
+                                            ),
+                                          )
+                                        : _isQrScannedAndPaid
                                         ? Column(
                                             mainAxisAlignment:
                                                 MainAxisAlignment.center,
@@ -929,8 +1267,12 @@ class _CheckoutViewState extends State<CheckoutView> {
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
-                                                'Tunjukkan ke Kasir/Driver',
+                                                _qrisPayment != null
+                                                    ? 'Ref: ${_qrisPayment!.referenceId}'
+                                                    : 'Tunjukkan ke Kasir/Driver',
                                                 textAlign: TextAlign.center,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
                                                 style: GoogleFonts.poppins(
                                                   fontSize: 8.5,
                                                   fontWeight: FontWeight.w500,
@@ -975,16 +1317,18 @@ class _CheckoutViewState extends State<CheckoutView> {
                                           size: 14,
                                         ),
                                       const SizedBox(width: 6),
-                                      Text(
-                                        _isQrScannedAndPaid
-                                            ? 'Verifikasi Pembayaran Berhasil'
-                                            : 'Menunggu sistem mendeteksi pembayaran...',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                          color: _isQrScannedAndPaid
-                                              ? const Color(0xFF10B981)
-                                              : const Color(0xFF6B48FC),
+                                      Flexible(
+                                        child: Text(
+                                          _isQrScannedAndPaid
+                                              ? 'Verifikasi Pembayaran Berhasil'
+                                              : 'Menunggu sistem mendeteksi pembayaran...',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            color: _isQrScannedAndPaid
+                                                ? const Color(0xFF10B981)
+                                                : const Color(0xFF6B48FC),
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -992,6 +1336,29 @@ class _CheckoutViewState extends State<CheckoutView> {
                                 ),
                                 if (!_isQrScannedAndPaid) ...[
                                   const SizedBox(height: 8),
+                                  OutlinedButton.icon(
+                                    key: const ValueKey('btn_check_qris_status'),
+                                    onPressed: _isCheckingQris
+                                        ? null
+                                        : () => _checkQrisStatus(silent: false),
+                                    icon: _isCheckingQris
+                                        ? const SizedBox(
+                                            width: 12,
+                                            height: 12,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 2),
+                                          )
+                                        : const Icon(Icons.refresh_rounded,
+                                            size: 14),
+                                    label: Text(
+                                      'Cek Status Pembayaran',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
                                   GestureDetector(
                                     onTap: () => _onSelectMethod('tunai'),
                                     child: Container(
@@ -1108,7 +1475,10 @@ class _CheckoutViewState extends State<CheckoutView> {
                               _isQrScannedAndPaid);
 
                       return ElevatedButton(
-                        onPressed: canOrder ? widget.onPlaceOrder : null,
+                        onPressed:
+                            (canOrder && !_isSubmittingOrder)
+                                ? _handlePlaceOrderPressed
+                                : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1B1832),
                           disabledBackgroundColor: const Color(0xFFCCC8E0),
@@ -1120,9 +1490,11 @@ class _CheckoutViewState extends State<CheckoutView> {
                           ),
                         ),
                         child: Text(
-                          canOrder
-                              ? 'Pesan Makanan Sekarang Rp ${widget.totalPrice}'
-                              : 'Menunggu Pembayaran QRIS Selesai...',
+                          _isSubmittingOrder
+                              ? 'Membuat Pesanan...'
+                              : canOrder
+                                  ? 'Pesan Makanan Sekarang Rp ${widget.totalPrice}'
+                                  : 'Menunggu Pembayaran QRIS Selesai...',
                           style: GoogleFonts.roboto(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,

@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../constants/app_colors.dart';
+import '../../services/driver_api_service.dart';
 import '../../services/image_picker_service.dart';
 import '../../services/wallet_service.dart';
 import 'widgets/dashed_border_container.dart';
@@ -15,6 +17,7 @@ import 'withdraw_screen.dart';
 /// - Figma/HalamanDompet/dompet-19.png s/d dompet-22.png
 class ClaimDonationScreen extends StatefulWidget {
   final String orderId;
+  final String? claimId;
   final String donationRecipient;
   final String totalAmount;
   final bool initialPhotoUploaded;
@@ -25,6 +28,7 @@ class ClaimDonationScreen extends StatefulWidget {
   const ClaimDonationScreen({
     super.key,
     this.orderId = 'ID : I2E4S69',
+    this.claimId,
     this.donationRecipient = 'Panti Asuhan Terdekat',
     this.totalAmount = 'Rp 177.000 (Nota+Parkir)',
     this.initialPhotoUploaded = true,
@@ -262,7 +266,27 @@ class _ClaimDonationScreenState extends State<ClaimDonationScreen> {
     );
   }
 
-  void _submitClaim() {
+  Future<void> _submitClaim() async {
+    if (DriverApiService().hasSession &&
+        widget.claimId != null &&
+        widget.claimId!.isNotEmpty) {
+      try {
+        var donationUrl = 'mock://donation.jpg';
+        if (_donationPhotoPath != null &&
+            File(_donationPhotoPath!).existsSync()) {
+          donationUrl = await DriverApiService().uploadDocument(
+            _donationPhotoPath!,
+            category: 'talangan_donation',
+          );
+        }
+        await DriverApiService().submitTalanganDonation(
+          claimId: widget.claimId!,
+          orphanageName: widget.donationRecipient,
+          donationPhotoUrl: donationUrl,
+        );
+      } catch (_) {}
+      if (!mounted) return;
+    }
     showDialog(
       context: context,
       barrierDismissible: false,

@@ -247,12 +247,15 @@ class ShoppingFormView extends StatelessWidget {
                                   const Icon(Icons.add_location_alt_rounded,
                                       size: 16, color: Colors.white),
                                   const SizedBox(width: 6),
-                                  Text(
-                                    '+ Masukkan Toko / Pasar Pertama',
-                                    style: GoogleFonts.roboto(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
+                                  Flexible(
+                                    child: Text(
+                                      '+ Masukkan Toko / Pasar Pertama',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.roboto(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
                                 ],

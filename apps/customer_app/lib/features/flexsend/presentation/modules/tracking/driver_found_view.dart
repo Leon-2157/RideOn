@@ -106,21 +106,29 @@ class DriverFoundView extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              'Driver ditemukan!',
-                              style: GoogleFonts.poppins(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF6B48FC),
+                            Expanded(
+                              child: Text(
+                                'Driver ditemukan!',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF6B48FC),
+                                ),
                               ),
                             ),
-                            const Spacer(),
-                            Text(
-                              'Estimasi tiba 3 mnt',
-                              style: GoogleFonts.roboto(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF6B6680),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                'Estimasi tiba 3 mnt',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.roboto(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF6B6680),
+                                ),
                               ),
                             ),
                           ],

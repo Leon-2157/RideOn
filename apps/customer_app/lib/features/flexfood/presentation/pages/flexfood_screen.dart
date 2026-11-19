@@ -51,6 +51,9 @@ class _FlexFoodScreenState extends State<FlexFoodScreen> {
   String _currentFoodDesc = 'Nasi goreng + telur mata sapi';
   String _currentFoodImage = AppAssets.foodNasiGoreng;
   String _currentRestaurantName = 'Banku City Resto & Cafe';
+  String? _selectedStoreId;
+  String? _selectedMenuId;
+  String? _activeOrderId;
   int _itemPrice = 10000;
 
   @override
@@ -62,6 +65,8 @@ class _FlexFoodScreenState extends State<FlexFoodScreen> {
     }
     if (widget.initialFood != null) {
       final food = widget.initialFood!;
+      _selectedStoreId = food['storeId']?.toString();
+      _selectedMenuId = food['menuId']?.toString();
       _currentFoodTitle = food['title'] as String? ?? _currentFoodTitle;
       _currentFoodDesc = food['desc'] as String? ?? _currentFoodDesc;
       _currentFoodImage = food['image'] as String? ?? _currentFoodImage;
@@ -97,6 +102,8 @@ class _FlexFoodScreenState extends State<FlexFoodScreen> {
 
   void _openCustomizationSheet({Map<String, dynamic>? food}) {
     if (food != null) {
+      _selectedStoreId = food['storeId']?.toString() ?? _selectedStoreId;
+      _selectedMenuId = food['menuId']?.toString() ?? _selectedMenuId;
       _currentFoodTitle = food['title'] as String? ?? _currentFoodTitle;
       _currentFoodDesc = food['desc'] as String? ?? _currentFoodDesc;
       _currentFoodImage = food['image'] as String? ?? _currentFoodImage;
@@ -155,6 +162,12 @@ class _FlexFoodScreenState extends State<FlexFoodScreen> {
               _currentState = FlexFoodState.restaurant;
             });
           },
+          onSelectRestaurantName: (name) {
+            setState(() {
+              _currentRestaurantName = name;
+              _currentState = FlexFoodState.restaurant;
+            });
+          },
         );
 
       case FlexFoodState.restaurant:
@@ -174,6 +187,11 @@ class _FlexFoodScreenState extends State<FlexFoodScreen> {
 
       case FlexFoodState.checkout:
         return CheckoutView(
+          storeId: _selectedStoreId,
+          menuId: _selectedMenuId,
+          onOrderCreated: (id) {
+            _activeOrderId = id;
+          },
           onBack: () =>
               setState(() => _currentState = _previousState),
           onAddMoreItems: () =>
@@ -207,6 +225,7 @@ class _FlexFoodScreenState extends State<FlexFoodScreen> {
 
       case FlexFoodState.tracking:
         return FoodTrackingView(
+          orderId: _activeOrderId,
           onBack: () =>
               setState(() => _currentState = FlexFoodState.checkout),
           restaurantName: _currentRestaurantName,

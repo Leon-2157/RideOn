@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
+import 'package:rideon/core/models/customer_models.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 import '../modules/activity_card/activity_card_widget.dart';
 import 'rangkuman_aktivitas_screen.dart';
 
@@ -25,7 +27,7 @@ class _AktivitasScreenState extends State<AktivitasScreen> {
   // 0: Semua, 1: FlexRide, 2: FlexFood, 3: FlexSend
   int _selectedFilterIndex = 0;
 
-  final List<Map<String, dynamic>> _activities = [
+  List<Map<String, dynamic>> _activities = [
     {
       'service': 'FlexFood',
       'title': 'Nasi Goreng Mas Fuad',
@@ -72,6 +74,64 @@ class _AktivitasScreenState extends State<AktivitasScreen> {
       'isFav': false,
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLiveOrders();
+  }
+
+  Future<void> _loadLiveOrders() async {
+    final api = CustomerApiService();
+    if (!api.hasSession || CustomerApiService.enableLocalFallback) return;
+    try {
+      final orders = await api.getMyOrders();
+      if (!mounted || orders.isEmpty) return;
+      setState(() {
+        _activities = orders.map(_mapOrderToActivity).toList();
+      });
+    } catch (_) {}
+  }
+
+  Map<String, dynamic> _mapOrderToActivity(CustomerOrder o) {
+    final st = o.serviceType.toUpperCase();
+    String service = 'FlexRide';
+    IconData icon = Icons.sports_motorsports_rounded;
+    if (st == 'FLEX_FOOD') {
+      service = 'FlexFood';
+      icon = Icons.fastfood_rounded;
+    } else if (st == 'FLEX_SEND') {
+      service = 'FlexSend';
+      icon = Icons.local_shipping_rounded;
+    }
+    final priceText = o.totalCustomerPay
+        .toString()
+        .replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
+    return {
+      'id': o.id,
+      'orderCode': o.orderCode.isNotEmpty ? o.orderCode : o.id,
+      'service': service,
+      'title': o.storeName.isNotEmpty
+          ? o.storeName
+          : '${o.pickupAddress} -> ${o.dropoffAddress}',
+      'items': o.items.isNotEmpty
+          ? o.items.map((i) => '${i.qty}x ${i.itemName}').join(', ')
+          : o.status,
+      'price': 'Rp $priceText',
+      'date': o.createdAt.isNotEmpty ? o.createdAt : 'Hari Ini',
+      'icon': icon,
+      'driver': o.driverName.isNotEmpty ? o.driverName : 'Mitra Driver RideOn',
+      'vehicle': o.driverPlate.isNotEmpty ? o.driverPlate : o.vehicleType,
+      'metode': o.paymentMethod == 'QRIS'
+          ? 'Bayar Pakai QRIS'
+          : 'Bayar Pakai Cash',
+      'foodRating': 5,
+      'driverRating': 5,
+      'isFav': false,
+      'pickup': o.pickupAddress,
+      'destination': o.dropoffAddress,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {

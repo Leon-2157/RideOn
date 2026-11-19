@@ -1,20 +1,115 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart' as latlong;
 
 class SimulatedMapView extends StatelessWidget {
   final bool showRoute;
   final bool showDriver;
   final bool isArrived;
+  final double? pickupLat;
+  final double? pickupLng;
+  final double? dropoffLat;
+  final double? dropoffLng;
+  final double? driverLat;
+  final double? driverLng;
+  final List<latlong.LatLng>? routePoints;
+  final bool useLiveOsm;
 
   const SimulatedMapView({
     super.key,
     this.showRoute = false,
     this.showDriver = false,
     this.isArrived = false,
+    this.pickupLat,
+    this.pickupLng,
+    this.dropoffLat,
+    this.dropoffLng,
+    this.driverLat,
+    this.driverLng,
+    this.routePoints,
+    this.useLiveOsm = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (useLiveOsm) {
+      final pickup = latlong.LatLng(pickupLat ?? 5.2041, pickupLng ?? 97.0638);
+      final dropoff =
+          latlong.LatLng(dropoffLat ?? 5.2015, dropoffLng ?? 97.0619);
+      final driver = latlong.LatLng(
+        driverLat ?? (isArrived ? pickup.latitude : 5.2030),
+        driverLng ?? (isArrived ? pickup.longitude : 97.0628),
+      );
+      final polyline = (routePoints != null && routePoints!.isNotEmpty)
+          ? routePoints!
+          : [pickup, dropoff];
+
+      return FlutterMap(
+        options: MapOptions(
+          initialCenter: pickup,
+          initialZoom: 14.5,
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'app.rideons.customer',
+          ),
+          if (showRoute)
+            PolylineLayer(
+              polylines: [
+                Polyline(
+                  points: polyline,
+                  strokeWidth: 4.5,
+                  color: const Color(0xFF6B48FC),
+                ),
+              ],
+            ),
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: pickup,
+                width: 36,
+                height: 36,
+                child: const Icon(
+                  Icons.location_on_rounded,
+                  color: Color(0xFF27AE60),
+                  size: 32,
+                ),
+              ),
+              Marker(
+                point: dropoff,
+                width: 36,
+                height: 36,
+                child: const Icon(
+                  Icons.location_pin,
+                  color: Color(0xFFEB5757),
+                  size: 32,
+                ),
+              ),
+              if (showDriver)
+                Marker(
+                  point: driver,
+                  width: 36,
+                  height: 36,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF17152B),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.two_wheeler_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      );
+    }
+
     return Container(
       color: const Color(0xFFE5EDEB),
       child: Stack(

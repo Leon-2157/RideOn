@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/toko_state.dart';
+import '../../services/toko_api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_image.dart';
 
@@ -13,6 +14,61 @@ class TokoHomeScreen extends StatefulWidget {
 }
 
 class _TokoHomeScreenState extends State<TokoHomeScreen> {
+  bool _togglingStatus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncFromBackend();
+  }
+
+  Future<void> _syncFromBackend() async {
+    final api = TokoApiService();
+    if (!api.hasSession) return;
+    try {
+      final user = await api.getMe();
+      TokoState.hydrateFromUser(user);
+      final storeId = TokoState.storeId;
+      if (storeId != null && storeId.isNotEmpty) {
+        final orders = await api.getStoreOrders(storeId);
+        TokoState.orders.value = orders.map((o) => o.toScreenMap()).toList();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _toggleStoreOpen(bool val) async {
+    if (TokoState.userStatus.value != 'ACTIVE') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Akun toko masih dalam verifikasi Admin. Fitur Buka Toko belum diaktifkan.'),
+          backgroundColor: Color(0xFFD97706),
+        ),
+      );
+      return;
+    }
+
+    final prev = TokoState.isStoreOpen.value;
+    TokoState.isStoreOpen.value = val;
+    final api = TokoApiService();
+    final storeId = TokoState.storeId;
+    if (!api.hasSession || storeId == null || storeId.isEmpty) {
+      return;
+    }
+
+    setState(() => _togglingStatus = true);
+    try {
+      await api.setStoreOpenStatus(storeId, val);
+    } catch (e) {
+      TokoState.isStoreOpen.value = prev;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengubah status toko: $e'), backgroundColor: AppColors.danger),
+      );
+    } finally {
+      if (mounted) setState(() => _togglingStatus = false);
+    }
+  }
+
   final List<Map<String, dynamic>> _notifications = [
     {
       'tag': 'Baru',
@@ -116,23 +172,27 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
       body: SafeArea(
         child: ListenableBuilder(
           listenable: Listenable.merge([
+            TokoState.userStatus,
             TokoState.isStoreOpen,
             TokoState.orders,
             TokoState.storeName,
             TokoState.storeCategory,
             TokoState.openHour,
             TokoState.closeHour,
+            TokoState.ratingAvg,
           ]),
           builder: (context, _) {
-            final isStoreOpen = TokoState.isStoreOpen.value;
+            final isPending = TokoState.userStatus.value != 'ACTIVE';
+            final isStoreOpen = !isPending && TokoState.isStoreOpen.value;
             final newOrders = TokoState.orders.value.where((o) => o['tab'] == 'baru').toList();
             final doneOrders = TokoState.orders.value.where((o) => o['tab'] == 'selesai').toList();
             final addedRevenue = doneOrders.fold<int>(
               0,
               (sum, o) => sum + TokoState.parsePrice(o['price'] as String?),
             );
-            final totalRevenue = 845000 + addedRevenue;
-            final totalCompleted = 18 + doneOrders.length;
+            final hasSession = TokoApiService().hasSession;
+            final totalRevenue = hasSession ? addedRevenue : 845000 + addedRevenue;
+            final totalCompleted = hasSession ? doneOrders.length : 18 + doneOrders.length;
             final unreadCount = _notifications.where((n) => n['isRead'] != true).length;
 
             return SingleChildScrollView(
@@ -141,8 +201,12 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(isStoreOpen, unreadCount),
+                  if (isPending) ...[
+                    const SizedBox(height: 14),
+                    _buildPendingVerificationBanner(),
+                  ],
                   const SizedBox(height: 18),
-                  _buildStoreStatusCard(isStoreOpen),
+                  _buildStoreStatusCard(isStoreOpen, isPending),
                   const SizedBox(height: 18),
                   _buildRevenueCard(totalRevenue, totalCompleted),
                   const SizedBox(height: 22),
@@ -275,7 +339,43 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
     );
   }
 
-  Widget _buildStoreStatusCard(bool isStoreOpen) {
+  Widget _buildPendingVerificationBanner() {
+    return Container(
+      key: const Key('banner_toko_pending_verification'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF59E0B)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Icon(Icons.hourglass_top_rounded, color: Color(0xFFB45309), size: 22),
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Menunggu Verifikasi Admin',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Akun toko Anda sedang diperiksa tim operasional RideOn. Fitur Buka Toko dikunci sementara hingga disetujui.',
+                  style: TextStyle(fontSize: 11.5, color: Color(0xFF92400E), height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStoreStatusCard(bool isStoreOpen, [bool isPending = false]) {
     final open = TokoState.openHour.value;
     final close = TokoState.closeHour.value;
 
@@ -316,7 +416,9 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isStoreOpen ? 'Toko Menerima Pesanan' : 'Toko Tutup Sementara',
+                  isPending
+                      ? 'Toko Terkunci (Verifikasi)'
+                      : (isStoreOpen ? 'Toko Menerima Pesanan' : 'Toko Tutup Sementara'),
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -325,7 +427,9 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  isStoreOpen ? 'Jam operasional: $open - $close' : 'Pesanan baru dijeda',
+                  isPending
+                      ? 'Menunggu persetujuan Admin RideOn'
+                      : (isStoreOpen ? 'Jam operasional: $open - $close' : 'Pesanan baru dijeda'),
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -335,10 +439,9 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
             ),
           ),
           Switch(
+            key: const Key('switch_toko_open_status'),
             value: isStoreOpen,
-            onChanged: (val) {
-              TokoState.isStoreOpen.value = val;
-            },
+            onChanged: (isPending || _togglingStatus) ? null : _toggleStoreOpen,
             activeThumbColor: AppColors.primary,
             activeTrackColor: AppColors.primaryLight,
           ),
@@ -575,14 +678,29 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
                     Expanded(
                       flex: 1,
                       child: OutlinedButton(
-                        onPressed: () {
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final api = TokoApiService();
+                          final apiId = activeOrder['apiId'] as String?;
+                          if (api.hasSession && apiId != null && apiId.isNotEmpty) {
+                            try {
+                              await api.rejectOrder(apiId);
+                            } catch (e) {
+                              if (!mounted) return;
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Gagal menolak pesanan: $e'), backgroundColor: AppColors.danger),
+                              );
+                              return;
+                            }
+                          }
                           TokoState.rejectOrder(activeId);
+                          if (!mounted) return;
                           setState(() {
                             if (_notifications.isNotEmpty) {
                               _notifications[0]['isRead'] = true;
                             }
                           });
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(content: Text('Pesanan $activeId ditolak')),
                           );
                         },
@@ -601,15 +719,30 @@ class _TokoHomeScreenState extends State<TokoHomeScreen> {
                     Expanded(
                       flex: 2,
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final api = TokoApiService();
+                          final apiId = activeOrder['apiId'] as String?;
+                          if (api.hasSession && apiId != null && apiId.isNotEmpty) {
+                            try {
+                              await api.confirmOrder(apiId);
+                            } catch (e) {
+                              if (!mounted) return;
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Gagal menerima pesanan: $e'), backgroundColor: AppColors.danger),
+                              );
+                              return;
+                            }
+                          }
                           TokoState.acceptOrder(activeId);
+                          if (!mounted) return;
                           setState(() {
                             if (_notifications.isNotEmpty) {
                               _notifications[0]['isRead'] = true;
                             }
                           });
                           widget.onNavigateTab?.call(1);
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(content: Text('Pesanan $activeId diterima')),
                           );
                         },

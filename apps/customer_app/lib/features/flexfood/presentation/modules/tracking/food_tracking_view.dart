@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
+import 'package:rideon/core/models/customer_models.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 import 'package:rideon/features/chat/presentation/modules/call/voice_call_overlay.dart';
 import 'package:rideon/features/chat/presentation/pages/chat_screen.dart';
 import '../header/flexfood_header.dart';
@@ -15,6 +19,7 @@ class FoodTrackingView extends StatefulWidget {
   final int totalPrice;
   final String deliveryLabel;
   final String deliveryAddress;
+  final String? orderId;
 
   const FoodTrackingView({
     super.key,
@@ -26,6 +31,7 @@ class FoodTrackingView extends StatefulWidget {
     this.totalPrice = 37000,
     this.deliveryLabel = 'Rumah',
     this.deliveryAddress = 'Jl. Brawl No. 77',
+    this.orderId,
   });
 
   @override
@@ -35,6 +41,10 @@ class FoodTrackingView extends StatefulWidget {
 class _FoodTrackingViewState extends State<FoodTrackingView> {
   int _trackingStep = 0;
   Timer? _timer;
+  Timer? _pollTimer;
+  StreamSubscription<DatabaseEvent>? _rtdbSub;
+  String _driverName = 'Muhammad Luthfi Fadil';
+  String _driverPlate = 'BK 789 M';
 
   static const List<String> statusTitles = [
     'Driver Menuju Restoran...',
@@ -48,7 +58,14 @@ class _FoodTrackingViewState extends State<FoodTrackingView> {
   @override
   void initState() {
     super.initState();
-    _startAutoSimulation();
+    final id = widget.orderId ?? '';
+    if (id.isNotEmpty &&
+        CustomerApiService().hasSession &&
+        !CustomerApiService.enableLocalFallback) {
+      _startLiveTracking(id);
+    } else {
+      _startAutoSimulation();
+    }
   }
 
   void _startAutoSimulation() {
@@ -64,16 +81,72 @@ class _FoodTrackingViewState extends State<FoodTrackingView> {
     });
   }
 
+  void _startLiveTracking(String orderId) {
+    _fetchOrderSnapshot(orderId);
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _fetchOrderSnapshot(orderId),
+    );
+    if (Firebase.apps.isNotEmpty) {
+      _rtdbSub = FirebaseDatabase.instance
+          .ref('live_orders/$orderId')
+          .onValue
+          .listen((event) {
+        final raw = event.snapshot.value;
+        if (raw is Map && mounted) {
+          final status = (raw['status'] ?? '').toString();
+          final dName = (raw['driver_name'] ?? '').toString();
+          final dPlate = (raw['driver_plate'] ?? '').toString();
+          setState(() {
+            if (status.isNotEmpty) _trackingStep = _mapBackendStatus(status);
+            if (dName.isNotEmpty) _driverName = dName;
+            if (dPlate.isNotEmpty) _driverPlate = dPlate;
+          });
+        }
+      }, onError: (_) {});
+    }
+  }
+
+  Future<void> _fetchOrderSnapshot(String orderId) async {
+    try {
+      final CustomerOrder order = await CustomerApiService().getOrder(orderId);
+      if (!mounted) return;
+      setState(() {
+        _trackingStep = _mapBackendStatus(order.status);
+        if (order.driverName.isNotEmpty) _driverName = order.driverName;
+        if (order.driverPlate.isNotEmpty) _driverPlate = order.driverPlate;
+      });
+    } catch (_) {}
+  }
+
+  int _mapBackendStatus(String status) {
+    switch (status.toUpperCase()) {
+      case 'COMPLETED':
+        return 3;
+      case 'ON_THE_WAY':
+      case 'PICKED_UP':
+        return 2;
+      case 'DRIVER_ASSIGNED':
+      case 'ARRIVED_AT_STORE':
+      case 'COOKING':
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
+    _pollTimer?.cancel();
+    _rtdbSub?.cancel();
     super.dispose();
   }
 
   String get _currentDescription {
     switch (_trackingStep) {
       case 0:
-        return 'Driver Muhammad Luthfi sedang menuju ${widget.restaurantName}. Estimasi tiba 4 mnt.';
+        return 'Driver $_driverName sedang menuju ${widget.restaurantName}. Estimasi tiba 4 mnt.';
       case 1:
         return 'Driver sudah di restoran. Makanan sedang disiapkan oleh ${widget.restaurantName}.';
       case 2:
@@ -108,7 +181,7 @@ class _FoodTrackingViewState extends State<FoodTrackingView> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Hubungi Muhammad Luthfi Fadil',
+                'Hubungi $_driverName',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -147,7 +220,10 @@ class _FoodTrackingViewState extends State<FoodTrackingView> {
                   Navigator.of(ctx).pop();
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                        builder: (context) => const ChatScreen()),
+                        builder: (context) => ChatScreen(
+                              showBackButton: true,
+                              orderId: widget.orderId,
+                            )),
                   );
                 },
               ),
@@ -188,7 +264,10 @@ class _FoodTrackingViewState extends State<FoodTrackingView> {
                     barrierColor: Colors.black.withValues(alpha: 0.35),
                     transitionDuration: const Duration(milliseconds: 300),
                     pageBuilder: (dialogContext, anim1, anim2) {
-                      return const VoiceCallOverlay();
+                      return VoiceCallOverlay(
+                        orderId: widget.orderId,
+                        peerName: _driverName,
+                      );
                     },
                   );
                 },
@@ -298,8 +377,8 @@ class _FoodTrackingViewState extends State<FoodTrackingView> {
                               _buildDetailRow(
                                   'Menu', '${widget.cartQuantity}x ${widget.foodTitle}'),
                               const SizedBox(height: 6),
-                              _buildDetailRow('Driver',
-                                  'Muhammad Luthfi Fadil (BK 789 M)'),
+                              _buildDetailRow(
+                                  'Driver', '$_driverName ($_driverPlate)'),
                               const SizedBox(height: 6),
                               _buildDetailRow('Alamat',
                                   '${widget.deliveryLabel} (${widget.deliveryAddress})'),
@@ -464,8 +543,22 @@ class _FoodTrackingViewState extends State<FoodTrackingView> {
                         // Button Selesai (Aktif jika kedua bintang toko & driver sudah dinilai)
                         GestureDetector(
                           onTap: hasRatedBoth
-                              ? () {
-                                  Navigator.of(dialogContext).pop();
+                              ? () async {
+                                  final orderId = widget.orderId ?? '';
+                                  if (orderId.isNotEmpty &&
+                                      CustomerApiService().hasSession &&
+                                      !CustomerApiService.enableLocalFallback) {
+                                    try {
+                                      await CustomerApiService().submitRating(
+                                        orderId,
+                                        driverScore: givenDriverRating,
+                                        storeScore: givenRestoRating,
+                                      );
+                                    } catch (_) {}
+                                  }
+                                  if (dialogContext.mounted) {
+                                    Navigator.of(dialogContext).pop();
+                                  }
                                   widget.onFinish();
                                 }
                               : null,
@@ -754,7 +847,7 @@ class _FoodTrackingViewState extends State<FoodTrackingView> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Muhammad Luthfi Fadil',
+                                        _driverName,
                                         style: GoogleFonts.poppins(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w700,
@@ -772,9 +865,9 @@ class _FoodTrackingViewState extends State<FoodTrackingView> {
                                               borderRadius:
                                                   BorderRadius.circular(4),
                                             ),
-                                            child: const Text(
-                                              'BK 789 M',
-                                              style: TextStyle(
+                                            child: Text(
+                                              _driverPlate,
+                                              style: const TextStyle(
                                                 fontSize: 9,
                                                 fontWeight: FontWeight.w700,
                                                 color: Colors.white,
@@ -782,11 +875,15 @@ class _FoodTrackingViewState extends State<FoodTrackingView> {
                                             ),
                                           ),
                                           const SizedBox(width: 6),
-                                          Text(
-                                            'Honda Vario 160 Hitam',
-                                            style: GoogleFonts.roboto(
-                                              fontSize: 11,
-                                              color: const Color(0xFF6B6680),
+                                          Expanded(
+                                            child: Text(
+                                              'Honda Vario 160 Hitam',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.roboto(
+                                                fontSize: 11,
+                                                color: const Color(0xFF6B6680),
+                                              ),
                                             ),
                                           ),
                                         ],

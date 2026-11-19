@@ -1,6 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 import '../../../chat/presentation/pages/chat_screen.dart';
 import '../../../chat/presentation/modules/call/voice_call_overlay.dart';
 import '../modules/header/flexride_header.dart';
@@ -55,6 +61,21 @@ class _FlexRideScreenState extends State<FlexRideScreen> {
   final TextEditingController _destinationController = TextEditingController();
   final TextEditingController _pickupNoteController = TextEditingController();
 
+  String? _activeOrderId;
+  String _paymentMethod = 'tunai';
+  int? _motorEstimate;
+  int? _carEstimate;
+  double? _driverLat;
+  double? _driverLng;
+  String? _trackedDriverId;
+  List<LatLng>? _routePoints;
+  Timer? _pollTimer;
+  StreamSubscription<DatabaseEvent>? _rtdbOrderSub;
+  StreamSubscription<DatabaseEvent>? _rtdbDriverSub;
+
+  bool get _isLiveMode =>
+      CustomerApiService().hasSession && !CustomerApiService.enableLocalFallback;
+
   @override
   void initState() {
     super.initState();
@@ -71,20 +92,127 @@ class _FlexRideScreenState extends State<FlexRideScreen> {
     if (widget.initialNote != null) {
       _pickupNoteController.text = widget.initialNote!;
     }
+    if (_currentState == FlexRideState.vehicleSelect && _isLiveMode) {
+      _prepareVehicleEstimatesAndRoute();
+    }
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
+    _rtdbOrderSub?.cancel();
+    _rtdbDriverSub?.cancel();
     _pickupController.dispose();
     _destinationController.dispose();
     _pickupNoteController.dispose();
     super.dispose();
   }
 
-  void _startSearch() {
+  Future<void> _prepareVehicleEstimatesAndRoute() async {
+    if (!_isLiveMode) return;
+    final api = CustomerApiService();
+    try {
+      final results = await Future.wait([
+        api.estimateOrder(serviceType: 'RIDE_MOTOR', vehicleType: 'MOTOR'),
+        api.estimateOrder(serviceType: 'RIDE_MOBIL', vehicleType: 'MOBIL'),
+      ]);
+      if (mounted) {
+        setState(() {
+          _motorEstimate = results[0].totalCustomerPay > 0
+              ? results[0].totalCustomerPay
+              : 14000;
+          _carEstimate = results[1].totalCustomerPay > 0
+              ? results[1].totalCustomerPay
+              : 30000;
+          if (_selectedVehicle == 'Flex Motor') {
+            _selectedVehiclePrice = _motorEstimate!;
+          } else {
+            _selectedVehiclePrice = _carEstimate!;
+          }
+        });
+      }
+    } catch (_) {}
+
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+              'https://router.project-osrm.org/route/v1/driving/97.0638,5.2041;97.0619,5.2015?overview=full&geometries=geojson',
+            ),
+          )
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+        final routes = decoded['routes'] as List? ?? [];
+        if (routes.isNotEmpty) {
+          final coords =
+              ((routes.first as Map)['geometry'] as Map)['coordinates']
+                  as List? ??
+                  [];
+          final pts = coords
+              .whereType<List>()
+              .where((c) => c.length >= 2)
+              .map(
+                (c) => LatLng(
+                  (c[1] as num).toDouble(),
+                  (c[0] as num).toDouble(),
+                ),
+              )
+              .toList();
+          if (pts.isNotEmpty && mounted) {
+            setState(() => _routePoints = pts);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _startSearch() async {
     setState(() {
       _currentState = FlexRideState.searchingDriver;
     });
+
+    if (_isLiveMode) {
+      final api = CustomerApiService();
+      final isCar = _selectedVehicle.toLowerCase().contains('mobil');
+      final pickupText = _pickupController.text.trim().isNotEmpty
+          ? _pickupController.text.trim()
+          : 'Titik Jemput Kamu (Lhokseumawe)';
+      final destText = _destinationController.text.trim().isNotEmpty
+          ? _destinationController.text.trim()
+          : 'Kota Krukuh';
+      try {
+        final order = await api.createOrder(
+          serviceType: isCar ? 'RIDE_MOBIL' : 'RIDE_MOTOR',
+          vehicleType: isCar ? 'MOBIL' : 'MOTOR',
+          paymentMethod: _paymentMethod == 'qris' ? 'QRIS' : 'CASH',
+          pickupAddress: pickupText,
+          dropoffAddress: destText,
+          notes: _pickupNoteController.text.trim(),
+        );
+        _activeOrderId = order.id;
+        if (_paymentMethod == 'qris') {
+          try {
+            await api.generateOrderQris(
+              orderId: order.id,
+              baseAmount: order.totalCustomerPay > 0
+                  ? order.totalCustomerPay
+                  : _selectedVehiclePrice,
+            );
+          } catch (_) {}
+        }
+        _subscribeOrderUpdates(order.id);
+        return;
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal membuat order FlexRide: $e')),
+          );
+          setState(() => _currentState = FlexRideState.vehicleSelect);
+        }
+        return;
+      }
+    }
 
     // Auto-advance matching Figma prototype
     Future.delayed(const Duration(seconds: 3), () {
@@ -105,12 +233,90 @@ class _FlexRideScreenState extends State<FlexRideScreen> {
     });
   }
 
+  void _subscribeOrderUpdates(String orderId) {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _pollRideOrder(orderId),
+    );
+    _pollRideOrder(orderId);
+    if (Firebase.apps.isEmpty) return;
+    _rtdbOrderSub?.cancel();
+    _rtdbOrderSub = FirebaseDatabase.instance
+        .ref('live_orders/$orderId')
+        .onValue
+        .listen((event) {
+      final raw = event.snapshot.value;
+      if (raw is Map && mounted) {
+        final status = (raw['status'] ?? '').toString();
+        final driverId = (raw['driver_id'] ?? '').toString();
+        if (driverId.isNotEmpty) _subscribeDriverLocation(driverId);
+        if (status.isNotEmpty) _applyRideStatus(status);
+      }
+    }, onError: (_) {});
+  }
+
+  void _subscribeDriverLocation(String driverId) {
+    if (Firebase.apps.isEmpty ||
+        driverId.isEmpty ||
+        _trackedDriverId == driverId) {
+      return;
+    }
+    _trackedDriverId = driverId;
+    _rtdbDriverSub?.cancel();
+    _rtdbDriverSub = FirebaseDatabase.instance
+        .ref('driver_locations/$driverId')
+        .onValue
+        .listen((event) {
+      final raw = event.snapshot.value;
+      if (raw is Map && mounted) {
+        final lat = (raw['lat'] as num?)?.toDouble();
+        final lng = (raw['lng'] as num?)?.toDouble();
+        if (lat != null && lng != null) {
+          setState(() {
+            _driverLat = lat;
+            _driverLng = lng;
+          });
+        }
+      }
+    }, onError: (_) {});
+  }
+
+  Future<void> _pollRideOrder(String orderId) async {
+    try {
+      final order = await CustomerApiService().getOrder(orderId);
+      if (!mounted) return;
+      if (order.driverId.isNotEmpty) _subscribeDriverLocation(order.driverId);
+      _applyRideStatus(order.status);
+    } catch (_) {}
+  }
+
+  void _applyRideStatus(String status) {
+    final up = status.toUpperCase();
+    FlexRideState next = _currentState;
+    if (up == 'DRIVER_ASSIGNED') {
+      next = FlexRideState.driverFound;
+    } else if (up == 'ARRIVED_AT_PICKUP') {
+      next = FlexRideState.driverArrived;
+    } else if (up == 'ON_THE_WAY' || up == 'PICKED_UP') {
+      next = FlexRideState.tripStarted;
+    } else if (up == 'COMPLETED') {
+      _pollTimer?.cancel();
+      if (mounted) _showCompletionDialog();
+      return;
+    }
+    if (next != _currentState && mounted) {
+      setState(() => _currentState = next);
+    }
+  }
+
   void _openChatWithDriver() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => const ChatScreen(
+        builder: (context) => ChatScreen(
           showBackButton: true,
           initialShowDetail: true,
+          orderId: _activeOrderId,
         ),
       ),
     );
@@ -124,7 +330,7 @@ class _FlexRideScreenState extends State<FlexRideScreen> {
       barrierColor: Colors.black.withValues(alpha: 0.35),
       transitionDuration: const Duration(milliseconds: 300),
       pageBuilder: (dialogContext, anim1, anim2) {
-        return const VoiceCallOverlay();
+        return VoiceCallOverlay(orderId: _activeOrderId);
       },
     );
   }
@@ -313,10 +519,23 @@ class _FlexRideScreenState extends State<FlexRideScreen> {
                       // Button Selesai (hanya aktif jika user sudah memberikan bintang)
                       GestureDetector(
                         onTap: hasRated
-                            ? () {
-                                Navigator.of(dialogContext).pop();
-                                // Kembali ke Home customer_app (Beranda)
-                                Navigator.of(context).popUntil((route) => route.isFirst);
+                            ? () async {
+                                final nav = Navigator.of(context);
+                                final oid = _activeOrderId ?? '';
+                                if (oid.isNotEmpty && _isLiveMode) {
+                                  try {
+                                    await CustomerApiService().submitRating(
+                                      oid,
+                                      driverScore: givenRating,
+                                    );
+                                  } catch (_) {}
+                                }
+                                if (dialogContext.mounted) {
+                                  Navigator.of(dialogContext).pop();
+                                }
+                                if (mounted) {
+                                  nav.popUntil((route) => route.isFirst);
+                                }
                               }
                             : null,
                         child: AnimatedContainer(
@@ -426,11 +645,13 @@ class _FlexRideScreenState extends State<FlexRideScreen> {
             setState(() {
               _currentState = FlexRideState.vehicleSelect;
             });
+            _prepareVehicleEstimatesAndRoute();
           },
           onProceedToVehicles: () {
             setState(() {
               _currentState = FlexRideState.vehicleSelect;
             });
+            _prepareVehicleEstimatesAndRoute();
           },
         );
 
@@ -443,13 +664,20 @@ class _FlexRideScreenState extends State<FlexRideScreen> {
             : 'Kota Krukuh (2.9 Km • 12 mnt)';
         return Stack(
           children: [
-            const SimulatedMapView(showRoute: true),
+            SimulatedMapView(
+              showRoute: true,
+              useLiveOsm: _isLiveMode,
+              routePoints: _routePoints,
+            ),
             VehicleSelectionSheet(
               pickupText: pickupText,
               destinationText: destText,
               selectedVehicle: _selectedVehicle,
               selectedVehiclePrice: _selectedVehiclePrice,
               pickupNoteController: _pickupNoteController,
+              motorEstimate: _motorEstimate,
+              carEstimate: _carEstimate,
+              onSelectPaymentMethod: (m) => _paymentMethod = m,
               onSelectVehicle: (vehicle, price) {
                 setState(() {
                   _selectedVehicle = vehicle;
@@ -464,7 +692,11 @@ class _FlexRideScreenState extends State<FlexRideScreen> {
       case FlexRideState.searchingDriver:
         return Stack(
           children: [
-            const SimulatedMapView(showRoute: true),
+            SimulatedMapView(
+              showRoute: true,
+              useLiveOsm: _isLiveMode,
+              routePoints: _routePoints,
+            ),
             DriverSearchingView(
               vehicleName: _selectedVehicle,
               vehiclePrice: _selectedVehiclePrice,
@@ -490,6 +722,10 @@ class _FlexRideScreenState extends State<FlexRideScreen> {
               showRoute: true,
               showDriver: true,
               isArrived: isArrived,
+              useLiveOsm: _isLiveMode,
+              routePoints: _routePoints,
+              driverLat: _driverLat,
+              driverLng: _driverLng,
             ),
             DriverTrackingSheet(
               isArrived: isArrived,

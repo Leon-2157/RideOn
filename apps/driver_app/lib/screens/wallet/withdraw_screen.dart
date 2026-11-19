@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../constants/app_colors.dart';
+import '../../services/driver_api_service.dart';
 
 /// [WithdrawScreen]
 /// Layar Tarik Saldo Driver sesuai spesifikasi desain Figma:
@@ -10,6 +11,7 @@ class WithdrawScreen extends StatefulWidget {
   final int initialBalance;
   final String bankName;
   final String accountNumber;
+  final String bankAccountHolder;
   final ValueChanged<int>? onWithdrawSuccess;
 
   const WithdrawScreen({
@@ -17,6 +19,7 @@ class WithdrawScreen extends StatefulWidget {
     this.initialBalance = 327000,
     this.bankName = 'Bank Syariah Indonesia (BSI)',
     this.accountNumber = '8820-1928-34 a.n Joni Utama',
+    this.bankAccountHolder = 'Mitra Driver RideOn',
     this.onWithdrawSuccess,
   });
 
@@ -75,15 +78,42 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
 
   void _showPinDialog() {
     _amountFocusNode.unfocus();
+    final messenger = ScaffoldMessenger.of(context);
     showDialog(
       context: context,
       barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.54),
-      builder: (context) {
+      builder: (dialogCtx) {
         return _PinEntryDialog(
           amount: _amount,
-          onPinSubmitted: () {
-            Navigator.of(context).pop(); // Tutup dialog PIN
+          onPinSubmitted: () async {
+            Navigator.of(dialogCtx).pop(); // Tutup dialog PIN
+            if (DriverApiService().hasSession) {
+              final driverId = await DriverApiService().getSavedDriverId();
+              final parsed = int.tryParse(_amount) ?? 0;
+              if (driverId != null && driverId.isNotEmpty && parsed > 0) {
+                try {
+                  await DriverApiService().requestWithdrawal(
+                    driverId: driverId,
+                    amount: parsed,
+                    bankName: widget.bankName,
+                    bankAccountNumber: widget.accountNumber,
+                    bankAccountHolder: widget.bankAccountHolder,
+                  );
+                } on ApiException catch (e) {
+                  if (!mounted) return;
+                  messenger.showSnackBar(SnackBar(content: Text(e.message)));
+                  return;
+                } catch (e) {
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Gagal mengajukan penarikan: $e')),
+                  );
+                  return;
+                }
+              }
+            }
+            if (!mounted) return;
             _showSuccessDialog();
           },
         );

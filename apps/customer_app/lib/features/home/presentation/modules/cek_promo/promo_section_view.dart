@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rideon/core/constants/app_assets.dart';
+import 'package:rideon/core/services/customer_api_service.dart';
 import 'promo_card_item.dart';
 import 'promo_item_model.dart';
 import 'promo_logic.dart';
@@ -10,9 +11,7 @@ export 'promo_item_model.dart';
 export 'promo_logic.dart';
 
 /// Section "Cek promo sekarang" — header ikon diskon + carousel banner horizontal.
-///
-/// Logika data dikelola di [PromoLogic].
-class CekPromoSection extends StatelessWidget {
+class CekPromoSection extends StatefulWidget {
   final List<PromoItemModel>? items;
   final Function(PromoItemModel promo)? onPromoTap;
 
@@ -23,8 +22,43 @@ class CekPromoSection extends StatelessWidget {
   });
 
   @override
+  State<CekPromoSection> createState() => _CekPromoSectionState();
+}
+
+class _CekPromoSectionState extends State<CekPromoSection> {
+  late List<PromoItemModel> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = List<PromoItemModel>.from(
+      widget.items ?? PromoLogic.defaultPromos,
+    );
+    _loadLivePromotions();
+  }
+
+  Future<void> _loadLivePromotions() async {
+    if (widget.items != null || !CustomerApiService().hasSession) return;
+    try {
+      final promos = await CustomerApiService().getPromotions();
+      if (!mounted || promos.isEmpty) return;
+      final fallbacks = PromoLogic.defaultPromos;
+      setState(() {
+        _items = List.generate(promos.length, (i) {
+          final p = promos[i];
+          return PromoItemModel(
+            imageAsset: fallbacks[i % fallbacks.length].imageAsset,
+            title: p.title,
+            voucherCode: p.code,
+          );
+        });
+      });
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final displayItems = items ?? PromoLogic.defaultPromos;
+    final displayItems = widget.items ?? _items;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,7 +104,20 @@ class CekPromoSection extends StatelessWidget {
               final promo = displayItems[index];
               return PromoCardItem(
                 item: promo,
-                onTap: () => onPromoTap?.call(promo),
+                onTap: () {
+                  if (widget.onPromoTap != null) {
+                    widget.onPromoTap!(promo);
+                  } else if (promo.voucherCode != null &&
+                      promo.voucherCode!.isNotEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Kode Promo ${promo.voucherCode}: ${promo.title ?? ""}',
+                        ),
+                      ),
+                    );
+                  }
+                },
               );
             },
           ),

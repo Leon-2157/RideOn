@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:rideon/core/constants/app_colors.dart';
+import 'package:rideon/features/flexride/presentation/pages/flexride_screen.dart';
 import '../modules/header_banner/header_banner_view.dart';
 import '../modules/services_header/services_header_section.dart';
 import '../modules/pilihan_terlaris/food_section_view.dart';
 import '../modules/cek_promo/promo_section_view.dart';
 import '../modules/rekomendasi_wisata/wisata_section_view.dart';
+import 'global_search_screen.dart';
 
 export '../modules/header_banner/header_banner_view.dart';
 export '../modules/header_banner/search_bar_widget.dart';
@@ -62,7 +64,14 @@ class BerandaScreen extends StatelessWidget {
               photoUrl: photoUrl,
               onLoginTap: onLoginTap,
               onProfileTap: onProfileTap,
-              onSearchTap: onSearchTap,
+              onSearchTap: onSearchTap ??
+                  () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const GlobalSearchScreen(),
+                      ),
+                    );
+                  },
               activeServiceIndex: activeServiceIndex,
               onServiceTap: onServiceTap,
             ),
@@ -79,7 +88,19 @@ class BerandaScreen extends StatelessWidget {
             ),
           ),
           const SliverToBoxAdapter(child: CekPromoSection()),
-          const SliverToBoxAdapter(child: RekomendasiWisataSection()),
+          SliverToBoxAdapter(
+            child: RekomendasiWisataSection(
+              onWisataTap: (wisata) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => FlexRideScreen(
+                      initialDestination: wisata.title,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
           const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
       ),

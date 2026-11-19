@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../data/toko_state.dart';
+import '../../services/toko_api_service.dart';
 import '../../theme/app_colors.dart';
 
 class TokoLoginScreen extends StatefulWidget {
@@ -37,16 +39,24 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
   final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
-  // Lengkapi Toko Controllers (matching Figma + owner name)
+  // Lengkapi Toko Controllers (matching Figma + owner name + real auth fields)
   final TextEditingController _storeNameController = TextEditingController();
   final TextEditingController _ownerNameController = TextEditingController();
+  final TextEditingController _regEmailController = TextEditingController();
+  final TextEditingController _regPhoneController = TextEditingController();
+  final TextEditingController _regPasswordController = TextEditingController();
+  final TextEditingController _regPinController = TextEditingController(text: '123456');
   final TextEditingController _storeDescController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _postalController = TextEditingController();
   final TextEditingController _countryController = TextEditingController(text: 'Indonesia');
 
-  // Track uploaded document indices
+  // Track uploaded document indices & file paths
   final Set<int> _uploadedIndices = {};
+  final Map<int, String> _pickedDocPaths = {};
+  double _regLat = 5.2041;
+  double _regLng = 97.0638;
+  bool _detectingGps = false;
 
   bool _obscurePassword = true;
   bool _obscureNewPassword = true;
@@ -79,6 +89,10 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
     _confirmPasswordController.dispose();
     _storeNameController.dispose();
     _ownerNameController.dispose();
+    _regEmailController.dispose();
+    _regPhoneController.dispose();
+    _regPasswordController.dispose();
+    _regPinController.dispose();
     _storeDescController.dispose();
     _addressController.dispose();
     _postalController.dispose();
@@ -144,17 +158,63 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
       return;
     }
 
-    // ponytail: local format validation gates login until backend auth API is connected
     setState(() {
       _isLoading = true;
       _hasLoginError = false;
     });
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    if (TokoApiService.enableLocalFallback) {
+      await Future.delayed(const Duration(milliseconds: 50));
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      widget.onLoginSuccess();
+      return;
+    }
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    widget.onLoginSuccess();
+    try {
+      final user = await TokoApiService().login(identifier, password);
+      TokoState.hydrateFromUser(user);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      widget.onLoginSuccess();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _hasLoginError = true;
+        _loginErrorMessage = e.toString();
+      });
+    }
+  }
+
+  Future<void> _detectGpsLocation() async {
+    setState(() => _detectingGps = true);
+    try {
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.always || perm == LocationPermission.whileInUse) {
+        final pos = await Geolocator.getCurrentPosition().timeout(const Duration(seconds: 6));
+        _regLat = pos.latitude;
+        _regLng = pos.longitude;
+      } else {
+        final geo = await TokoApiService().geocodeAddress(_addressController.text.trim());
+        _regLat = geo['lat'] ?? 5.1801;
+        _regLng = geo['lng'] ?? 97.1507;
+      }
+    } catch (_) {
+      final geo = await TokoApiService().geocodeAddress(_addressController.text.trim());
+      _regLat = geo['lat'] ?? 5.1801;
+      _regLng = geo['lng'] ?? 97.1507;
+    } finally {
+      if (mounted) {
+        setState(() => _detectingGps = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Koordinat toko diset: ${_regLat.toStringAsFixed(4)}, ${_regLng.toStringAsFixed(4)}')),
+        );
+      }
+    }
   }
 
   Future<void> _handleGoogleLogin() async {
@@ -215,7 +275,10 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
                       final picker = ImagePicker();
                       final picked = await picker.pickImage(source: ImageSource.camera);
                       if (picked != null && mounted) {
-                        setState(() => _uploadedIndices.add(itemIndex));
+                        setState(() {
+                          _uploadedIndices.add(itemIndex);
+                          _pickedDocPaths[itemIndex] = picked.path;
+                        });
                       }
                     } catch (e) {
                       if (mounted) {
@@ -240,7 +303,10 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
                       final picker = ImagePicker();
                       final picked = await picker.pickImage(source: ImageSource.gallery);
                       if (picked != null && mounted) {
-                        setState(() => _uploadedIndices.add(itemIndex));
+                        setState(() {
+                          _uploadedIndices.add(itemIndex);
+                          _pickedDocPaths[itemIndex] = picked.path;
+                        });
                       }
                     } catch (e) {
                       if (mounted) {
@@ -826,7 +892,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             width: double.infinity,
             height: 44,
             child: ElevatedButton.icon(
-              onPressed: () {
+              onPressed: () async {
                 final ident = _forgotIdentifierController.text.trim();
                 if (ident.isEmpty || !_isValidIdentifier(ident)) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -837,7 +903,18 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
                   );
                   return;
                 }
-                _goToStep(2);
+                if (!TokoApiService.enableLocalFallback) {
+                  try {
+                    await TokoApiService().sendOtp(ident, purpose: 'RESET_PASSWORD');
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Gagal mengirim OTP: $e'), backgroundColor: AppColors.danger),
+                    );
+                    return;
+                  }
+                }
+                if (mounted) _goToStep(2);
               },
               icon: const Icon(Icons.send_rounded, size: 16),
               label: const Text(
@@ -997,7 +1074,7 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             width: double.infinity,
             height: 44,
             child: ElevatedButton.icon(
-              onPressed: () {
+              onPressed: () async {
                 final otp = _otpController.text.trim();
                 if (!RegExp(r'^\d{6}$').hasMatch(otp)) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1017,7 +1094,19 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
                   );
                   return;
                 }
-                _goToStep(5);
+                if (!TokoApiService.enableLocalFallback) {
+                  try {
+                    final ok = await TokoApiService().verifyOtp(_forgotIdentifierController.text.trim(), otp);
+                    if (!ok) throw Exception('Kode OTP tidak valid');
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Verifikasi OTP gagal: $e'), backgroundColor: AppColors.danger),
+                    );
+                    return;
+                  }
+                }
+                if (mounted) _goToStep(5);
               },
               icon: const Icon(Icons.send_rounded, size: 16),
               label: const Text(
@@ -1276,6 +1365,59 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             prefixIcon: Icons.public_rounded,
           ),
 
+          const SizedBox(height: 12),
+
+          _buildGlassInputField(
+            controller: _regEmailController,
+            hintText: 'Email Pemilik (untuk akun)',
+            prefixIcon: Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
+            keyName: 'input_reg_email',
+          ),
+
+          const SizedBox(height: 12),
+
+          _buildGlassInputField(
+            controller: _regPhoneController,
+            hintText: 'No. WhatsApp Toko (08...)',
+            prefixIcon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+            keyName: 'input_reg_phone',
+          ),
+
+          const SizedBox(height: 12),
+
+          _buildGlassInputField(
+            controller: _regPasswordController,
+            hintText: 'Kata Sandi Akun (min. 6 karakter)',
+            prefixIcon: Icons.lock_outline_rounded,
+            obscureText: true,
+            keyName: 'input_reg_password',
+          ),
+
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildGlassInputField(
+                  controller: _regPinController,
+                  hintText: 'PIN Toko (6 digit)',
+                  prefixIcon: Icons.pin_outlined,
+                  keyboardType: TextInputType.number,
+                  keyName: 'input_reg_pin',
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                key: const Key('btn_reg_detect_gps'),
+                onPressed: _detectingGps ? null : _detectGpsLocation,
+                icon: const Icon(Icons.my_location_rounded, size: 16),
+                label: Text(_detectingGps ? '...' : 'GPS', style: const TextStyle(fontSize: 11)),
+              ),
+            ],
+          ),
+
           const SizedBox(height: 14),
 
           // Checkbox container matching Figma
@@ -1339,89 +1481,151 @@ class _TokoLoginScreenState extends State<TokoLoginScreen> {
             width: double.infinity,
             height: 44,
             child: ElevatedButton(
-              onPressed: () {
-                final storeName = _storeNameController.text.trim();
-                final address = _addressController.text.trim();
-                final postal = _postalController.text.trim();
-                final country = _countryController.text.trim();
-                final messenger = ScaffoldMessenger.of(context);
+              onPressed: _isLoading
+                  ? null
+                  : () async {
+                      final storeName = _storeNameController.text.trim();
+                      final address = _addressController.text.trim();
+                      final postal = _postalController.text.trim();
+                      final country = _countryController.text.trim();
+                      final messenger = ScaffoldMessenger.of(context);
 
-                if (storeName.isEmpty) {
-                  messenger.clearSnackBars();
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Nama Toko wajib diisi.'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                  return;
-                }
-                if (address.isEmpty) {
-                  messenger.clearSnackBars();
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Alamat Lengkap wajib diisi.'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                  return;
-                }
-                if (postal.isNotEmpty && !RegExp(r'^\d{5,}$').hasMatch(postal)) {
-                  messenger.clearSnackBars();
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Kode Pos harus minimal 5 digit angka.'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                  return;
-                }
-                if (country.isEmpty) {
-                  messenger.clearSnackBars();
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Negara wajib diisi.'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                  return;
-                }
-                if (_uploadedIndices.isEmpty) {
-                  messenger.clearSnackBars();
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Unggah minimal 1 foto/berkas verifikasi toko.'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                  return;
-                }
-                if (!_agreeTerms) {
-                  messenger.clearSnackBars();
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Harap setujui Syarat & Ketentuan terlebih dahulu.'),
-                      backgroundColor: AppColors.primary,
-                    ),
-                  );
-                  return;
-                }
+                      if (storeName.isEmpty) {
+                        messenger.clearSnackBars();
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Nama Toko wajib diisi.'),
+                            backgroundColor: AppColors.danger,
+                          ),
+                        );
+                        return;
+                      }
+                      if (address.isEmpty) {
+                        messenger.clearSnackBars();
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Alamat Lengkap wajib diisi.'),
+                            backgroundColor: AppColors.danger,
+                          ),
+                        );
+                        return;
+                      }
+                      if (postal.isNotEmpty && !RegExp(r'^\d{5,}$').hasMatch(postal)) {
+                        messenger.clearSnackBars();
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Kode Pos harus minimal 5 digit angka.'),
+                            backgroundColor: AppColors.danger,
+                          ),
+                        );
+                        return;
+                      }
+                      if (country.isEmpty) {
+                        messenger.clearSnackBars();
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Negara wajib diisi.'),
+                            backgroundColor: AppColors.danger,
+                          ),
+                        );
+                        return;
+                      }
+                      if (_uploadedIndices.isEmpty) {
+                        messenger.clearSnackBars();
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Unggah minimal 1 foto/berkas verifikasi toko.'),
+                            backgroundColor: AppColors.danger,
+                          ),
+                        );
+                        return;
+                      }
+                      if (!_agreeTerms) {
+                        messenger.clearSnackBars();
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Harap setujui Syarat & Ketentuan terlebih dahulu.'),
+                            backgroundColor: AppColors.primary,
+                          ),
+                        );
+                        return;
+                      }
 
-                TokoState.storeName.value = storeName;
-                if (_ownerNameController.text.trim().isNotEmpty) {
-                  TokoState.ownerName.value = _ownerNameController.text.trim();
-                }
-                if (_storeDescController.text.trim().isNotEmpty) {
-                  TokoState.storeCategory.value = _storeDescController.text.trim();
-                }
-                TokoState.storeAddress.value = address;
-                if (postal.isNotEmpty) {
-                  TokoState.storePostal.value = postal;
-                }
-                TokoState.storeCountry.value = country;
+                      if (!TokoApiService.enableLocalFallback) {
+                        final email = _regEmailController.text.trim();
+                        final phone = _regPhoneController.text.trim();
+                        final password = _regPasswordController.text;
+                        if ((email.isEmpty && phone.isEmpty) || password.length < 6) {
+                          messenger.clearSnackBars();
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Email/No. WA dan kata sandi minimal 6 karakter wajib diisi.'),
+                              backgroundColor: AppColors.danger,
+                            ),
+                          );
+                          return;
+                        }
+                        setState(() => _isLoading = true);
+                        try {
+                          String docUrl = '';
+                          if (_pickedDocPaths.isNotEmpty) {
+                            docUrl = await TokoApiService().uploadFile(_pickedDocPaths.values.first, category: 'store');
+                          }
+                          if (_regLat == 5.2041 && _regLng == 97.0638) {
+                            final geo = await TokoApiService().geocodeAddress(address);
+                            _regLat = geo['lat'] ?? _regLat;
+                            _regLng = geo['lng'] ?? _regLng;
+                          }
+                          final owner = _ownerNameController.text.trim().isNotEmpty
+                              ? _ownerNameController.text.trim()
+                              : storeName;
+                          final pin = _regPinController.text.trim().length == 6
+                              ? _regPinController.text.trim()
+                              : '123456';
+                          final user = await TokoApiService().registerStore(
+                            ownerName: owner,
+                            email: email,
+                            phone: phone,
+                            password: password,
+                            storeName: storeName,
+                            category: _storeDescController.text.trim().isNotEmpty
+                                ? _storeDescController.text.trim()
+                                : 'Kuliner',
+                            description: _storeDescController.text.trim(),
+                            address: address,
+                            lat: _regLat,
+                            lng: _regLng,
+                            storePin: pin,
+                            businessDocUrl: docUrl,
+                          );
+                          TokoState.hydrateFromUser(user);
+                          if (!mounted) return;
+                          setState(() => _isLoading = false);
+                        } catch (e) {
+                          if (!mounted) return;
+                          setState(() => _isLoading = false);
+                          messenger.showSnackBar(
+                            SnackBar(content: Text('Gagal mendaftar toko: $e'), backgroundColor: AppColors.danger),
+                          );
+                          return;
+                        }
+                      }
 
-                _goToStep(4);
-              },
+                      TokoState.storeName.value = storeName;
+                      if (_ownerNameController.text.trim().isNotEmpty) {
+                        TokoState.ownerName.value = _ownerNameController.text.trim();
+                      }
+                      if (_storeDescController.text.trim().isNotEmpty) {
+                        TokoState.storeCategory.value = _storeDescController.text.trim();
+                      }
+                      TokoState.storeAddress.value = address;
+                      if (postal.isNotEmpty) {
+                        TokoState.storePostal.value = postal;
+                      }
+                      TokoState.storeCountry.value = country;
+
+                      _goToStep(4);
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.dark,
                 foregroundColor: Colors.white,

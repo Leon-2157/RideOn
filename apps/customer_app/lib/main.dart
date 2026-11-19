@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'core/services/customer_api_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/pages/login_screen.dart';
 import 'features/main/presentation/pages/main_screen.dart';
@@ -8,8 +9,21 @@ import 'features/splash/presentation/pages/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {}
+  try {
+    await CustomerApiService().restoreSession();
+  } catch (_) {}
   runApp(const RideOnApp());
+}
+
+bool _hasFirebaseUser() {
+  try {
+    return FirebaseAuth.instance.currentUser != null;
+  } catch (_) {
+    return false;
+  }
 }
 
 class RideOnApp extends StatelessWidget {
@@ -27,8 +41,8 @@ class RideOnApp extends StatelessWidget {
         builder: (context) {
           return SplashScreen(
             onAnimationComplete: () {
-              // Cek apakah user sudah login sebelumnya (Session Persistence)
-              final bool isLoggedIn = FirebaseAuth.instance.currentUser != null;
+              final bool isLoggedIn =
+                  CustomerApiService().hasSession || _hasFirebaseUser();
               final Widget targetScreen =
                   isLoggedIn ? const MainScreen() : const LoginScreen();
 

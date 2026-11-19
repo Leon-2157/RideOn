@@ -7,21 +7,35 @@
 *.env.*
 !.env.example
 *.local
-secrets/
+secrets/*
+!secrets/.gitkeep
+**/serviceAccountKey.json
+**/firebase-adminsdk-*.json
+services/wa-gateway/storage/sessions/
+services/wa-gateway/storage/sessions/*
+services/payg/storage/*.json
 *.pem
 *.key
 *.cert
 
 # --- Firebase & Google Services Configuration ---
 # File konfigurasi yang berisi API key client & OAuth client IDs
-**/android/app/google-services.json
-**/ios/Runner/GoogleService-Info.plist
-**/macos/Runner/GoogleService-Info.plist
+**/google-services.json
+**/GoogleService-Info.plist
 **/lib/firebase_options.dart
 
 # Kecualikan file contoh / mock template agar tetap ter-track
 !**/google-services.json.example
 !**/GoogleService-Info.plist.example
+
+# --- Node.js, Next.js, & Runtime Uploads ---
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+*.tsbuildinfo
+**/uploads/*
+!**/uploads/.gitkeep
 
 # --- Android Keystores & Signing Keys ---
 **/android/key.properties

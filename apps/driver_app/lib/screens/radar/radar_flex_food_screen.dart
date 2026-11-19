@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
+import '../../models/order_model.dart';
+import '../../services/driver_api_service.dart';
 import '../account_settings/account_settings_screen.dart';
 import '../activity/activity_list_screen.dart';
 import '../chat/call_screen.dart';
@@ -28,6 +30,8 @@ enum FlexFoodOrderState {
 class RadarFlexFoodScreen extends StatefulWidget {
   final String driverName;
   final String plateNumber;
+  final String? orderId;
+  final OrderModel? liveOrder;
   final bool initialIsOnline;
   final FlexFoodOrderState initialOrderState;
   final bool enableRadarAnimation;
@@ -38,6 +42,8 @@ class RadarFlexFoodScreen extends StatefulWidget {
     super.key,
     this.driverName = 'Joni utama',
     this.plateNumber = 'BK 4892 ABC',
+    this.orderId,
+    this.liveOrder,
     this.initialIsOnline = true,
     this.initialOrderState = FlexFoodOrderState.searching,
     this.enableRadarAnimation = true,
@@ -152,12 +158,28 @@ class _RadarFlexFoodScreenState extends State<RadarFlexFoodScreen>
   }
 
   void _verifyPinAndPickup() {
+    if (widget.orderId != null && DriverApiService().hasSession) {
+      unawaited(
+        DriverApiService()
+            .updateOrderStatus(widget.orderId!, 'IN_TRANSIT')
+            .then((_) {}, onError: (_) {}),
+      );
+    }
     setState(() {
       _orderState = FlexFoodOrderState.delivering;
     });
   }
 
-  void _completeOrder() {
+  Future<void> _completeOrder() async {
+    if (widget.orderId != null && DriverApiService().hasSession) {
+      try {
+        await DriverApiService().updateOrderStatus(widget.orderId!, 'DELIVERED');
+      } catch (_) {}
+      try {
+        await DriverApiService().completeOrder(widget.orderId!);
+      } catch (_) {}
+      if (!mounted) return;
+    }
     setState(() {
       _orderState = FlexFoodOrderState.completed;
     });
@@ -1468,9 +1490,12 @@ class _RadarFlexFoodScreenState extends State<RadarFlexFoodScreen>
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => const CallScreen(
-                        customerName: 'Fikri',
+                      builder: (context) => CallScreen(
+                        customerName: widget.liveOrder?.customerName.isNotEmpty == true
+                            ? widget.liveOrder!.customerName
+                            : 'Fikri',
                         avatarInitials: 'F',
+                        orderId: widget.orderId,
                       ),
                     ),
                   );

@@ -170,11 +170,15 @@ class DriverArrivedView extends StatelessWidget {
                                 const Icon(Icons.receipt_long_rounded,
                                     size: 18, color: Colors.white),
                                 const SizedBox(width: 8),
-                                Text(
-                                  'Lihat Rincian Belanja',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
+                                Flexible(
+                                  child: Text(
+                                    'Lihat Rincian Belanja',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               ],

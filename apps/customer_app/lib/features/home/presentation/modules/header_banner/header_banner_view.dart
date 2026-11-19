@@ -131,7 +131,10 @@ class HeaderBannerView extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: HomeSearchBar(onTap: onSearchTap),
+                      child: HomeSearchBar(
+                        key: const Key('home_search_bar'),
+                        onTap: onSearchTap,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     if (isLoggedIn)

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
+import '../../models/order_model.dart';
+import '../../services/driver_api_service.dart';
 import '../chat/chat_history_screen.dart';
 import '../radar/radar_screen.dart';
 import '../wallet/wallet_screen.dart';
@@ -61,11 +63,88 @@ class ActivityListScreen extends StatefulWidget {
 class _ActivityListScreenState extends State<ActivityListScreen> {
   late int _currentTabIndex;
   String _selectedCategory = 'ALL'; // 'ALL', 'FLEXFOOD', 'FLEXRIDE', 'FLEXSEND'
+  List<DriverActivityItem> _liveItems = [];
+  String? _liveTotalText;
 
   @override
   void initState() {
     super.initState();
     _currentTabIndex = widget.initialTabIndex;
+    _loadHistoryFromApi();
+  }
+
+  Future<void> _loadHistoryFromApi() async {
+    if (!DriverApiService().hasSession) return;
+    final driverId = await DriverApiService().getSavedDriverId();
+    if (driverId == null || driverId.isEmpty) return;
+    try {
+      final orders = await DriverApiService().getDriverHistoryOrders(driverId);
+      if (!mounted || orders.isEmpty) return;
+      final mapped = orders.map(_mapOrderToActivity).toList();
+      final totalNet =
+          orders.fold<int>(0, (sum, o) => sum + o.driverNetEarning);
+      setState(() {
+        _liveItems = mapped;
+        _liveTotalText = 'Rp ${_formatNumber(totalNet)}';
+      });
+    } catch (_) {
+      // Keep fallback items if offline
+    }
+  }
+
+  String _formatNumber(int value) {
+    final s = value.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write('.');
+      buf.write(s[i]);
+    }
+    return buf.toString();
+  }
+
+  DriverActivityItem _mapOrderToActivity(OrderModel o) {
+    final cat = o.isFlexFood
+        ? 'FLEXFOOD'
+        : o.isFlexSend
+            ? 'FLEXSEND'
+            : 'FLEXRIDE';
+    final title = o.isFlexFood
+        ? 'Pesanan Makanan'
+        : o.isFlexSend
+            ? 'Titip Belanja'
+            : 'Antar Penumpang';
+    final icon = o.isFlexFood
+        ? Icons.fastfood_rounded
+        : o.isFlexSend
+            ? Icons.shopping_bag_rounded
+            : Icons.two_wheeler_rounded;
+    final earning = o.driverNetEarning > 0 ? o.driverNetEarning : o.deliveryFee;
+
+    return DriverActivityItem(
+      id: o.id,
+      orderId: o.orderCode.isNotEmpty ? o.orderCode : '#${o.id.substring(0, o.id.length.clamp(0, 7)).toUpperCase()}',
+      title: title,
+      subtitle: o.storeName.isNotEmpty ? o.storeName : o.customerName,
+      category: cat,
+      routeSummary: '${o.pickupAddress} → ${o.deliveryAddress}',
+      dateText: o.createdAt,
+      earningText: '+Rp ${_formatNumber(earning)}',
+      statusText: o.isCancelled ? 'Dibatalkan' : 'Selesai',
+      icon: icon,
+      iconColor: const Color(0xFF6B48FC),
+      iconBgColor: const Color(0xFFEDE7F6),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => o.isFlexFood
+                ? const ActivityFoodDetailScreen()
+                : o.isFlexSend
+                    ? const ActivityShoppingDetailScreen()
+                    : const ActivityRideDetailScreen(),
+          ),
+        );
+      },
+    );
   }
 
   void _onBottomNavTapped(int index) {
@@ -187,7 +266,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final allItems = _getActivityItems();
+    final allItems = _liveItems.isNotEmpty ? _liveItems : _getActivityItems();
     final filteredItems = _selectedCategory == 'ALL'
         ? allItems
         : allItems.where((item) => item.category == _selectedCategory).toList();
@@ -295,8 +374,8 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                           const SizedBox(width: 8),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
-                            children: const [
-                              Text(
+                            children: [
+                              const Text(
                                 'Total Hasil',
                                 style: TextStyle(
                                   fontSize: 11,
@@ -305,8 +384,8 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                                 ),
                               ),
                               Text(
-                                'Rp 233.000',
-                                style: TextStyle(
+                                _liveTotalText ?? 'Rp 233.000',
+                                style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w900,
                                   color: Color(0xFF00A838),
@@ -331,13 +410,22 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
               physics: const BouncingScrollPhysics(),
               child: Row(
                 children: [
-                  _buildFilterChip('Semua (3)', 'ALL'),
+                  _buildFilterChip('Semua (${allItems.length})', 'ALL'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('FlexFood (1)', 'FLEXFOOD'),
+                  _buildFilterChip(
+                    'FlexFood (${allItems.where((i) => i.category == 'FLEXFOOD').length})',
+                    'FLEXFOOD',
+                  ),
                   const SizedBox(width: 8),
-                  _buildFilterChip('FlexRide (1)', 'FLEXRIDE'),
+                  _buildFilterChip(
+                    'FlexRide (${allItems.where((i) => i.category == 'FLEXRIDE').length})',
+                    'FLEXRIDE',
+                  ),
                   const SizedBox(width: 8),
-                  _buildFilterChip('FlexSend (1)', 'FLEXSEND'),
+                  _buildFilterChip(
+                    'FlexSend (${allItems.where((i) => i.category == 'FLEXSEND').length})',
+                    'FLEXSEND',
+                  ),
                 ],
               ),
             ),

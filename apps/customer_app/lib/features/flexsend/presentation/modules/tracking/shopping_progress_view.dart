@@ -368,12 +368,16 @@ class _ShoppingProgressViewState extends State<ShoppingProgressView> {
                                 children: [
                                   Row(
                                     children: [
-                                      Text(
-                                        'Driver Sedang Belanja',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: const Color(0xFF17152B),
+                                      Flexible(
+                                        child: Text(
+                                          'Driver Sedang Belanja',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF17152B),
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 6),

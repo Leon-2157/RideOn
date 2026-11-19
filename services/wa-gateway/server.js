@@ -41,7 +41,7 @@ const {
     proto
 } = require('@whiskeysockets/baileys');
 
-const { createAuthState } = require('./db-auth');
+const { createAuthState, getDbPool } = require('./db-auth');
 
 let NodeCache;
 try {
@@ -182,11 +182,15 @@ async function forwardToWebhook(senderPhone, senderName, textMessage) {
 
 // Start Baileys WhatsApp Connection
 async function startWhatsApp() {
+    if (!authAdapter) {
+        authAdapter = await createAuthState();
+    }
+
     if (isSandbox) {
         connectionState = 'unpaired';
         console.log('[WHATSAPP SANDBOX] Gateway running in sandbox mode (bypassing live Baileys socket)');
         try {
-            currentQrDataUrl = await qrcode.toDataURL('https://rentify21.my.id/sandbox-qr-mock');
+            currentQrDataUrl = await qrcode.toDataURL('https://rideons.app/sandbox-qr-mock');
         } catch (e) {
             currentQrDataUrl = 'data:image/png;base64,mockqr';
         }
@@ -463,12 +467,24 @@ function checkAuth(req, res, next) {
 }
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+    let dbStatus = 'unconfigured';
+    const pool = getDbPool();
+    if (pool) {
+        try {
+            await pool.query('SELECT 1');
+            dbStatus = 'connected';
+        } catch (err) {
+            dbStatus = 'error';
+        }
+    }
     res.json({
         status: 'ok',
         service: 'RideOn WhatsApp Gateway',
         uptime: process.uptime(),
-        connection: connectionState
+        connection: connectionState,
+        database: dbStatus,
+        sandbox: isSandbox
     });
 });
 
@@ -534,7 +550,7 @@ app.get('/qr', (req, res) => {
 });
 
 // Endpoint Khusus: Kirim Kode OTP Verifikasi via WhatsApp
-app.post('/api/otp/send', async (req, res) => {
+const handleSendOtp = async (req, res) => {
     const rawPhone = req.body?.phoneNumber || req.body?.phone || req.body?.target;
     if (!rawPhone) {
         return res.status(400).json({ success: false, error: 'Nomor WhatsApp wajib diisi' });
@@ -543,9 +559,9 @@ app.post('/api/otp/send', async (req, res) => {
     const cleanPhone = cleanPhoneNumber(rawPhone);
     const jid = `${cleanPhone}@s.whatsapp.net`;
 
-    // Generate 6 digit angka acak
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 5 * 60 * 1000; // Berlaku 5 menit
+    const providedCode = req.body?.code || req.body?.otp;
+    const code = providedCode ? String(providedCode).trim() : Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000;
 
     otpStore.set(cleanPhone, {
         code,
@@ -553,7 +569,7 @@ app.post('/api/otp/send', async (req, res) => {
         attempts: 0
     });
 
-    const purpose = req.body?.purpose || req.body?.type || 'register';
+    const purpose = String(req.body?.purpose || req.body?.type || 'register').toLowerCase();
     const isReset = purpose === 'reset_password' || purpose === 'reset';
 
     const message = isReset
@@ -562,13 +578,12 @@ app.post('/api/otp/send', async (req, res) => {
 
     console.log(`[OTP GENERATED] Target: ${cleanPhone} -> OTP: [${code}]`);
 
-    // Jika mode sandbox atau belum tersambung ke WhatsApp, kirim response simulasi agar testing lokal tidak terblokir
     if (isSandbox || connectionState !== 'connected' || !sock) {
         console.warn(`[OTP INFO] WhatsApp belum terhubung (status: ${connectionState}). Kode OTP simulasi lokal: [${code}]`);
         return res.json({
             success: true,
             simulated: true,
-            message: 'Kode OTP dibuat (Server belum tersambung WhatsApp, buka http://localhost:3000/qr untuk scan)',
+            message: 'Kode OTP dibuat (Mode Sandbox / WhatsApp belum terhubung)',
             code: code,
             expiresIn: 300
         });
@@ -592,7 +607,10 @@ app.post('/api/otp/send', async (req, res) => {
             error: `Gagal mengirim WhatsApp: ${err.message}`
         });
     }
-});
+};
+
+app.post('/api/otp/send', handleSendOtp);
+app.post('/api/send-otp', handleSendOtp);
 
 // Endpoint Khusus: Verifikasi Kode OTP 6 Digit
 app.post('/api/otp/verify', (req, res) => {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../aktivitas/presentation/pages/aktivitas_screen.dart';
+import '../../../../core/services/customer_api_service.dart';
 import '../../../auth/presentation/pages/login_screen.dart';
 import '../../../chat/presentation/pages/chat_screen.dart';
 import '../../../favorit/presentation/pages/favorit_screen.dart';
@@ -9,6 +10,7 @@ import '../../../flexfood/presentation/pages/flexfood_screen.dart';
 import '../../../flexride/presentation/pages/flexride_screen.dart';
 import '../../../flexsend/presentation/pages/flexsend_screen.dart';
 import '../../../home/presentation/pages/beranda_screen.dart';
+import '../../../home/presentation/pages/global_search_screen.dart';
 import '../../../pengaturan/presentation/pages/pengaturan_akun_screen.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 
@@ -40,6 +42,7 @@ class _MainScreenState extends State<MainScreen> {
 
   bool get _isLoggedIn {
     if (widget.isLoggedIn != null) return widget.isLoggedIn!;
+    if (CustomerApiService().hasSession) return true;
     try {
       return FirebaseAuth.instance.currentUser != null;
     } catch (_) {
@@ -55,6 +58,24 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _loadUserData() {
+    final api = CustomerApiService();
+    if (api.hasSession) {
+      _userName = api.cachedUserName ?? _userName;
+      final cachedAvt = api.cachedAvatarUrl;
+      if (cachedAvt != null && cachedAvt.isNotEmpty) {
+        _photoUrl = api.resolveUrl(cachedAvt);
+      }
+      api.getMe().then<void>((u) {
+        if (!mounted) return;
+        setState(() {
+          _userName = u.name;
+          _photoUrl =
+              u.avatarUrl.isNotEmpty ? api.resolveUrl(u.avatarUrl) : _photoUrl;
+        });
+      }).catchError((_) {});
+      return;
+    }
+
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
@@ -100,6 +121,14 @@ class _MainScreenState extends State<MainScreen> {
     _loadUserData();
   }
 
+  void _openGlobalSearch() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const GlobalSearchScreen(),
+      ),
+    );
+  }
+
   void _onServiceTap(int serviceIndex) {
     if (serviceIndex == 0) {
       // FlexRide
@@ -137,6 +166,7 @@ class _MainScreenState extends State<MainScreen> {
             photoUrl: _photoUrl,
             onLoginTap: _navigateToLogin,
             onProfileTap: _navigateToPengaturan,
+            onSearchTap: _openGlobalSearch,
             onServiceTap: _onServiceTap,
             onFoodTap: (food) {
               Navigator.of(context).push(

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import '../../data/toko_state.dart';
+import '../../services/toko_api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_image.dart';
 
@@ -13,6 +15,44 @@ class TokoOrdersScreen extends StatefulWidget {
 
 class _TokoOrdersScreenState extends State<TokoOrdersScreen> {
   int _selectedTabIndex = 1; // Default to 'Diproses'
+  Timer? _pollTimer;
+  StreamSubscription<DatabaseEvent>? _rtdbSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _initRealtimeOrders();
+  }
+
+  void _initRealtimeOrders() {
+    if (!TokoApiService().hasSession) return;
+    _fetchOrders();
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _fetchOrders());
+    try {
+      _rtdbSub = FirebaseDatabase.instance.ref('live_orders').onValue.listen(
+        (_) => _fetchOrders(),
+        onError: (_) {},
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _fetchOrders() async {
+    final api = TokoApiService();
+    final storeId = TokoState.storeId;
+    if (!api.hasSession || storeId == null || storeId.isEmpty) return;
+    try {
+      final list = await api.getStoreOrders(storeId);
+      if (!mounted) return;
+      TokoState.orders.value = list.map((o) => o.toScreenMap()).toList();
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _rtdbSub?.cancel();
+    super.dispose();
+  }
 
   void _openOrderDetail(Map<String, dynamic> order) {
     Navigator.of(context).push(
@@ -889,8 +929,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Expanded(
             flex: 1,
             child: OutlinedButton(
-              onPressed: () {
+              onPressed: () async {
+                final api = TokoApiService();
+                final apiId = widget.order['apiId'] as String?;
+                if (api.hasSession && apiId != null && apiId.isNotEmpty) {
+                  try {
+                    await api.rejectOrder(apiId);
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Gagal menolak pesanan: $e'), backgroundColor: AppColors.danger),
+                    );
+                    return;
+                  }
+                }
                 TokoState.rejectOrder(orderId);
+                if (!mounted) return;
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Pesanan $orderId telah ditolak')),
@@ -909,8 +963,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Expanded(
             flex: 2,
             child: ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                final api = TokoApiService();
+                final apiId = widget.order['apiId'] as String?;
+                if (api.hasSession && apiId != null && apiId.isNotEmpty) {
+                  try {
+                    await api.confirmOrder(apiId);
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Gagal menerima pesanan: $e'), backgroundColor: AppColors.danger),
+                    );
+                    return;
+                  }
+                }
                 TokoState.acceptOrder(orderId, _selectedMinutes);
+                if (!mounted) return;
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Pesanan $orderId diterima! Estimasi: $_selectedMinutes menit')),

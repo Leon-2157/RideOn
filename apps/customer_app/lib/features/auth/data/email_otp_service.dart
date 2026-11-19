@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../core/services/customer_api_service.dart';
+
 class EmailOtpSendResult {
   final bool success;
   final String? message;
@@ -33,13 +35,12 @@ class EmailOtpService {
   final HttpClient Function()? clientFactory;
 
   static const List<String> defaultCandidateUrls = [
+    String.fromEnvironment('API_BASE_URL'),
     String.fromEnvironment('WA_GATEWAY_URL'),
-    'http://10.45.209.43:3000',      // Active Wi-Fi LAN IP
-    'http://localhost:3000',         // ADB Reverse port forwarding
-    'http://127.0.0.1:3000',
-    'http://192.168.100.14:3000',    // Secondary Wi-Fi LAN IP
-    'http://192.168.100.225:3000',
-    'http://10.0.2.2:3000',          // Android Emulator
+    'http://10.0.2.2:8088',
+    'http://127.0.0.1:8088',
+    'http://localhost:8088',
+    'https://api.rideons.app',
   ];
 
   String? _resolvedBaseUrl;
@@ -64,8 +65,25 @@ class EmailOtpService {
     return client;
   }
 
-  /// Kirim kode verifikasi OTP ke alamat email
-  Future<EmailOtpSendResult> sendOtp(String email, {String purpose = 'verifikasi_email'}) async {
+  /// Kirim kode verifikasi OTP ke alamat email via rideon-api (Resend/Gmail)
+  Future<EmailOtpSendResult> sendOtp(String email, {String purpose = 'REGISTER'}) async {
+    if (customBaseUrl == null && clientFactory == null) {
+      try {
+        final res = await CustomerApiService().sendOtp(
+          target: email.trim().toLowerCase(),
+          channel: 'EMAIL',
+          purpose: purpose.toUpperCase(),
+        );
+        return EmailOtpSendResult(
+          success: res['success'] != false,
+          message: (res['message'] ?? 'Kode verifikasi telah dikirimkan ke email Anda.').toString(),
+          devOtp: (res['simulated_code'] ?? res['devOtp'])?.toString(),
+        );
+      } catch (e) {
+        return EmailOtpSendResult(success: false, error: e.toString());
+      }
+    }
+
     String? lastError;
 
     for (final candidate in _candidates) {
@@ -111,8 +129,25 @@ class EmailOtpService {
     );
   }
 
-  /// Verifikasi kode OTP 6 digit email
+  /// Verifikasi kode OTP 6 digit email via rideon-api
   Future<EmailOtpVerifyResult> verifyOtp(String email, String code) async {
+    if (customBaseUrl == null && clientFactory == null) {
+      try {
+        final ok = await CustomerApiService().verifyOtp(
+          target: email.trim().toLowerCase(),
+          channel: 'EMAIL',
+          code: code.trim(),
+        );
+        return EmailOtpVerifyResult(
+          success: ok,
+          message: ok ? 'Alamat email berhasil diverifikasi.' : null,
+          error: ok ? null : 'Kode verifikasi yang Anda masukkan salah.',
+        );
+      } catch (e) {
+        return EmailOtpVerifyResult(success: false, error: e.toString());
+      }
+    }
+
     String? lastError;
 
     for (final candidate in _candidates) {

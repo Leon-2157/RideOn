@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
+import '../../models/order_model.dart';
 import '../../services/driver_service.dart';
+import '../../services/driver_api_service.dart';
 import '../../services/location_service.dart';
 import '../account_settings/account_settings_screen.dart';
 import '../activity/activity_list_screen.dart';
@@ -67,6 +71,8 @@ class RadarMockOrder {
 class RadarScreen extends StatefulWidget {
   final String driverName;
   final String plateNumber;
+  final String? driverId;
+  final String userStatus;
   final bool initialIsOnline;
   final RadarOrderState initialOrderState;
   final bool enableRadarAnimation;
@@ -82,6 +88,8 @@ class RadarScreen extends StatefulWidget {
     super.key,
     this.driverName = 'Joni utama',
     this.plateNumber = 'BK 4892 ABC',
+    this.driverId,
+    this.userStatus = 'ACTIVE',
     this.initialIsOnline = true,
     this.initialOrderState = RadarOrderState.searching,
     this.enableRadarAnimation = true,
@@ -102,17 +110,24 @@ class _RadarScreenState extends State<RadarScreen>
     with SingleTickerProviderStateMixin {
   late bool _isOnline;
   late RadarOrderState _orderState;
-  int _currentTabIndex = 0; // Default: Tab 0 (Radar)
+  int _currentTabIndex = 0;
 
   late final DriverService _driverService;
   late final LocationService _locationService;
   Position? _currentPosition;
 
-  // Radar Animation Controller
+  // Polling fallback when Firebase is unavailable (every 10 s)
+  Timer? _pollTimer;
+  StreamSubscription<DatabaseEvent>? _rtdbOfferSub;
+  bool _isPendingApproval = false;
+  OrderModel? _liveIncomingOrder;
+  OrderModel? _activeLiveOrder;
+  final Set<String> _rejectedOrderIds = {};
+  Map<String, dynamic>? _lastCompletionResult;
+
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
-  // Countdown timer untuk orderan masuk
   int _countdownSeconds = 16;
   Timer? _countdownTimer;
 
@@ -173,7 +188,64 @@ class _RadarScreenState extends State<RadarScreen>
     ),
   ];
 
-  RadarMockOrder get _currentOrder => _mockOrders[_currentOrderIndex];
+  RadarMockOrder get _currentOrder {
+    final live = _activeLiveOrder ?? _liveIncomingOrder;
+    if (live != null) {
+      final isFood = live.isFlexFood;
+      final isSend = live.isFlexSend;
+      final serviceType = isFood
+          ? 'FLEXFOOD'
+          : isSend
+              ? 'FLEXSEND'
+              : 'FLEXRIDE';
+      final badge = isFood
+          ? 'PESAN MAKANAN'
+          : isSend
+              ? 'TITIP BELANJA'
+              : 'ANTAR PENUMPANG';
+      final bg = isFood
+          ? const Color(0xFFFFE0B2)
+          : isSend
+              ? const Color(0xFFE0F2F1)
+              : const Color(0xFFC6BCFF);
+      final fg = isFood
+          ? const Color(0xFFE65100)
+          : isSend
+              ? const Color(0xFF00897B)
+              : const Color(0xFF4C2DF2);
+      final fee = live.deliveryFee > 0 ? live.deliveryFee : live.totalPrice;
+      return RadarMockOrder(
+        serviceBadge: badge,
+        badgeBgColor: bg,
+        badgeTextColor: fg,
+        customerName: live.customerName.isNotEmpty
+            ? live.customerName
+            : (live.storeName.isNotEmpty ? live.storeName : 'Pelanggan RideOn'),
+        fareText: 'Ongkir: Rp ${_formatNominal(fee)}',
+        pickupAddress: live.pickupAddress,
+        destinationAddress: live.deliveryAddress,
+        tripDetails:
+            'Jarak: ${live.distanceKm.toStringAsFixed(1)} km • Pembayaran: ${live.paymentMethod}',
+        serviceType: serviceType,
+        safetyReminder: isFood
+            ? 'Pastikan pesanan makanan tersegel rapi dan sesuai struk resto.'
+            : isSend
+                ? 'Periksa kembali nota belanja dan barang titipan sebelum diantar.'
+                : 'Pastikan penumpang sudah memakai helm standar sebelum melaju.',
+        customerIcon: isFood
+            ? Icons.fastfood_rounded
+            : isSend
+                ? Icons.shopping_bag_rounded
+                : Icons.person,
+        transactionId: live.orderCode.isNotEmpty
+            ? live.orderCode
+            : '#${live.id.substring(0, live.id.length.clamp(0, 8)).toUpperCase()}',
+        transactionFare:
+            'Rp ${_formatNominal(live.totalPrice > 0 ? live.totalPrice : fee)}',
+      );
+    }
+    return _mockOrders[_currentOrderIndex];
+  }
   String get _passengerName => _currentOrder.customerName;
   String get _fareText => _currentOrder.fareText;
   String get _pickupAddress => _currentOrder.pickupAddress;
@@ -187,8 +259,10 @@ class _RadarScreenState extends State<RadarScreen>
   void initState() {
     super.initState();
     _currentOrderIndex = widget.initialOrderIndex % _mockOrders.length;
-    _isOnline = widget.initialIsOnline;
-    _orderState = widget.initialIsOnline
+    _isPendingApproval = widget.userStatus == 'PENDING_APPROVAL' ||
+        DriverApiService().cachedUserStatus == 'PENDING_APPROVAL';
+    _isOnline = _isPendingApproval ? false : widget.initialIsOnline;
+    _orderState = _isOnline
         ? widget.initialOrderState
         : RadarOrderState.dashboard;
 
@@ -200,7 +274,9 @@ class _RadarScreenState extends State<RadarScreen>
       duration: const Duration(milliseconds: 2000),
     );
 
-    if (widget.enableRadarAnimation && _isOnline && _orderState != RadarOrderState.dashboard) {
+    if (widget.enableRadarAnimation &&
+        _isOnline &&
+        _orderState != RadarOrderState.dashboard) {
       _pulseController.repeat();
     }
 
@@ -223,6 +299,8 @@ class _RadarScreenState extends State<RadarScreen>
 
     if (_isOnline && _orderState == RadarOrderState.searching) {
       _scheduleNextAutoOrder();
+      _startPolling();
+      _subscribeRtdbOffers();
     }
   }
 
@@ -231,10 +309,94 @@ class _RadarScreenState extends State<RadarScreen>
     _pulseController.dispose();
     _countdownTimer?.cancel();
     _autoOrderTimer?.cancel();
+    _pollTimer?.cancel();
+    _rtdbOfferSub?.cancel();
     _locationService.stopLocationUpdates();
     super.dispose();
   }
 
+  Future<void> _subscribeRtdbOffers() async {
+    if (_rtdbOfferSub != null || Firebase.apps.isEmpty) return;
+    final driverId =
+        widget.driverId ?? await DriverApiService().getSavedDriverId();
+    if (driverId == null || driverId.isEmpty || !mounted) return;
+    try {
+      _rtdbOfferSub = FirebaseDatabase.instance
+          .ref('order_offers/$driverId')
+          .onValue
+          .listen((event) {
+        if (event.snapshot.value != null &&
+            _isOnline &&
+            _orderState == RadarOrderState.searching) {
+          unawaited(_pollAvailableOrdersOnce());
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _pollAvailableOrdersOnce() async {
+    if (!DriverApiService().hasSession ||
+        !_isOnline ||
+        _orderState != RadarOrderState.searching) {
+      return;
+    }
+    try {
+      final vehicleType = await DriverApiService().getSavedVehicleType();
+      final orders = await DriverApiService().getAvailableOrders(
+        vehicleType: vehicleType,
+      );
+      if (!mounted ||
+          !_isOnline ||
+          _orderState != RadarOrderState.searching) {
+        return;
+      }
+      final candidate = orders
+          .where((o) => !_rejectedOrderIds.contains(o.id))
+          .cast<OrderModel?>()
+          .firstWhere((o) => o != null, orElse: () => null);
+      if (candidate != null) {
+        setState(() {
+          _liveIncomingOrder = candidate;
+          _orderState = RadarOrderState.incoming;
+        });
+        _startCountdown();
+      }
+    } catch (_) {}
+  }
+
+  // Poll backend every 10s when Firebase unavailable.
+  void _startPolling() {
+    _pollTimer?.cancel();
+    unawaited(_pollAvailableOrdersOnce());
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      unawaited(_pollAvailableOrdersOnce());
+    });
+  }
+
+  Future<void> _apiToggleOnline(bool online) async {
+    if (!DriverApiService().hasSession) return;
+    final driverId =
+        widget.driverId ?? await DriverApiService().getSavedDriverId();
+    if (driverId == null || driverId.isEmpty) return;
+    try {
+      await DriverApiService().updateDriverStatus(driverId, isOnline: online);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.isForbidden) {
+        setState(() {
+          _isOnline = false;
+          _isPendingApproval = true;
+          _orderState = RadarOrderState.dashboard;
+          _pulseController.stop();
+          _pollTimer?.cancel();
+          _stopLocationTracking();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+    } catch (_) {}
+  }
   void _scheduleNextAutoOrder() {
     _autoOrderTimer?.cancel();
     final shouldAuto = widget.enableAutoOrderSimulation ?? false;
@@ -295,6 +457,17 @@ class _RadarScreenState extends State<RadarScreen>
   }
 
   void _toggleOnlineStatus(bool value) {
+    if (_isPendingApproval && value) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Akun Anda sedang diverifikasi Admin. Status Online belum dapat diaktifkan.',
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isOnline = value;
       if (!_isOnline) {
@@ -302,6 +475,7 @@ class _RadarScreenState extends State<RadarScreen>
         _pulseController.stop();
         _countdownTimer?.cancel();
         _autoOrderTimer?.cancel();
+        _pollTimer?.cancel();
         _stopLocationTracking();
         _driverService.setDriverPresence(false);
         _driverService.updateDriverLocation(
@@ -311,8 +485,10 @@ class _RadarScreenState extends State<RadarScreen>
           isOnline: false,
           serviceType: _currentOrder.serviceType,
         );
+        _apiToggleOnline(false);
       } else {
         _driverService.setDriverPresence(true);
+        _apiToggleOnline(true);
         if (widget.enableRadarAnimation &&
             _orderState != RadarOrderState.dashboard) {
           _pulseController.repeat();
@@ -324,19 +500,66 @@ class _RadarScreenState extends State<RadarScreen>
         }
         if (_orderState == RadarOrderState.searching) {
           _scheduleNextAutoOrder();
+          _startPolling();
+          _subscribeRtdbOffers();
         }
       }
     });
   }
 
-  void _acceptOrder() {
+  Future<void> _acceptOrder() async {
     _countdownTimer?.cancel();
     _autoOrderTimer?.cancel();
 
+    final live = _liveIncomingOrder;
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
+
+    if (live != null && DriverApiService().hasSession) {
+      try {
+        await DriverApiService().acceptOrder(live.id);
+        if (!mounted) return;
+        _activeLiveOrder = live;
+        _liveIncomingOrder = null;
+      } on ApiException catch (e) {
+        if (!mounted) return;
+        _rejectedOrderIds.add(live.id);
+        setState(() {
+          _liveIncomingOrder = null;
+          _orderState = RadarOrderState.searching;
+        });
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              e.isConflict ? 'Order sudah diambil driver lain.' : e.message,
+            ),
+          ),
+        );
+        return;
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _liveIncomingOrder = null;
+          _orderState = RadarOrderState.searching;
+        });
+        messenger.showSnackBar(
+          SnackBar(content: Text('Gagal menerima order: $e')),
+        );
+        return;
+      }
+    }
+
+    if (!mounted) return;
+
     if (_currentOrder.serviceType == 'FLEXFOOD') {
-      Navigator.of(context).push(
+      final active = _activeLiveOrder;
+      nav.push(
         MaterialPageRoute(
           builder: (context) => RadarFlexFoodScreen(
+            driverName: widget.driverName,
+            plateNumber: widget.plateNumber,
+            orderId: active?.id,
+            liveOrder: active,
             initialOrderState: FlexFoodOrderState.pickupPin,
             onOpenMaps: widget.onOpenMaps,
           ),
@@ -344,6 +567,7 @@ class _RadarScreenState extends State<RadarScreen>
       ).then((_) {
         if (mounted) {
           setState(() {
+            _activeLiveOrder = null;
             _orderState = RadarOrderState.searching;
             _currentOrderIndex = (_currentOrderIndex + 1) % _mockOrders.length;
           });
@@ -354,9 +578,14 @@ class _RadarScreenState extends State<RadarScreen>
     }
 
     if (_currentOrder.serviceType == 'FLEXSEND') {
-      Navigator.of(context).push(
+      final active = _activeLiveOrder;
+      nav.push(
         MaterialPageRoute(
           builder: (context) => RadarFlexSendScreen(
+            driverName: widget.driverName,
+            plateNumber: widget.plateNumber,
+            orderId: active?.id,
+            liveOrder: active,
             initialOrderState: FlexSendOrderState.shoppingChecklist,
             onOpenMaps: widget.onOpenMaps,
           ),
@@ -364,6 +593,7 @@ class _RadarScreenState extends State<RadarScreen>
       ).then((_) {
         if (mounted) {
           setState(() {
+            _activeLiveOrder = null;
             _orderState = RadarOrderState.searching;
             _currentOrderIndex = (_currentOrderIndex + 1) % _mockOrders.length;
           });
@@ -381,7 +611,13 @@ class _RadarScreenState extends State<RadarScreen>
   void _rejectOrder() {
     _countdownTimer?.cancel();
     _autoOrderTimer?.cancel();
+    final live = _liveIncomingOrder;
+    if (live != null && DriverApiService().hasSession) {
+      _rejectedOrderIds.add(live.id);
+      unawaited(DriverApiService().rejectOrder(live.id).catchError((_) {}));
+    }
     setState(() {
+      _liveIncomingOrder = null;
       _orderState = RadarOrderState.searching;
       _currentOrderIndex = (_currentOrderIndex + 1) % _mockOrders.length;
     });
@@ -398,7 +634,23 @@ class _RadarScreenState extends State<RadarScreen>
     _startCountdown();
   }
 
-  void _showCompletionDialog() {
+  Future<void> _showCompletionDialog() async {
+    final active = _activeLiveOrder;
+    if (active != null && DriverApiService().hasSession) {
+      try {
+        await DriverApiService().updateOrderStatus(active.id, 'DELIVERED');
+      } catch (_) {}
+      try {
+        _lastCompletionResult = await DriverApiService().completeOrder(active.id);
+      } catch (_) {}
+      if (!mounted) return;
+    }
+
+    final completionNet =
+        (_lastCompletionResult?['driver_net_earning'] as num?)?.toInt();
+    final completionComm =
+        (_lastCompletionResult?['platform_commission_driver'] as num?)?.toInt();
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -474,6 +726,21 @@ class _RadarScreenState extends State<RadarScreen>
                       _buildDialogRow('Tanggal & Jam', '5 Okt 2026 13:02 WIB'),
                       const SizedBox(height: 8),
                       _buildDialogRow('Biaya', _currentOrder.transactionFare, isBold: true),
+                      if (completionNet != null) ...[
+                        const SizedBox(height: 8),
+                        _buildDialogRow(
+                          'Pendapatan Bersih (95%)',
+                          'Rp ${_formatNominal(completionNet)}',
+                          isBold: true,
+                        ),
+                      ],
+                      if (completionComm != null) ...[
+                        const SizedBox(height: 4),
+                        _buildDialogRow(
+                          'Komisi Platform (5%)',
+                          '-Rp ${_formatNominal(completionComm)}',
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -487,6 +754,8 @@ class _RadarScreenState extends State<RadarScreen>
                     onPressed: () {
                       Navigator.of(context).pop();
                       setState(() {
+                        _activeLiveOrder = null;
+                        _lastCompletionResult = null;
                         _orderState = RadarOrderState.searching;
                         _currentOrderIndex =
                             (_currentOrderIndex + 1) % _mockOrders.length;
@@ -655,6 +924,36 @@ class _RadarScreenState extends State<RadarScreen>
                     children: [
                       _buildTopHeaderRow(),
                       const SizedBox(height: 12),
+                      if (_isPendingApproval) ...[
+                        Container(
+                          key: const Key('banner_pending_approval'),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF8E1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFFFB300)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.hourglass_top_rounded,
+                                  color: Color(0xFFE65100), size: 20),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Akun Anda sedang diverifikasi Admin. Status Online belum dapat diaktifkan.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF795548),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       _buildOnlineStatusCard(),
                       const SizedBox(height: 16),
                       _buildProteksiTalanganCard(),
@@ -684,6 +983,36 @@ class _RadarScreenState extends State<RadarScreen>
                     children: [
                       _buildTopHeaderRow(),
                       const SizedBox(height: 12),
+                      if (_isPendingApproval) ...[
+                        Container(
+                          key: const Key('banner_pending_approval'),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF8E1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFFFB300)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.hourglass_top_rounded,
+                                  color: Color(0xFFE65100), size: 20),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Akun Anda sedang diverifikasi Admin. Status Online belum dapat diaktifkan.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF795548),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       _buildOnlineStatusCard(),
                     ],
                   ),
@@ -1079,8 +1408,9 @@ class _RadarScreenState extends State<RadarScreen>
 
           // Switch Tombol On / Off
           Switch(
+            key: const Key('switch_driver_online'),
             value: _isOnline,
-            onChanged: _toggleOnlineStatus,
+            onChanged: _isPendingApproval ? null : _toggleOnlineStatus,
             activeThumbColor: Colors.white,
             activeTrackColor: AppColors.onlineGreen,
             inactiveThumbColor: Colors.white,
@@ -1634,6 +1964,20 @@ class _RadarScreenState extends State<RadarScreen>
                             setState(() {
                               _cashLimit = finalAmount;
                             });
+                            if (val > 0 && DriverApiService().hasSession) {
+                              final dId = widget.driverId ??
+                                  DriverApiService().cachedDriverId;
+                              if (dId != null && dId.isNotEmpty) {
+                                unawaited(
+                                  DriverApiService()
+                                      .updateDriverStatus(
+                                        dId,
+                                        cashFloatAmount: val,
+                                      )
+                                      .then((_) {}, onError: (_) {}),
+                                );
+                              }
+                            }
                             Navigator.pop(context);
                           },
                           style: ElevatedButton.styleFrom(

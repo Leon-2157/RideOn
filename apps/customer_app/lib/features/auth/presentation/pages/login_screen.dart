@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/customer_api_service.dart';
 import '../../../main/presentation/pages/main_screen.dart';
 import '../../data/auth_service.dart';
 import 'forgot_password_screen.dart';
@@ -62,7 +63,15 @@ class _LoginScreenState extends State<LoginScreen> {
       final credential = await _authService.signInWithGoogle();
       if (!mounted) return;
 
-      if (credential != null && credential.user != null) {
+      final gUser = credential?.user;
+      if (gUser != null && (gUser.email ?? '').isNotEmpty) {
+        await CustomerApiService().loginWithGoogle(
+          email: gUser.email!,
+          googleUid: gUser.uid,
+          name: gUser.displayName,
+          avatarUrl: gUser.photoURL,
+        );
+        if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => const MainScreen(),
@@ -73,7 +82,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Login Google gagal: $e'),
+          content: Text(
+            'Login Google gagal ($e). Pastikan SHA-1 Android & GOOGLE_WEB_CLIENT_ID sudah disetel.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -103,12 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Menggunakan Smart Detector: bisa Email ATAU No. WhatsApp
-      await _authService.signInWithIdentifier(
-        identifier: identifier,
-        password: password,
-      );
-
+      await CustomerApiService().login(identifier, password);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(

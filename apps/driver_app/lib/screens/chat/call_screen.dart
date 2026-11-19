@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
+import '../../services/webrtc_call_service.dart';
 import 'chat_detail_screen.dart';
 
 /// [CallScreen]
@@ -15,6 +16,7 @@ class CallScreen extends StatefulWidget {
   final bool isOnline;
   final int initialDurationSeconds;
   final VoidCallback? onEndCall;
+  final String? orderId;
 
   const CallScreen({
     super.key,
@@ -24,6 +26,7 @@ class CallScreen extends StatefulWidget {
     this.isOnline = true,
     this.initialDurationSeconds = 83, // 01:23 sesuai Figma telpon berlangsung.png
     this.onEndCall,
+    this.orderId,
   });
 
   @override
@@ -33,6 +36,7 @@ class CallScreen extends StatefulWidget {
 class _CallScreenState extends State<CallScreen> {
   late int _durationSeconds;
   Timer? _callTimer;
+  WebRtcCallService? _webrtcService;
   bool _isSpeakerOn = false;
   bool _isMuted = false;
   bool _isEnded = false;
@@ -48,16 +52,27 @@ class _CallScreenState extends State<CallScreen> {
         });
       }
     });
+    if (widget.orderId != null && widget.orderId!.isNotEmpty) {
+      _webrtcService = WebRtcCallService();
+      unawaited(
+        _webrtcService!.startCall(
+          orderId: widget.orderId!,
+          callerRole: 'DRIVER',
+        ),
+      );
+    }
   }
 
   @override
   void dispose() {
     _callTimer?.cancel();
+    unawaited(_webrtcService?.endCall());
     super.dispose();
   }
 
   void _endCall() {
     _callTimer?.cancel();
+    unawaited(_webrtcService?.endCall());
     setState(() {
       _isEnded = true;
     });
@@ -271,6 +286,7 @@ class _CallScreenState extends State<CallScreen> {
                           setState(() {
                             _isSpeakerOn = !_isSpeakerOn;
                           });
+                          unawaited(_webrtcService?.toggleSpeaker(_isSpeakerOn));
                         },
                         borderRadius: BorderRadius.circular(28),
                         child: Container(
@@ -299,6 +315,7 @@ class _CallScreenState extends State<CallScreen> {
                           setState(() {
                             _isMuted = !_isMuted;
                           });
+                          unawaited(_webrtcService?.toggleMute(_isMuted));
                         },
                         borderRadius: BorderRadius.circular(28),
                         child: Container(
